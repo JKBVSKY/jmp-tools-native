@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "react-native-introduction",
-    "slug": "react-native-introduction",
+    "scheme": "jmp-tools-native",
+    "name": "jmp-tools-native",
+    "slug": "jmp-tools-native",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
-    "newArchEnabled": true,
+    "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -20,10 +20,22 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.jmp.tools.app"
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "c0482ac8-dd67-4d2c-acb3-43e44322379e"
+      }
+    },
+    "owner": "jacob711"
   }
 }
