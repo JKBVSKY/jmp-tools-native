@@ -1,97 +1,102 @@
 export const Colors = {
-  // Updated primary colors - warmer, more muted reds
-  primary: '#a85a5a',      // Warm dusty rose (instead of bright red)
-  accent: '#c97777',       // Slightly brighter for hover states
+  // Primary accent - Modern red
+  primary: '#D32F2F', // Vibrant red for buttons
+  accent: '#F44336', // Slightly brighter red for hover states
 
   dark: {
-    // Text colors
-    text: '#d5d5d5ff',
-    textSecondary: '#999999ff',
-    title: '#f5f5f5ff',
+    statusBar: 'light', // Status bar content should be light
 
-    // Backgrounds
-    background: '#1a0c0cff',
-    cardBackground: '#331a1aff',
-    navBackground: '#2b1414ff',
+    // Text colors - soft white/light gray
+    text: '#E8EAED',
+    textSecondary: '#9AA0A6',
+    title: '#FFFFFF',
+
+    // Backgrounds - dark gray with navy accent
+    background: '#202124',      // Main background (dark gray)
+    cardBackground: '#292A2D',  // Cards/elevated surfaces (slightly lighter gray)
+    navBackground: '#1A1B1E',   // Navbar/header (darkest gray)
+    tListBackground: '#202124', // Transparent list background (slightly lighter gray)
 
     // Navigation
-    navText: '#f5f5f5ff',
-    draBackground: '#2b1414ff',
-    draActiveBackground: '#3d1c1cff',
-    draText: '#f5f5f5',
-    draActiveText: '#f5f5f5',
+    navText: '#FFFFFF',
+    draBackground: '#292A2D',
+    draActiveBackground: '#D32F2F', // Changed from navy blue to red!
+    draText: '#E8EAED',
+    draActiveText: '#FFFFFF',
 
-    // Buttons - updated to warm muted tones
-    butBackground: '#a85a5a',    // Warm dusty rose
-    butText: '#f5f5f5ff',
-    butBorder: '#8b4848ff',      // Darker dusty rose
-    outButBackground: '#331a1aff',
-    outButBorder: '#793d3dff',
-    outButText: '#f5f5f5ff',
+    // Buttons - Modern red accent
+    butBackground: '#D32F2F',    // Red button
+    butText: '#FFFFFF',
+    butBorder: '#B71C1C',        // Darker red for border
+    outButBackground: 'transparent',
+    outButBorder: '#5F6368',     // Gray border
+    outButText: '#E8EAED',
 
-    // UI Elements - updated accent color
-    border: '#793d3dff',
-    breakLine: '#793d3dff',
-    iconColor: '#a85a5a',        // Warm dusty rose (NEW!)
-    inputBackground: '#2d1f1fff',
-    inputBorder: '#a85a5a',      // Changed to match theme
-    inputBorderActive: '#c97777',// Slightly brighter when focused
-    phText: '#999999ff',
-    selection: '#c97777ff',
+    // UI Elements
+    border: '#3F4144',           // Gray border
+    breakLine: '#3F4144',        // Gray break line
+    iconColor: '#9AA0A6',        // Light gray icons
+    inputBackground: '#292A2D',
+    inputBorder: '#5F6368',
+    inputBorderActive: '#D32F2F', // Red border when active
+    phText: '#5F6368',           // Placeholder text
+    selection: '#D32F2F',        // Red for selection
 
     // Other
-    tabDotActive: '#a85a5a',
-    tabDotInactive: '#666666ff',
-    truckButtons: '#3f2020ff',
-    editBut: '#d5d5d5',
-    uiBackground: '#3f2020ff',
-    guestBackground: '#e2d8b6ff',
-    guestText: '#6e5403ff',
+    tabDotActive: '#D32F2F',
+    tabDotInactive: '#3F4144',
+    truckButtons: '#292A2D',
+    editBut: '#E8EAED',
+    uiBackground: '#292A2D',
+    guestBackground: '#FBC02D',  // Yellow for guest
+    guestText: '#202124',
   },
 
   light: {
-    // Text colors
-    text: '#000000ff',
-    textSecondary: '#666666ff',
-    title: '#000000ff',
+    statusBar: 'dark', // Status bar content should be dark
 
-    // Backgrounds
-    background: '#f5f5f5ff',
-    cardBackground: '#ffffff',
-    navBackground: '#a85a5a',   // Updated to warm rose
+    // Text colors
+    text: '#202124',
+    textSecondary: '#5F6368',
+    title: '#000000',
+
+    // Backgrounds - clean white with light gray accents
+    background: '#EEEFF2',
+    cardBackground: '#FFFFFF',
+    navBackground: '#FFFFFF',
 
     // Navigation
-    navText: '#ffffffff',
-    draBackground: '#ffffff',
-    draActiveBackground: '#a85a5a',
-    draText: '#000000ff',
-    draActiveText: '#ffffff',
+    navText: '#202124',
+    draBackground: '#F8F9FA',
+    draActiveBackground: '#D32F2F',
+    draText: '#202124',
+    draActiveText: '#FFFFFF',
 
-    // Buttons
-    butBackground: '#a85a5a',   // Warm dusty rose
-    butText: '#ffffffff',
-    butBorder: '#8b4848ff',
-    outButBackground: '#ffffff',
-    outButBorder: '#ddddddff',
-    outButText: '#000000ff',
+    // Buttons - Modern red
+    butBackground: '#D32F2F',    // Red button
+    butText: '#FFFFFF',
+    butBorder: '#B71C1C',        // Darker red
+    outButBackground: '#FFFFFF',
+    outButBorder: '#DADCE0',     // Light gray border
+    outButText: '#202124',
 
     // UI Elements
-    border: '#e0e0e0ff',
-    breakLine: '#e0e0e0ff',
-    iconColor: '#a85a5a',       // Warm dusty rose
-    inputBackground: '#ffffffff',
-    inputBorder: '#ddddddff',
-    inputBorderActive: '#a85a5a',
-    phText: '#999999ff',
-    selection: '#c97777ff',
+    border: '#DADCE0',           // Light gray border
+    breakLine: '#DADCE0',        // Light gray line
+    iconColor: '#D32F2F',        // Red icons
+    inputBackground: '#FFFFFF',
+    inputBorder: '#DADCE0',
+    inputBorderActive: '#D32F2F', // Red border when active
+    phText: '#9AA0A6',           // Placeholder text
+    selection: '#D32F2F',        // Red for selection
 
     // Other
-    tabDotActive: '#a85a5a',
-    tabDotInactive: '#ccccccff',
-    truckButtons: '#f9f9f9',
-    editBut: '#666',
-    uiBackground: '#f0f0f0',
-    guestBackground: '#FFF3CD',
-    guestText: '#856404',
+    tabDotActive: '#D32F2F',
+    tabDotInactive: '#DADCE0',
+    truckButtons: '#F8F9FA',
+    editBut: '#202124',
+    uiBackground: '#F8F9FA',
+    guestBackground: '#FBC02D',  // Yellow for guest
+    guestText: '#202124',
   },
 };

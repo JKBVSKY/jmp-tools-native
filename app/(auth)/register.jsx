@@ -3,6 +3,7 @@ import { View, Text, TextInput, StyleSheet, Pressable, Alert, TouchableWithoutFe
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../_context/AuthContext';
 import { useColors } from '../../_hooks/useColors';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -10,6 +11,8 @@ export default function Register() {
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false); // Toggle confirm password visibility
   const router = useRouter();
   const { signUp } = useAuth();
   const colors = useColors();
@@ -42,13 +45,19 @@ export default function Register() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Create an account</Text>
-        <Text style={[styles.desc, { color: colors.text }]}>Enter your personal data to create your account.</Text>
+        <Text style={[styles.title, { color: colors.title }]}>Create an account</Text>
+        <Text style={[styles.desc, { color: colors.textSecondary }]}>
+          Enter your personal data to create your account.
+        </Text>
 
         <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.outButBorder }]}
+          style={[styles.input, {
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }]}
           placeholder="Full Name"
           placeholderTextColor={colors.phText}
           value={name}
@@ -56,7 +65,11 @@ export default function Register() {
         />
 
         <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.outButBorder }]}
+          style={[styles.input, {
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }]}
           placeholder="Email"
           placeholderTextColor={colors.phText}
           value={email}
@@ -65,26 +78,66 @@ export default function Register() {
           keyboardType="email-address"
         />
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.outButBorder }]}
-          placeholder="Password"
-          placeholderTextColor={colors.phText}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        {/* Password input with eye button */}
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, {
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+              color: colors.text,
+            }]}
+            placeholder="Password"
+            placeholderTextColor={colors.phText}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+          />
+          <Pressable
+            style={styles.eyeButton}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={24}
+              color={colors.iconColor}
+            />
+          </Pressable>
+        </View>
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.outButBorder }]}
-          placeholder="Confirm Password"
-          placeholderTextColor={colors.phText}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-        />
+        {/* Confirm Password input with eye button */}
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, {
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+              color: colors.text,
+            }]}
+            placeholder="Confirm Password"
+            placeholderTextColor={colors.phText}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry={!showConfirmPassword}
+            autoCapitalize="none"
+          />
+          <Pressable
+            style={styles.eyeButton}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            <Ionicons
+              name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={24}
+              color={colors.iconColor}
+            />
+          </Pressable>
+        </View>
 
         <Pressable
-          style={[styles.button, loading && styles.buttonDisabled, { backgroundColor: colors.butBackground }]}
+          style={[
+            styles.button,
+            { backgroundColor: colors.butBackground },
+            loading && styles.buttonDisabled
+          ]}
           onPress={handleRegister}
           disabled={loading}
         >
@@ -100,7 +153,9 @@ export default function Register() {
         </Pressable>
 
         <Pressable onPress={() => router.back()}>
-          <Text style={[styles.backText, { color: colors.text }]}>← Back</Text>
+          <Text style={[styles.backText, { color: colors.textSecondary }]}>
+            ← Back
+          </Text>
         </Pressable>
       </View>
     </TouchableWithoutFeedback>
@@ -112,7 +167,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
-    backgroundColor: '#f5f5f5',
   },
   title: {
     fontSize: 28,
@@ -126,16 +180,30 @@ const styles = StyleSheet.create({
     marginBottom: 30,
   },
   input: {
-    backgroundColor: '#fff',
     padding: 15,
     borderRadius: 8,
     marginBottom: 15,
     fontSize: 16,
     borderWidth: 1,
-    borderColor: '#ddd',
+  },
+  passwordContainer: {
+    position: 'relative',
+    marginBottom: 15,
+  },
+  passwordInput: {
+    padding: 15,
+    paddingRight: 50, // Make room for eye button
+    borderRadius: 8,
+    fontSize: 16,
+    borderWidth: 1,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 15,
+    top: 15,
+    padding: 5,
   },
   button: {
-    backgroundColor: '#c50000',
     padding: 16,
     borderRadius: 8,
     alignItems: 'center',
@@ -145,18 +213,15 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   buttonText: {
-    color: '#fff',
     fontSize: 18,
     fontWeight: '600',
   },
   linkText: {
-    color: '#c50000',
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,
   },
   backText: {
-    color: '#666',
     textAlign: 'center',
     marginTop: 20,
     fontSize: 16,

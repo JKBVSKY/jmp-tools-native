@@ -1,8 +1,8 @@
 {
   "expo": {
     "scheme": "jmp-tools-native",
-    "name": "jmp-tools-native",
-    "slug": "jmp-tools-native",
+    "name": "JMP-Tools-Native",
+    "slug": "JMP-Tools-Native",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",

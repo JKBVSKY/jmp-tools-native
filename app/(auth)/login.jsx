@@ -3,11 +3,13 @@ import { View, Text, TextInput, StyleSheet, Pressable, Alert, TouchableWithoutFe
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../_context/AuthContext';
 import { useColors } from '../../_hooks/useColors';
+import { Ionicons } from '@expo/vector-icons';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
   const router = useRouter();
   const { signIn } = useAuth();
   const colors = useColors();
@@ -30,13 +32,19 @@ export default function Login() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Sign in</Text>
-        <Text style={[styles.desc, { color: colors.text }]}>Enter valid e-mail adress & password to continue</Text>
+        <Text style={[styles.title, { color: colors.title }]}>Sign in</Text>
+        <Text style={[styles.desc, { color: colors.textSecondary }]}>
+          Enter valid e-mail address & password to continue
+        </Text>
 
         <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.outButBorder }]}
+          style={[styles.input, {
+            backgroundColor: colors.inputBackground,
+            borderColor: colors.inputBorder,
+            color: colors.text,
+          }]}
           placeholder="Email"
           placeholderTextColor={colors.phText}
           value={email}
@@ -45,17 +53,39 @@ export default function Login() {
           keyboardType="email-address"
         />
 
-        <TextInput
-          style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.outButBorder }]}
-          placeholder="Password"
-          placeholderTextColor={colors.phText}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
+        {/* Password input with eye button */}
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={[styles.passwordInput, {
+              backgroundColor: colors.inputBackground,
+              borderColor: colors.inputBorder,
+              color: colors.text,
+            }]}
+            placeholder="Password"
+            placeholderTextColor={colors.phText}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!showPassword}
+            autoCapitalize="none"
+          />
+          <Pressable
+            style={styles.eyeButton}
+            onPress={() => setShowPassword(!showPassword)}
+          >
+            <Ionicons
+              name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+              size={24}
+              color={colors.iconColor}
+            />
+          </Pressable>
+        </View>
 
         <Pressable
-          style={[styles.button, loading && styles.buttonDisabled, { backgroundColor: colors.butBackground }]}
+          style={[
+            styles.button,
+            { backgroundColor: colors.butBackground },
+            loading && styles.buttonDisabled
+          ]}
           onPress={handleLogin}
           disabled={loading}
         >
@@ -71,7 +101,9 @@ export default function Login() {
         </Pressable>
 
         <Pressable onPress={() => router.back()}>
-          <Text style={[styles.backText, { color: colors.text }]}>← Back</Text>
+          <Text style={[styles.backText, { color: colors.textSecondary }]}>
+            ← Back
+          </Text>
         </Pressable>
       </View>
     </TouchableWithoutFeedback>
@@ -101,6 +133,23 @@ const styles = StyleSheet.create({
     marginBottom: 15,
     fontSize: 16,
     borderWidth: 1,
+  },
+  passwordContainer: {
+    position: 'relative',
+    marginBottom: 15,
+  },
+  passwordInput: {
+    padding: 15,
+    paddingRight: 50, // Make room for eye button
+    borderRadius: 8,
+    fontSize: 16,
+    borderWidth: 1,
+  },
+  eyeButton: {
+    position: 'absolute',
+    right: 15,
+    top: 15,
+    padding: 5,
   },
   button: {
     padding: 16,

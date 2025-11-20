@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   View,
@@ -20,11 +20,6 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   const colors = useColors();
 
   const getFieldConfigs = () => ({
-    pallets: {
-      min: 1,
-      max: 50,
-      label: 'Pallets',
-    },
     gate: {
       min: 1,
       max: 53,
@@ -32,11 +27,11 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
       // Gate stays static - or fetch from DB if you want
     },
     shop: {
-      numbers: shopNumbers || [],  // Use fetched data
+      numbers: shopNumbers,  // Use fetched data
       label: 'Shop',
     },
     trailer: {
-      numbers: trailerNumbers || [],  // Use fetched data
+      numbers: trailerNumbers,  // Use fetched data
       label: 'Trailer',
     },
   });
@@ -56,9 +51,11 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
 
     // Determine which array to use
     let allOptions = [];
-    if (config.numbers && config.numbers.length > 0) {  // ← Check if numbers exist
+    if (config.numbers) {
+      // Use database numbers
       allOptions = config.numbers.sort((a, b) => a - b);
     } else {
+      // Use static range (for gate)
       allOptions = generateRange(config.min, config.max);
     }
 
@@ -81,6 +78,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     trailer: "",
     pallets: "",
   });
+  const [showOptional, setShowOptional] = useState(false);
 
   // New state for dynamic data
   const [shopNumbers, setShopNumbers] = useState([]);
@@ -90,13 +88,6 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   // Existing state for dropdown
   const [activeDropdown, setActiveDropdown] = useState(null);
   const [filteredOptions, setFilteredOptions] = useState([]);
-
-  // Refs
-  const scrollViewRef = useRef(null);
-  const palletsInputRef = useRef(null);
-  const shopInputRef = useRef(null);
-  const gateInputRef = useRef(null);
-  const trailerInputRef = useRef(null);
 
   // Add this useEffect to fetch data when modal becomes visible
   useEffect(() => {
@@ -138,26 +129,13 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   };
 
   const handleChange = (name, value) => {
-    if (name === "pallets") {
-      // Allow decimals and empty string
-      if (value === '' || !isNaN(value)) {
-        const numValue = Number(value);
-        // Only update if empty or if number is between 0 and 50
-        if (value === '' || (numValue > 0 && numValue <= 50)) {
-          setForm((prev) => ({ ...prev, [name]: value }));
-        }
-      }
-      return;
-    }
-
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleClose = () => {
     onClose();
     setForm({ shop: "", gate: "", trailer: "", pallets: "" });
-    setActiveDropdown(null);
-    setFilteredOptions([]);
+    setShowOptional(false);
   };
 
   const isPalletsValid = form.pallets &&
@@ -173,21 +151,8 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
 
   const handleInputFocus = (fieldName) => {
     setActiveDropdown(fieldName);
-
-    // For gate field, show filtered options starting from middle value (25)
-    if (fieldName === 'gate' && !form.gate) {
-      const config = getFieldConfigs()[fieldName];
-      const allOptions = generateRange(config.min, config.max);
-      const filtered = allOptions.filter(option => option >= 25).slice(0, 10);
-      setFilteredOptions(filtered);
-    } else {
-      // For other fields, use normal filtering
-      const filtered = filterOptions(form[fieldName], fieldName);
-      setFilteredOptions(filtered);
-    }
-
-    // Scroll the input into view
-    scrollToInput(fieldName);
+    const filtered = filterOptions(form[fieldName], fieldName);
+    setFilteredOptions(filtered);
   };
 
   const handleInputChange = (name, value) => {
@@ -209,101 +174,76 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
 
   const handleInputBlur = () => { };
 
-  const scrollToInput = (fieldName) => {
-    // Map field names to their refs
-    const refMap = {
-      pallets: palletsInputRef,
-      shop: shopInputRef,
-      gate: gateInputRef,
-      trailer: trailerInputRef,
-    };
-
-    const inputRef = refMap[fieldName];
-
-    setTimeout(() => {
-      inputRef?.current?.measure((fx, fy, width, height, px, py) => {
-        scrollViewRef?.current?.scrollTo({
-          y: py - 100,  // Scroll with 100px padding from top
-          animated: true
-        });
-      });
-    }, 100);
-  };
-
   return (
     <Modal
       visible={visible}
-      animationType="fade"
-      transparent={true}
+      transparent
+      animationType="slide"
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
+
+      <View style={styles.modalContainer}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}
+          style={styles.overlay}
         >
-          <ScrollView
-            ref={scrollViewRef}
-            style={{ width: '100%' }}
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
-            scrollEnabled={true}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-              <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+          <ScrollView showsVerticalScrollIndicator={false}>
+          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
+            
+              <Text style={[styles.title, { color: colors.text }]}>New Transport</Text>
+              <Text style={[styles.description, { color: colors.text }]}>
+                Add details for the new transport
+              </Text>
 
-                {/* Title */}
-                <Text style={[styles.title, { color: colors.text }]}>
-                  New Transport
-                </Text>
-                <Text style={[styles.description, { color: colors.phText }]}>
-                  Add details for the new transport
-                </Text>
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: colors.text }]}>Pallets *</Text>
+                <TextInput
+                  style={[
+                    styles.input, { color: colors.text },
+                    !isPalletsValid && form.pallets ? styles.inputError : null
+                  ]}
+                  value={form.pallets}
+                  onChangeText={(value) => handleChange("pallets", value)}
+                  placeholder="Enter number of pallets"
+                  placeholderTextColor={colors.phText}
+                  keyboardType="numeric"
+                />
+                {!isPalletsValid && form.pallets && (
+                  <Text style={styles.errorText}>
+                    Must be a positive number divisible by 0.25
+                  </Text>
+                )}
+              </View>
 
-                {/* First Row: Pallets and Shop */}
-                <View style={styles.inputRow}>
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Pallets *</Text>
+              {!showOptional && (
+                <TouchableOpacity
+                  style={styles.showMoreButton}
+                  onPress={() => setShowOptional(true)}
+                >
+                  <Text style={[styles.showMoreText, { color: colors.text }]}>+ Show optional fields</Text>
+                </TouchableOpacity>
+              )}
+
+              {showOptional && (
+                <>
+                  <View style={styles.inputContainer}>
+                    <Text style={[styles.inputLabel, { color: colors.text }]}>Shop</Text>
                     <TextInput
-                      ref={palletsInputRef}
-                      style={[
-                        styles.inputSmall, { color: colors.text },
-                        !isPalletsValid && form.pallets ? styles.inputError : null
-                      ]}
-                      value={form.pallets}
-                      onChangeText={(value) => handleChange("pallets", value)}
-                      placeholder="Pallets"
-                      placeholderTextColor={colors.phText}
-                      keyboardType="numeric"
-                      onFocus={() => handleInputFocus('pallets')}
-                    />
-                    {!isPalletsValid && form.pallets && (
-                      <Text style={styles.errorText}>
-                        Must be valid
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Shop</Text>
-                    <TextInput
-                      ref={shopInputRef}
-                      style={[styles.inputSmall, { color: colors.text }]}
+                      style={[styles.input, { color: colors.text }]}
                       value={form.shop}
                       onChangeText={(value) => handleInputChange("shop", value)}
-                      placeholder="Shop"
+                      placeholder="Shop number"
                       placeholderTextColor={colors.phText}
                       keyboardType="numeric"
                       onFocus={() => handleInputFocus('shop')}
                       onBlur={handleInputBlur}
                     />
                     {activeDropdown === 'shop' && filteredOptions.length > 0 && (
-                      <View style={styles.dropdown} pointerEvents="box-none">
+                      <View style={styles.dropdown}>
                         <ScrollView
                           scrollEnabled={filteredOptions.length > 8}
                           nestedScrollEnabled={true}
                           style={{ maxHeight: 200 }}
-                          keyboardShouldPersistTaps="handled"
                         >
                           {filteredOptions.map((option) => (
                             <TouchableOpacity
@@ -320,30 +260,25 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       </View>
                     )}
                   </View>
-                </View>
 
-                {/* Second Row: Gate and Trailer */}
-                <View style={styles.inputRow}>
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Gate</Text>
+                  <View style={styles.inputContainer}>
+                    <Text style={[styles.inputLabel, { color: colors.text }]}>Gate</Text>
                     <TextInput
-                      ref={gateInputRef}
-                      style={[styles.inputSmall, { color: colors.text }]}
+                      style={[styles.input, { color: colors.text }]}
                       value={form.gate}
                       onChangeText={(value) => handleInputChange("gate", value)}
-                      placeholder="Gate"
+                      placeholder="Gate number"
                       placeholderTextColor={colors.phText}
                       keyboardType="numeric"
                       onFocus={() => handleInputFocus('gate')}
                       onBlur={handleInputBlur}
                     />
                     {activeDropdown === 'gate' && filteredOptions.length > 0 && (
-                      <View style={styles.dropdown} pointerEvents="box-none">
+                      <View style={styles.dropdown}>
                         <ScrollView
                           scrollEnabled={filteredOptions.length > 8}
                           nestedScrollEnabled={true}
                           style={{ maxHeight: 200 }}
-                          keyboardShouldPersistTaps="handled"
                         >
                           {filteredOptions.map((option) => (
                             <TouchableOpacity
@@ -361,26 +296,24 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                     )}
                   </View>
 
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Trailer</Text>
+                  <View style={styles.inputContainer}>
+                    <Text style={[styles.inputLabel, { color: colors.text }]}>Trailer</Text>
                     <TextInput
-                      ref={trailerInputRef}
-                      style={[styles.inputSmall, { color: colors.text }]}
+                      style={[styles.input, { color: colors.text }]}
                       value={form.trailer}
                       onChangeText={(value) => handleInputChange("trailer", value)}
-                      placeholder="Trailer"
+                      placeholder="Trailer number"
                       placeholderTextColor={colors.phText}
                       keyboardType="numeric"
                       onFocus={() => handleInputFocus('trailer')}
                       onBlur={handleInputBlur}
                     />
                     {activeDropdown === 'trailer' && filteredOptions.length > 0 && (
-                      <View style={styles.dropdown} pointerEvents="box-none">
+                      <View style={styles.dropdown}>
                         <ScrollView
                           scrollEnabled={filteredOptions.length > 8}
                           nestedScrollEnabled={true}
                           style={{ maxHeight: 200 }}
-                          keyboardShouldPersistTaps="handled"
                         >
                           {filteredOptions.map((option) => (
                             <TouchableOpacity
@@ -397,37 +330,33 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       </View>
                     )}
                   </View>
-                </View>
+                </>
+              )}
 
-                {/* Button Container */}
-                <View style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={[styles.cancelButton, { borderColor: colors.border }]}
-                    onPress={handleClose}
-                  >
-                    <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                      Cancel
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.addButton, { backgroundColor: colors.butBackground },
-                      !isPalletsValid && styles.addButtonDisabled
-                    ]}
-                    onPress={handleAdd}
-                    disabled={!isPalletsValid}
-                  >
-                    <Text style={[
-                      styles.addButtonText, { color: colors.butText },
-                      !isPalletsValid && styles.addButtonTextDisabled
-                    ]}>
-                      Add Transport
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity style={[styles.cancelButton, { backgroundColor: colors.outButBackground }]} onPress={handleClose}>
+                  <Text style={[styles.cancelButtonText, { color: colors.outButText }]}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.addButton, { backgroundColor: colors.butBackground },
+                    !isPalletsValid && styles.addButtonDisabled
+                  ]}
+                  onPress={handleAdd}
+                  disabled={!isPalletsValid}
+                >
+                  <Text style={[
+                    styles.addButtonText, { color: colors.butText },
+                    !isPalletsValid && styles.addButtonTextDisabled
+                  ]}>
+                    Add Transport
+                  </Text>
+                </TouchableOpacity>
               </View>
-            </View>
-          </ScrollView>
+
+          </View>
+                      </ScrollView>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -442,7 +371,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
-    borderRadius: 16,
     width: '90%',
     maxWidth: 400,
     maxHeight: '80%',
@@ -489,6 +417,14 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#ef4444',
     marginTop: 4,
+  },
+  showMoreButton: {
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  showMoreText: {
+    fontSize: 14,
+    textDecorationLine: 'underline',
   },
   buttonContainer: {
     flexDirection: 'row',
@@ -542,29 +478,5 @@ const styles = StyleSheet.create({
   },
   dropdownItemText: {
     fontSize: 20,
-  },
-  inputRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-    marginBottom: 16,
-  },
-
-  inputHalf: {
-    flex: 1,
-  },
-
-  inputLabelHalf: {
-    fontSize: 14,
-    fontWeight: '500',
-    marginBottom: 6,
-  },
-
-  inputSmall: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 8,
-    padding: 10,
-    fontSize: 14,
   },
 });

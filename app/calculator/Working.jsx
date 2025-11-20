@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Dimensions
+  Dimensions,
+  Animated
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -17,6 +18,8 @@ import PagerView from "react-native-pager-view";
 import { useColors } from '../../_hooks/useColors';
 import { getAutoStartTime } from "./utils";
 import { useCalculator } from "../../_context/CalculatorContext";
+import { useUserProfile } from "../../_context/UserProfileContext";
+import { calculateXPFromScore, calculateLevelFromXP } from "../../constants/LevelSystem";
 import { Alert } from 'react-native';
 
 const { width } = Dimensions.get('window');
@@ -34,11 +37,26 @@ export default function Working({
   // Use Calculator Context for persistent data
   const calc = useCalculator();
 
+  // Use User Profile for XP rewards
+  const { profile, awardXP } = useUserProfile();
+
   // Local state only for UI elements (modals, active tab)
   const [activeTab, setActiveTab] = useState(0); // 0 = Monitoring, 1 = History
   const [editingTruck, setEditingTruck] = useState(null);
   const [showNewTransportModal, setShowNewTransportModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+
+  // ✅ XP REWARD STATE
+  const [currentXPPerMin, setCurrentXPPerMin] = useState(0);
+  const [sessionXPEarned, setSessionXPEarned] = useState(0);
+  const [lastXPRewardTime, setLastXPRewardTime] = useState(Date.now());
+  const [showXPFloatingText, setShowXPFloatingText] = useState(false);
+  const [floatingXPAmount, setFloatingXPAmount] = useState(0);
+  const [leveledUpMessage, setLeveledUpMessage] = useState(null);
+  const [lastLevelBeforeSession] = useState(profile?.level || 1);
+
+  // Animation for XP floating text
+  const floatingAnim = React.useRef(new Animated.Value(0)).current;
 
   const colors = useColors();
 
@@ -51,6 +69,84 @@ export default function Working({
   const totalPausedTime = calc.totalPausedTime || 0;
 
   const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
+
+  // ✅ Calculate XP per minute based on current pallet rate
+  const calculateXPPerMin = (rate) => {
+    const numRate = parseFloat(rate);
+    if (numRate >= 50) return 20;
+    if (numRate >= 48) return 15;
+    if (numRate >= 44) return 10;
+    if (numRate >= 40) return 5;
+    return 0;
+  };
+
+  // Calculate palletsRate as palletsLoaded per hour
+  const palletsRate =
+    loadingTime > 0 ? (palletsLoaded / (loadingTime / 3600)).toFixed(2) : "0.00";
+
+  // Count of trucks loaded
+  const trucksLoadedCount = trucksHistory.length;
+
+  const xpSaveInProgressRef = useRef(false);
+
+  // ✅ REAL-TIME XP REWARD SYSTEM
+  useEffect(() => {
+    if (!startTime || isPaused || !profile) return;
+
+    const xpPerMin = calculateXPPerMin(palletsRate);
+    setCurrentXPPerMin(xpPerMin);
+
+    const interval = setInterval(async () => {
+      const now = Date.now();
+      const timeSinceLastReward = now - lastXPRewardTime;
+
+      // Award XP every 60 seconds
+      if (timeSinceLastReward >= 60000 && xpPerMin > 0) {
+        
+        // ✅ GUARD: Don't save if already saving
+        if (xpSaveInProgressRef.current) {
+          console.warn('⚠️ XP save already in progress, skipping...');
+          return;
+        }
+        
+        xpSaveInProgressRef.current = true; // Lock
+        
+        try {
+          // Award XP to Firestore
+          const result = await awardXP(xpPerMin);
+          
+          if (result) {
+            setSessionXPEarned(prev => prev + xpPerMin);
+            setLastXPRewardTime(now);
+            
+            // Show floating text
+            setFloatingXPAmount(xpPerMin);
+            setShowXPFloatingText(true);
+            
+            // Animate floating text
+            floatingAnim.setValue(0);
+            Animated.timing(floatingAnim, {
+              toValue: 1,
+              duration: 1500,
+              useNativeDriver: true,
+            }).start();
+            
+            setTimeout(() => setShowXPFloatingText(false), 1500);
+            
+            // Check if level up
+            if (result.leveledUp) {
+              setLeveledUpMessage(result.newLevel);
+              setTimeout(() => setLeveledUpMessage(null), 3000);
+            }
+          }
+        } finally {
+          xpSaveInProgressRef.current = false; // Unlock
+        }
+      }
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime, isPaused, palletsRate, profile, awardXP]);
 
   // Add truck function - now updates context
   const addTruck = (truck) => {
@@ -148,12 +244,10 @@ export default function Working({
     return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
   };
 
-  // Calculate palletsRate as palletsLoaded per hour
-  const palletsRate =
-    loadingTime > 0 ? (palletsLoaded / (loadingTime / 3600)).toFixed(2) : "0.00";
-
-  // Count of trucks loaded
-  const trucksLoadedCount = trucksHistory.length;
+  // ✅ CALCULATE LEVEL PROGRESS
+  const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
+  const xpForNextLevel = profile ? profile.level * 1000 : 1000;
+  const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
 
   // Render truck item
   const renderTruckItem = (truck, isHistory = false) => (
@@ -170,13 +264,13 @@ export default function Working({
         <View style={{ flexDirection: 'row' }}>
           {/* Left side: Shop */}
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingRight: 16 }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Shop:</Text>
+            <Text style={[styles.truckInfoText, { color: colors.text }]}>Sklep:</Text>
             <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.shop || '—'}</Text>
           </View>
 
           {/* Right side: Trailer */}
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Trailer:</Text>
+            <Text style={[styles.truckInfoText, { color: colors.text }]}>Naczepa:</Text>
             <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.trailer || '—'}</Text>
           </View>
         </View>
@@ -185,13 +279,13 @@ export default function Working({
         <View style={{ flexDirection: 'row' }}>
           {/* Left side: Gate */}
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingRight: 16 }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Gate:</Text>
+            <Text style={[styles.truckInfoText, { color: colors.text }]}>Brama:</Text>
             <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.gate || '—'}</Text>
           </View>
 
           {/* Right side: Pallets */}
           <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Pallets:</Text>
+            <Text style={[styles.truckInfoText, { color: colors.text }]}>Palety:</Text>
             <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.pallets || '—'}</Text>
           </View>
         </View>
@@ -228,6 +322,75 @@ export default function Working({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* ✅ XP PROGRESS BAR - TOP OF SCREEN */}
+      {profile && (
+        <View style={[styles.xpProgressCard, { backgroundColor: colors.cardBackground }]}>
+          <View style={styles.xpHeaderRow}>
+            <View>
+              <Text style={[styles.xpLevel, { color: colors.title }]}>Poziom {profile.level}</Text>
+              <Text style={[styles.xpProgressText, { color: colors.text }]}>
+                {levelData?.currentXP} / {xpForNextLevel} XP
+              </Text>
+            </View>
+            <View style={[styles.xpRewardBadge, { backgroundColor: colors.butBackground }]}>
+              <Ionicons name="star" size={16} color={colors.butText} />
+              <Text style={[styles.xpRewardText, { color: colors.butText }]}>+{currentXPPerMin}/min</Text>
+            </View>
+          </View>
+
+          {/* Progress Bar */}
+          <View style={[styles.progressBarBackground, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
+            <View
+              style={[
+                styles.progressBar,
+                {
+                  backgroundColor: colors.text,
+                  width: `${Math.min(levelProgress, 100)}%`,
+                },
+              ]}
+            />
+          </View>
+
+          <Text style={[styles.progressPercentText, { color: colors.textSecondary }]}>
+            XP zdobyte w tej sesji: +{sessionXPEarned}
+          </Text>
+        </View>
+      )}
+
+      {/* ✅ FLOATING XP TEXT ANIMATION */}
+      {showXPFloatingText && (
+        <Animated.View
+          style={[
+            styles.floatingXPText,
+            {
+              opacity: floatingAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 0],
+              }),
+              transform: [
+                {
+                  translateY: floatingAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0, -60],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Text style={[styles.floatingXPValue, { color: colors.text }]}>+{floatingXPAmount} XP</Text>
+        </Animated.View>
+      )}
+
+      {/* ✅ LEVEL UP CELEBRATION */}
+      {leveledUpMessage && (
+        <View style={[styles.levelUpBanner, { backgroundColor: colors.cardBackground }]}>
+          <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
+          <Text style={[styles.levelUpText, { color: colors.text }]}>Level Up to {leveledUpMessage}! 🎉</Text>
+          <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
+        </View>
+      )}
+
       {/* Stats Cards Section */}
       <View style={styles.statsSection}>
         <View style={styles.statsGrid}>
@@ -235,7 +398,7 @@ export default function Working({
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Elapsed Time</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Czas Ładowania</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>
               {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
@@ -246,7 +409,7 @@ export default function Working({
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Pallets Loaded</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Palety Załadowane</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
           </View>
@@ -255,7 +418,7 @@ export default function Working({
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Rate/hour</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Wynik/godz</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
           </View>
@@ -264,7 +427,7 @@ export default function Working({
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Trucks Loaded</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Ciężarówki Załadowane</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
           </View>
@@ -275,14 +438,14 @@ export default function Working({
       <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
         <View style={styles.tabHeader}>
           <Text style={[styles.infoTitle, { color: colors.text }]}>
-            {activeTab === 0 ? "Current Trucks" : "Completed History"}
+            {activeTab === 0 ? "Aktualne transporty" : "Zakończone transporty"}
           </Text>
           <View style={styles.tabDots}>
             <TouchableOpacity
-              style={[styles.tabDot, activeTab === 0 && { backgroundColor: colors.tabDotActive }]}
+              style={[styles.tabDot, activeTab === 0 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
             />
             <TouchableOpacity
-              style={[styles.tabDot, activeTab === 1 && { backgroundColor: colors.tabDotActive }]}
+              style={[styles.tabDot, activeTab === 1 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
             />
           </View>
         </View>
@@ -297,7 +460,7 @@ export default function Working({
             <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground }]} contentContainerStyle={{ flexGrow: 1 }}>
               {trucks.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={[styles.emptyText, { color: colors.text }]}>Please start a new transport.</Text>
+                  <Text style={[styles.emptyText, { color: colors.text }]}>Rozpocznij nowy transport.</Text>
                 </View>
               ) : (
                 trucks.map(truck => renderTruckItem(truck, false))
@@ -309,7 +472,7 @@ export default function Working({
             <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground }]} contentContainerStyle={{ flexGrow: 1 }}>
               {trucksHistory.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={[styles.emptyText, { color: colors.text }]}>No history yet.</Text>
+                  <Text style={[styles.emptyText, { color: colors.text }]}>Brak historii transportów.</Text>
                 </View>
               ) : (
                 [...trucksHistory]
@@ -332,7 +495,7 @@ export default function Working({
             onPress={handleResume}
           >
             <Ionicons name="play" size={20} color={colors.butText} />
-            <Text style={[styles.btnResumeText, { color: colors.butText }]}>Resume</Text>
+            <Text style={[styles.btnResumeText, { color: colors.butText }]}>Wznów</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -343,7 +506,7 @@ export default function Working({
             onPress={() => setShowNewTransportModal(true)}
           >
             <Ionicons name="add-outline" size={20} color={colors.outButText} />
-            <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>New</Text>
+            <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>Nowy</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -351,7 +514,7 @@ export default function Working({
             onPress={() => setShowPauseModal(true)}
           >
             <Ionicons name="pause-outline" size={20} color={colors.butText} />
-            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Pause</Text>
+            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zatrzymaj</Text>
           </TouchableOpacity>
 
           {/* Finish button
@@ -394,7 +557,7 @@ export default function Working({
             style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
           >
             <MaterialCommunityIcons name="flag-checkered" size={20} color={colors.butText} />
-            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Finish</Text>
+            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zakończ</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -428,6 +591,80 @@ const styles = StyleSheet.create({
     padding: 32,
     justifyContent: 'space-between',
   },
+  xpProgressCard: {
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  xpHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  xpLevel: {
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  xpProgressText: {
+    fontSize: 12,
+    marginTop: 4,
+  },
+  xpRewardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  xpRewardText: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  progressBarBackground: {
+    height: 8,
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 8,
+  },
+  progressBar: {
+    height: 8,
+    borderRadius: 4,
+  },
+  progressPercentText: {
+    fontSize: 11,
+    textAlign: 'center',
+  },
+  floatingXPText: {
+    position: 'absolute',
+    top: 200,
+    alignSelf: 'center',
+    zIndex: 1000,
+  },
+  floatingXPValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0,0,0,0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
+  levelUpBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    marginBottom: 16,
+    borderRadius: 12,
+    gap: 10,
+  },
+  levelUpText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
   statsSection: {
     marginBottom: 16,
   },
@@ -439,13 +676,8 @@ const styles = StyleSheet.create({
   },
   statCard: {
     width: '48%',
-    borderRadius: 12,
+    borderRadius: 24,
     padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
   },
@@ -471,11 +703,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
     padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
     marginBottom: 16,
   },
   tabHeader: {
@@ -501,9 +728,8 @@ const styles = StyleSheet.create({
   },
   trucksList: {
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderColor: 'rgba(0,0,0,0.05)',
     borderRadius: 12,
-    backgroundColor: '#fff',
   },
   truckItem: {
     flexDirection: 'row',

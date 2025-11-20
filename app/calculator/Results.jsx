@@ -1,4 +1,3 @@
-// app/calculator/Results.jsx
 import React from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -6,6 +5,8 @@ import { useColors } from '../../_hooks/useColors';
 import { useCalculator } from '../../_context/CalculatorContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import { useUserProfile } from '../../_context/UserProfileContext';
+import { calculateXPFromScore, calculateLevelFromXP, checkAchievements, ACHIEVEMENTS } from '../../constants/LevelSystem';
 
 export default function Results({
   loadingTime,
@@ -13,14 +14,31 @@ export default function Results({
   endTime,
   trucksHistory,
   changeMode,
-  clearCalculator
+  clearCalculator,
 }) {
   const colors = useColors();
   const calc = useCalculator();
+  const { awardXP, updateStats, unlockAchievement, profile } = useUserProfile(); // ✅ MOVED INSIDE COMPONENT
 
   const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
   const trucksCount = trucksHistory.length;
-  const palletsRate = loadingTime > 0 ? (palletsLoaded / (loadingTime / 3600)).toFixed(2) : "0.00";
+  const palletsRate = loadingTime > 0 ? (palletsLoaded / (loadingTime / 3600)).toFixed(2) : '0.00';
+
+  // ✅ Calculate session score (0-10) based on pallets/hour efficiency
+  const calculateScore = () => {
+    const rate = parseFloat(palletsRate);
+    if (rate >= 48) return 10.0;
+    if (rate >= 47) return 9.0;
+    if (rate >= 46) return 8.0;
+    if (rate >= 45) return 7.0;
+    if (rate >= 44) return 6.0;
+    if (rate >= 43) return 5.0;
+    if (rate >= 42) return 4.0;
+    if (rate >= 41) return 3.0;
+    return 2.0;
+  };
+
+  const sessionScore = calculateScore();
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600);
@@ -33,6 +51,7 @@ export default function Results({
     return new Date(timestamp).toLocaleString();
   };
 
+  // ✅ MAIN SAVE HANDLER - NOW WITH CORRECT ORDER!
   const handleSave = async () => {
     try {
       const sessionData = {
@@ -44,6 +63,7 @@ export default function Results({
         palletsLoaded,
         trucksCount,
         palletsRate: parseFloat(palletsRate),
+        score: sessionScore,
         trucks: trucksHistory,
       };
 
@@ -54,21 +74,88 @@ export default function Results({
       // Add new score
       scores.push(sessionData);
 
-      // Save back
+      // Save back to AsyncStorage
       await AsyncStorage.setItem('scoreHistory', JSON.stringify(scores));
 
-      Alert.alert('Success', 'Session saved to score history!');
+      // ✅ STEP 1: Award XP
+      const xpEarned = calculateXPFromScore(sessionScore);
+      const xpResult = await awardXP(xpEarned);
 
-      // Clear calculator state
-      await calc.clearState();
-      changeMode('init');
+      // ✅ STEP 2: Calculate NEW stats (BEFORE checking achievements!)
+      const newStats = {
+        totalSessions: (profile.stats.totalSessions || 0) + 1,
+        totalTimeWorked: (profile.stats.totalTimeWorked || 0) + (loadingTime / 3600),
+        palletsLoaded: (profile.stats.palletsLoaded || 0) + palletsLoaded,
+        totalScore: (profile.stats.totalScore || 0) + sessionScore,
+        bestScore: Math.max(profile.stats.bestScore || 0, sessionScore),
+      };
+
+      console.log('📊 New Stats calculated:', newStats);
+
+      // ✅ STEP 3: Check achievements with NEW stats (BEFORE updating!)
+      console.log('🔍 Checking achievements with NEW stats...');
+      const newAchievements = checkAchievements(newStats, sessionScore, profile.achievements);
+      console.log('🏆 Achievements to unlock:', newAchievements);
+
+      // ✅ STEP 4: Update stats in Firestore
+      await updateStats(newStats);
+      console.log('✅ Stats saved to Firestore');
+
+      // ✅ STEP 5: Unlock each new achievement
+      for (const achievementId of newAchievements) {
+        const success = await unlockAchievement(achievementId);
+        if (success) {
+          const achievementDetails = Object.values(ACHIEVEMENTS).find(a => a.id === achievementId);
+          if (achievementDetails) {
+            console.log(`🏆 Achievement unlocked: ${achievementDetails.name}`);
+          }
+        }
+      }
+
+      // ✅ STEP 6: Show results to user
+      let message = `🎯 Session Complete!\n+${xpEarned} XP earned`;
+
+      if (newAchievements.length > 0) {
+        const achievementNames = newAchievements
+          .map(id => Object.values(ACHIEVEMENTS).find(a => a.id === id)?.name)
+          .filter(Boolean)
+          .join(', ');
+        message += `\n🏆 Achievement${newAchievements.length > 1 ? 's' : ''} unlocked: ${achievementNames}`;
+      }
+
+      if (xpResult.leveledUp) {
+        Alert.alert(
+          '🎉 Level Up!',
+          `Congratulations! You reached level ${xpResult.newLevel}!\n\n${message}`,
+          [{ text: 'Continue', onPress: finishSession }]
+        );
+      } else {
+        const levelData = calculateLevelFromXP(profile.totalXP + xpEarned);
+        const progressText = `Progress to Level ${xpResult.newLevel + 1}: ${levelData.currentXP} / ${levelData.xpToNextLevel} XP`;
+
+        Alert.alert(
+          '⭐ Session Saved!',
+          `${message}\n\n${progressText}`,
+          [{ text: 'Continue', onPress: finishSession }]
+        );
+      }
     } catch (error) {
+      console.error('❌ Error saving session:', error);
       Alert.alert('Error', 'Failed to save session: ' + error.message);
     }
   };
 
+  const finishSession = async () => {
+    try {
+      await calc.clearState();
+      changeMode('init');
+    } catch (error) {
+      console.error('Error clearing calculator:', error);
+    }
+  };
+
   const handleDiscard = async () => {
-    Alert.alert('Discard Session', 'Are you sure?', [
+    Alert.alert('Discard Session', 'Are you sure? You will lose XP rewards!', [
       { text: 'Cancel' },
       {
         text: 'Discard',
@@ -76,102 +163,134 @@ export default function Results({
           await calc.clearState();
           changeMode('init');
         },
+        style: 'destructive',
       },
     ]);
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <ScrollView style={styles.scrollContent}>
-        <Text style={[styles.title, { color: colors.text }]}>Session Complete! ✓</Text>
+    <ScrollView style={[styles.scrollContent, { backgroundColor: colors.background }]}>
+      <View style={styles.container}>
+        <Text style={[styles.title, { color: colors.title }]}>Session Complete! ✓</Text>
+
+        {/* Score Display */}
+        <View style={[styles.scoreCard, { backgroundColor: colors.cardBackground }]}>
+          <View style={styles.scoreContent}>
+            <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Session Score</Text>
+            <Text style={[styles.scoreValue, { color: colors.text }]}>{sessionScore.toFixed(1)}/10.0</Text>
+            <Text style={[styles.scoreXP, { color: colors.textSecondary }]}>
+              +{calculateXPFromScore(sessionScore)} XP
+            </Text>
+          </View>
+          <View style={styles.scoreIcon}>
+            <Ionicons name="star" size={40} color={colors.iconColor} />
+          </View>
+        </View>
 
         {/* Stats Cards Section */}
         <View style={styles.statsSection}>
-          <View style={styles.statsGrid}>
-            {/* Card 1: Elapsed Time */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <View style={styles.cardHeader}>
-                <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-                <Text style={[styles.cardLabel, { color: colors.text }]}>Total Time</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.text }]}>{formatTime(loadingTime)}</Text>
-            </View>
+            <View style={styles.statsGrid}>
+                          {/* Card 1: Elapsed Time */}
+                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <View style={styles.cardHeader}>
+                              <MaterialCommunityIcons name="clock" size={20} color={colors.iconColor} />
+                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Total Time</Text>
+                            </View>
+                            <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
+                          </View>
 
-            {/* Card 2: Pallets Loaded */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
-                <Text style={[styles.cardLabel, { color: colors.text }]}>Pallets Loaded</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
+                          {/* Card 2: Pallets Loaded */}
+                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <View style={styles.cardHeader}>
+                              <MaterialCommunityIcons name="cube-send" size={20} color={colors.iconColor} />
+                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Pallets Loaded</Text>
+                            </View>
+                            <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
+                          </View>
             </View>
+            <View style={styles.statsGrid}>
+                          {/* Card 3: Rate (per hour) */}
+                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <View style={styles.cardHeader}>
+                              <MaterialCommunityIcons name="speedometer" size={20} color={colors.iconColor} />
+                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Rate/hour</Text>
+                            </View>
+                            <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
+                          </View>
 
-            {/* Card 3: Rate (per hour) */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <View style={styles.cardHeader}>
-                <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
-                <Text style={[styles.cardLabel, { color: colors.text }]}>Rate/hour</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
-            </View>
+                          {/* Card 4: Trucks Loaded */}
+                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <View style={styles.cardHeader}>
+                              <MaterialCommunityIcons name="truck" size={20} color={colors.iconColor} />
+                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Trucks Loaded</Text>
+                            </View>
+                            <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
+                          </View>
+                        </View>
 
-            {/* Card 4: Trucks Loaded */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
-                <Text style={[styles.cardLabel, { color: colors.text }]}>Trucks Loaded</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.text }]}>{trucksCount}</Text>
-            </View>
-          </View>
-        </View>
+                </View>
+
 
         {/* Session Details */}
-        <View style={[styles.detailsBox, { backgroundColor: colors.cardBackground, borderColor: colors.iconColor }]}>
-          <Text style={[styles.detailsTitle, { color: colors.text }]}>Session Details</Text>
-
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: colors.text }]}>Started:</Text>
-            <Text style={[styles.detailValue, { color: colors.text }]}>{formatDate(startTime)}</Text>
+        <View style={[styles.detailsBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <Text style={[styles.detailsTitle, { color: colors.title }]}>Session Details</Text>
+          <View style={[styles.detailRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Started:</Text>
+            <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(startTime)}</Text>
           </View>
-
           <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: colors.text }]}>Ended:</Text>
-            <Text style={[styles.detailValue, { color: colors.text }]}>{formatDate(endTime)}</Text>
+            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Ended:</Text>
+            <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(endTime)}</Text>
           </View>
         </View>
 
-        <View style={styles.trucksBox}>
-          <Text style={[styles.trucksTitle, { color: colors.text }]}>Trucks Summary</Text>
+        {/* Trucks Summary */}
+        <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <Text style={[styles.trucksTitle, { color: colors.title }]}>Trucks Summary</Text>
           {trucksHistory.map((truck, idx) => (
-            <View key={truck.id} style={[styles.truckRow, { borderBottomColor: colors.breakLine }]}>
-              <Text style={[styles.truckNum, { color: colors.text }]}>#{truck.displayId}</Text>
-              <Text style={[styles.truckInfo, { color: colors.text }]}>
-                {truck.pallets} pallets • Shop {truck.shop} • Gate {truck.gate}
-              </Text>
+            <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
+              <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
+              <View style={styles.truckInfo}>
+                <Text style={[styles.truckInfo, { color: colors.text }]}>
+                  {truck.pallets} pallets • Shop {truck.shop} • Gate {truck.gate}
+                </Text>
+              </View>
             </View>
           ))}
         </View>
-      </ScrollView>
 
-      <View style={styles.buttonsContainer}>
-        <Pressable
-          style={[styles.button, styles.saveButton, { backgroundColor: colors.butBackground }]}
-          onPress={handleSave}
-        >
-          <MaterialCommunityIcons name="content-save" size={20} color={colors.butText} />
-          <Text style={[styles.buttonText, { color: colors.butText }]}>Save to History</Text>
-        </Pressable>
+        {/* Action Buttons */}
+        <View style={styles.buttonsContainer}>
+          <Pressable
+            style={[
+              styles.button,
+              {
+                backgroundColor: colors.butBackground,
+              },
+            ]}
+            onPress={handleSave}
+          >
+            <MaterialCommunityIcons name="check" size={20} color={colors.butText} />
+            <Text style={[styles.buttonText, { color: colors.butText }]}>Save to History</Text>
+          </Pressable>
 
-        <Pressable
-          style={[styles.button, styles.discardButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
-          onPress={handleDiscard}
-        >
-          <MaterialCommunityIcons name="delete" size={20} color={colors.outButText} />
-          <Text style={[styles.buttonText, { color: colors.outButText }]}>Discard</Text>
-        </Pressable>
+          <Pressable
+            style={[
+              styles.button,
+              styles.discardButton,
+              {
+                backgroundColor: 'transparent',
+                borderColor: colors.border,
+              },
+            ]}
+            onPress={handleDiscard}
+          >
+            <MaterialCommunityIcons name="close" size={20} color={colors.text} />
+            <Text style={[styles.buttonText, { color: colors.text }]}>Discard</Text>
+          </Pressable>
+        </View>
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
@@ -190,25 +309,47 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
+  scoreCard: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  scoreContent: {
+    flex: 1,
+  },
+  scoreLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 5,
+  },
+  scoreValue: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  scoreXP: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  scoreIcon: {
+    marginLeft: 20,
+  },
   statsSection: {
     marginBottom: 16,
   },
   statsGrid: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
     gap: 12,
   },
   statCard: {
-    width: '48%',
-    borderRadius: 12,
+      flex: 1,
+    borderRadius: 24,
     padding: 16,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-    borderWidth: 1,
+    marginBottom: 12,
+    borderWidth: 0,
     borderColor: 'rgba(0,0,0,0.05)',
   },
   cardHeader: {
@@ -227,8 +368,8 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   detailsBox: {
-    borderWidth: 1,
-    borderRadius: 12,
+    borderWidth: 0,
+    borderRadius: 24,
     padding: 16,
     marginBottom: 20,
   },
@@ -250,6 +391,9 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   trucksBox: {
+    borderWidth: 0,
+    borderRadius: 12,
+    padding: 16,
     marginBottom: 20,
   },
   trucksTitle: {
@@ -287,7 +431,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   buttonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
   },

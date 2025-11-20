@@ -21,7 +21,7 @@ function CustomDrawerContent(props) {
       <DrawerContentScrollView {...props}>
         <View style={[styles.logoContainer, { paddingTop: 10 }]}>
           <Image
-            source={require("../../assets/pwa-192x192.png")}
+            source={require("../../assets/icon.png")}
             style={[styles.logo, { borderWidth: 4, borderColor: colors.outButBorder }]}
             resizeMode="contain"
           />

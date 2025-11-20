@@ -3,13 +3,16 @@ import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import { initializeApp } from 'firebase/app';
 import {
-  getAuth,
+  initializeAuth,
+  getReactNativePersistence,
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
 } from 'firebase/auth';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { getFirestore } from 'firebase/firestore';
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -23,7 +26,12 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+
+const auth = initializeAuth(app, {
+  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+});
+
+export const db = getFirestore(app);
 
 const AuthContext = createContext({});
 
@@ -36,7 +44,7 @@ export function AuthProvider({ children }) {
   const [isLoading, setIsLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
 
-  // Load saved session on app start
+  // KEY: Automatically check persistent login on app start
   useEffect(() => {
     loadSession();
   }, []);
@@ -59,6 +67,8 @@ export function AuthProvider({ children }) {
       setUser(userData);
       setIsGuest(false);
 
+      // Firebase automatically persists this login
+      console.log('✅ User signed up and auto-logged in:', email);
       return { success: true };
     } catch (error) {
       let errorMessage = error.message;
@@ -91,6 +101,8 @@ export function AuthProvider({ children }) {
       setUser(userData);
       setIsGuest(false);
 
+      // Firebase automatically persists this login
+      console.log('✅ User signed in:', email);
       return { success: true };
     } catch (error) {
       let errorMessage = error.message;
@@ -108,20 +120,28 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // KEY: This function checks if user is already logged in (persistent login)
   const loadSession = async () => {
     try {
-      // Check if user is logged in via Firebase
+      console.log('🔄 Checking for persistent login session...');
+      // Firebase's onAuthStateChanged automatically handles persistent login
       const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
-          // User is logged in
+          // User is logged in - Firebase automatically restored the session!
           const userData = {
             id: firebaseUser.uid,
             email: firebaseUser.email,
             name: firebaseUser.displayName || firebaseUser.email,
             isGuest: false,
           };
+
           setUser(userData);
           setIsGuest(false);
+
+          // Also store in SecureStore for extra safety
+          await SecureStore.setItemAsync('user', JSON.stringify(userData));
+
+          console.log('✅ User auto-logged in:', userData.email); // DEBUG
         } else {
           // Check if guest mode was saved
           const guestMode = Platform.OS === 'web'
@@ -136,10 +156,15 @@ export function AuthProvider({ children }) {
               name: 'Guest User',
               isGuest: true,
             };
+
             setUser(guestUser);
             setIsGuest(true);
+            console.log('✅ Guest mode restored'); // DEBUG
+          } else {
+            console.log('❌ No user or guest session found'); // DEBUG
           }
         }
+
         setIsLoading(false);
       });
 
@@ -169,6 +194,7 @@ export function AuthProvider({ children }) {
       await SecureStore.setItemAsync('guestId', guestId);
       await SecureStore.setItemAsync('isGuest', 'true');
     }
+    console.log('✅ Continuing as guest');
   };
 
   const signOut = async () => {
@@ -177,31 +203,35 @@ export function AuthProvider({ children }) {
       setUser(null);
       setIsGuest(false);
 
+      // Clear stored data
       if (Platform.OS === 'web') {
         localStorage.removeItem('guestId');
         localStorage.removeItem('isGuest');
+        localStorage.removeItem('user');
       } else {
         await SecureStore.deleteItemAsync('guestId');
         await SecureStore.deleteItemAsync('isGuest');
+        await SecureStore.deleteItemAsync('user');
       }
+
+      console.log('✅ Signed out');
+      
+      return { success: true };
     } catch (error) {
       console.error('Error signing out:', error);
+      return { success: false, error: error.message };
     }
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isLoading,
-        isGuest,
-        signIn,
-        signUp,
-        signOut,
-        continueAsGuest,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  const value = {
+    user,
+    isLoading,
+    isGuest,
+    signIn,
+    signUp,
+    signOut,
+    continueAsGuest,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
