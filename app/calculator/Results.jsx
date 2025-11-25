@@ -7,6 +7,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useUserProfile } from '../../_context/UserProfileContext';
 import { calculateXPFromScore, calculateLevelFromXP, checkAchievements, ACHIEVEMENTS } from '../../constants/LevelSystem';
+import { PendingXPService } from '../../services/PendingXPService';
+import { useBackgroundXP } from '../../_hooks/useBackgroundXP';
 
 export default function Results({
   loadingTime,
@@ -23,6 +25,8 @@ export default function Results({
   const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
   const trucksCount = trucksHistory.length;
   const palletsRate = loadingTime > 0 ? (palletsLoaded / (loadingTime / 3600)).toFixed(2) : '0.00';
+
+  const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
   // ✅ Calculate session score (0-10) based on pallets/hour efficiency
   const calculateScore = () => {
@@ -54,6 +58,14 @@ export default function Results({
   // ✅ MAIN SAVE HANDLER - NOW WITH CORRECT ORDER!
   const handleSave = async () => {
     try {
+      // ✅ STEP 1: Sync cached XP as BATCH
+      const syncResult = await syncPendingXP();
+      if (syncResult && syncResult.synced > 0) {
+        console.log(
+          `✅ Synced ${syncResult.synced} cached actions (+${syncResult.totalXP} XP total)`
+        );
+      }
+
       const sessionData = {
         id: Date.now(),
         date: new Date().toISOString(),
@@ -77,11 +89,16 @@ export default function Results({
       // Save back to AsyncStorage
       await AsyncStorage.setItem('scoreHistory', JSON.stringify(scores));
 
-      // ✅ STEP 1: Award XP
+      // ✅ STEP 2: Award session completion bonus
       const xpEarned = calculateXPFromScore(sessionScore);
       const xpResult = await awardXP(xpEarned);
 
-      // ✅ STEP 2: Calculate NEW stats (BEFORE checking achievements!)
+      if (!xpResult) {
+        Alert.alert('Error', 'Failed to award XP for session');
+        return;
+      }
+
+      // ✅ STEP 3: Calculate NEW stats (BEFORE checking achievements!)
       const newStats = {
         totalSessions: (profile.stats.totalSessions || 0) + 1,
         totalTimeWorked: (profile.stats.totalTimeWorked || 0) + (loadingTime / 3600),
@@ -92,16 +109,16 @@ export default function Results({
 
       console.log('📊 New Stats calculated:', newStats);
 
-      // ✅ STEP 3: Check achievements with NEW stats (BEFORE updating!)
+      // ✅ STEP 4: Check achievements with NEW stats (BEFORE updating!)
       console.log('🔍 Checking achievements with NEW stats...');
       const newAchievements = checkAchievements(newStats, sessionScore, profile.achievements);
       console.log('🏆 Achievements to unlock:', newAchievements);
 
-      // ✅ STEP 4: Update stats in Firestore
+      // ✅ STEP 5: Update stats in Firestore
       await updateStats(newStats);
       console.log('✅ Stats saved to Firestore');
 
-      // ✅ STEP 5: Unlock each new achievement
+      // ✅ STEP 6: Unlock each new achievement
       for (const achievementId of newAchievements) {
         const success = await unlockAchievement(achievementId);
         if (success) {
@@ -112,7 +129,7 @@ export default function Results({
         }
       }
 
-      // ✅ STEP 6: Show results to user
+      // ✅ STEP 7: Show results to user
       let message = `🎯 Session Complete!\n+${xpEarned} XP earned`;
 
       if (newAchievements.length > 0) {
@@ -189,46 +206,46 @@ export default function Results({
 
         {/* Stats Cards Section */}
         <View style={styles.statsSection}>
-            <View style={styles.statsGrid}>
-                          {/* Card 1: Elapsed Time */}
-                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                            <View style={styles.cardHeader}>
-                              <MaterialCommunityIcons name="clock" size={20} color={colors.iconColor} />
-                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Total Time</Text>
-                            </View>
-                            <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
-                          </View>
-
-                          {/* Card 2: Pallets Loaded */}
-                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                            <View style={styles.cardHeader}>
-                              <MaterialCommunityIcons name="cube-send" size={20} color={colors.iconColor} />
-                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Pallets Loaded</Text>
-                            </View>
-                            <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
-                          </View>
+          <View style={styles.statsGrid}>
+            {/* Card 1: Elapsed Time */}
+            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="clock" size={20} color={colors.iconColor} />
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Total Time</Text>
+              </View>
+              <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
             </View>
-            <View style={styles.statsGrid}>
-                          {/* Card 3: Rate (per hour) */}
-                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                            <View style={styles.cardHeader}>
-                              <MaterialCommunityIcons name="speedometer" size={20} color={colors.iconColor} />
-                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Rate/hour</Text>
-                            </View>
-                            <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
-                          </View>
 
-                          {/* Card 4: Trucks Loaded */}
-                          <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                            <View style={styles.cardHeader}>
-                              <MaterialCommunityIcons name="truck" size={20} color={colors.iconColor} />
-                              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Trucks Loaded</Text>
-                            </View>
-                            <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
-                          </View>
-                        </View>
+            {/* Card 2: Pallets Loaded */}
+            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="cube-send" size={20} color={colors.iconColor} />
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Pallets Loaded</Text>
+              </View>
+              <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
+            </View>
+          </View>
+          <View style={styles.statsGrid}>
+            {/* Card 3: Rate (per hour) */}
+            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="speedometer" size={20} color={colors.iconColor} />
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Rate/hour</Text>
+              </View>
+              <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
+            </View>
 
-                </View>
+            {/* Card 4: Trucks Loaded */}
+            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="truck" size={20} color={colors.iconColor} />
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Trucks Loaded</Text>
+              </View>
+              <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
+            </View>
+          </View>
+
+        </View>
 
 
         {/* Session Details */}
@@ -345,7 +362,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statCard: {
-      flex: 1,
+    flex: 1,
     borderRadius: 24,
     padding: 16,
     marginBottom: 12,

@@ -21,6 +21,11 @@ import { useCalculator } from "../../_context/CalculatorContext";
 import { useUserProfile } from "../../_context/UserProfileContext";
 import { calculateXPFromScore, calculateLevelFromXP } from "../../constants/LevelSystem";
 import { Alert } from 'react-native';
+import { PendingXPService } from '../../services/PendingXPService';
+import { useBackgroundXP } from '../../_hooks/useBackgroundXP';
+import { doc, updateDoc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
+import NetInfo from '@react-native-community/netinfo';
 
 const { width } = Dimensions.get('window');
 
@@ -49,11 +54,14 @@ export default function Working({
   // ✅ XP REWARD STATE
   const [currentXPPerMin, setCurrentXPPerMin] = useState(0);
   const [sessionXPEarned, setSessionXPEarned] = useState(0);
-  const [lastXPRewardTime, setLastXPRewardTime] = useState(Date.now());
+    const lastXPRewardTimeRef = useRef(Date.now());
   const [showXPFloatingText, setShowXPFloatingText] = useState(false);
   const [floatingXPAmount, setFloatingXPAmount] = useState(0);
   const [leveledUpMessage, setLeveledUpMessage] = useState(null);
   const [lastLevelBeforeSession] = useState(profile?.level || 1);
+
+  // ✅ USE BACKGROUND XP HOOK
+  const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
   // Animation for XP floating text
   const floatingAnim = React.useRef(new Animated.Value(0)).current;
@@ -89,64 +97,98 @@ export default function Working({
 
   const xpSaveInProgressRef = useRef(false);
 
-  // ✅ REAL-TIME XP REWARD SYSTEM
-  useEffect(() => {
-    if (!startTime || isPaused || !profile) return;
+const palletsRateRef = useRef(palletsRate);
+useEffect(() => {
+  palletsRateRef.current = palletsRate;
+  setCurrentXPPerMin(calculateXPPerMin(palletsRateRef.current));
+}, [palletsRate]);
 
-    const xpPerMin = calculateXPPerMin(palletsRate);
-    setCurrentXPPerMin(xpPerMin);
+// ✅ Check connection BEFORE trying Firestore
+const tryAwardXP = async (xpAmount) => {
+  try {
+    // Check if online
+    const state = await NetInfo.fetch();
 
-    const interval = setInterval(async () => {
-      const now = Date.now();
-      const timeSinceLastReward = now - lastXPRewardTime;
+    if (!state.isConnected) {
+      console.warn('📡 No internet connection - caching XP');
+      return null; // Trigger cache fallback
+    }
+      console.log('📡 Internet connection established - sending to firestore');
+    // Online, try Firestore
+    const result = await awardXP(xpAmount);
+    return result;
+  } catch (error) {
+    console.error('❌ Error:', error);
+    return null;
+  }
+};
 
-      // Award XP every 60 seconds
-      if (timeSinceLastReward >= 60000 && xpPerMin > 0) {
-        
-        // ✅ GUARD: Don't save if already saving
-        if (xpSaveInProgressRef.current) {
-          console.warn('⚠️ XP save already in progress, skipping...');
-          return;
-        }
-        
-        xpSaveInProgressRef.current = true; // Lock
-        
-        try {
-          // Award XP to Firestore
-          const result = await awardXP(xpPerMin);
-          
-          if (result) {
-            setSessionXPEarned(prev => prev + xpPerMin);
-            setLastXPRewardTime(now);
-            
-            // Show floating text
-            setFloatingXPAmount(xpPerMin);
-            setShowXPFloatingText(true);
-            
-            // Animate floating text
-            floatingAnim.setValue(0);
-            Animated.timing(floatingAnim, {
-              toValue: 1,
-              duration: 1500,
-              useNativeDriver: true,
-            }).start();
-            
-            setTimeout(() => setShowXPFloatingText(false), 1500);
-            
-            // Check if level up
-            if (result.leveledUp) {
-              setLeveledUpMessage(result.newLevel);
-              setTimeout(() => setLeveledUpMessage(null), 3000);
-            }
-          }
-        } finally {
-          xpSaveInProgressRef.current = false; // Unlock
-        }
+// ✅ XP CALCULATION - Try Firestore first, cache on failure
+useEffect(() => {
+  if (!startTime || isPaused || !profile) return;
+
+  const rewardXPIfNeeded = async () => {
+    const now = Date.now();
+    const timeSinceLastReward = now - lastXPRewardTimeRef.current;
+
+    // ✅ Calculate XP per min at this moment!
+    const xpPerMin = calculateXPPerMin(palletsRateRef.current);
+
+    // Award XP every 10 seconds for testing (should be 60000 for production)
+    if (timeSinceLastReward >= 10000 && xpPerMin > 0) {
+      if (xpSaveInProgressRef.current) {
+        console.warn('⚠️ XP save already in progress, skipping...');
+        return;
       }
-    }, 1000);
 
-    return () => clearInterval(interval);
-  }, [startTime, isPaused, palletsRate, profile, awardXP]);
+      xpSaveInProgressRef.current = true;
+      lastXPRewardTimeRef.current = now;
+
+      try {
+        const result = await tryAwardXP(xpPerMin);
+        setSessionXPEarned(prev => prev + xpPerMin);
+
+        // Show floating XP
+        setFloatingXPAmount(xpPerMin);
+        setShowXPFloatingText(true);
+
+              // Animate floating text
+              floatingAnim.setValue(0);
+              Animated.timing(floatingAnim, {
+                toValue: 1,
+                duration: 1500,
+                useNativeDriver: true,
+              }).start();
+
+              setTimeout(() => setShowXPFloatingText(false), 1500);
+
+              // Check if level up
+              if (result && result.leveledUp) {
+                setLeveledUpMessage(result.newLevel);
+                setTimeout(() => setLeveledUpMessage(null), 3000);
+              }
+      } catch (error) {
+        console.error('❌ Error in XP loop:', error);
+        // Fallback: cache it
+        await PendingXPService.recordXPAction(xpPerMin, {
+          rate: palletsRate,
+          trucksLoaded: trucksLoadedCount,
+          timestamp: now,
+          reason: 'error',
+        });
+      } finally {
+        xpSaveInProgressRef.current = false;
+      }
+    }
+  };
+
+  // Use a normal function for setInterval!
+  const interval = setInterval(() => {
+    rewardXPIfNeeded();
+  }, 10000);
+
+  return () => clearInterval(interval);
+}, [startTime, isPaused, profile, awardXP]); // ✅ Added awardXP
 
   // Add truck function - now updates context
   const addTruck = (truck) => {
@@ -248,6 +290,40 @@ export default function Working({
   const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
   const xpForNextLevel = profile ? profile.level * 1000 : 1000;
   const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
+
+// ✅ SIMPLIFIED: Only save remaining unsynced XP on unmount
+useEffect(() => {
+  return () => {
+    // Component is unmounting
+    if (startTime && profile && sessionXPEarned > 0) {
+      saveSessionToFirestore();
+    }
+  };
+}, []); // Empty array - only runs on unmount
+
+const saveSessionToFirestore = async () => {
+  try {
+    // Check if there's any unsynced XP from errors
+    const pending = await PendingXPService.getPendingActions();
+    const unsyncedXP = pending
+      .filter(a => !a.isSynced)
+      .reduce((sum, a) => sum + a.xpAmount, 0);
+
+    if (unsyncedXP > 0) {
+      console.log(`💾 Saving ${unsyncedXP} XP from cache (session ending)...`);
+
+      const userRef = doc(db, 'users', profile.userId);
+      await updateDoc(userRef, {
+        offlineXP: (profile.offlineXP || 0) + unsyncedXP,
+        lastOfflineUpdate: Date.now(),
+      });
+
+      console.log('✅ Remaining session XP saved to offlineXP');
+    }
+  } catch (error) {
+    console.error('❌ Error saving remaining XP:', error);
+  }
+};
 
   // Render truck item
   const renderTruckItem = (truck, isHistory = false) => (

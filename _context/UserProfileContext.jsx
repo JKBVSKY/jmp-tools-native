@@ -75,42 +75,82 @@ export function UserProfileProvider({ children }) {
     }
   };
 
-  // Award XP after completing a work session
-  const awardXP = async (xpAmount) => {
-    if (!profile) {
-      console.error('❌ No profile to award XP to');
-      return;
+  // Get total cached (unsynced) XP
+  const getLocalCachedXP = async () => {
+    try {
+      const total = await PendingXPService.getUnsyncedXPTotal();
+      return total;
+    } catch (error) {
+      console.error('❌ Error getting cached XP:', error);
+      return 0;
+    }
+  };
+
+// Award XP
+const awardXP = async (xpAmount) => {
+  try {
+    if (!user || !user.id) {
+      console.error('❌ User not authenticated');
+      return null;
     }
 
-    const newTotalXP = profile.totalXP + xpAmount;
-    const levelData = calculateLevelFromXP(newTotalXP);
+    // ✅ NEW: Add timeout to detect offline
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Firestore timeout - likely offline')), 3000) // 3 second timeout
+    );
 
-    const updated = {
-      ...profile,
-      totalXP: newTotalXP,
-      level: levelData.level,
-    };
+    const awardPromise = (async () => {
+      const userRef = doc(db, 'users', user.id);
+      const freshSnap = await Promise.race([
+        getDoc(userRef),
+        timeoutPromise
+      ]);
 
-    setProfile(updated);
+      if (!freshSnap.exists()) {
+        console.error('❌ Profile not found in Firestore');
+        return null;
+      }
 
-    // ✅ SAVE TO FIRESTORE
-    try {
-      const userRef = doc(db, 'users', profile.userId);
-      await updateDoc(userRef, {
+      const freshProfile = freshSnap.data();
+      const currentTotalXP = freshProfile.totalXP || 0;
+
+      const newTotalXP = currentTotalXP + xpAmount;
+      const levelData = calculateLevelFromXP(newTotalXP);
+
+      // ✅ Update with timeout
+      await Promise.race([
+        updateDoc(userRef, {
+          totalXP: newTotalXP,
+          level: levelData.level,
+        }),
+        timeoutPromise
+      ]);
+
+      const updated = {
+        ...freshProfile,
         totalXP: newTotalXP,
         level: levelData.level,
-      });
-      console.log('✅ XP saved:', { xpAmount, newTotalXP, level: levelData.level });
-    } catch (error) {
-      console.error('❌ Error saving XP to Firestore:', error);
-    }
+      };
+      setProfile(updated);
 
-    return {
-      xpEarned: xpAmount,
-      newLevel: levelData.level,
-      leveledUp: levelData.level > profile.level,
-    };
-  };
+      console.log('✅ XP saved:', { xpAmount, newTotalXP, level: levelData.level });
+
+      return {
+        xpEarned: xpAmount,
+        newLevel: levelData.level,
+        leveledUp: levelData.level > (freshProfile.level || 1),
+      };
+    })();
+
+    return await Promise.race([
+      awardPromise,
+      timeoutPromise
+    ]);
+  } catch (error) {
+    console.error('❌ Error awarding XP (will cache):', error.message);
+    return null; // ✅ Return null so fallback caching triggers
+  }
+};
 
   // Add new achievement
   const unlockAchievement = async (achievementId) => {
@@ -166,6 +206,7 @@ export function UserProfileProvider({ children }) {
     unlockAchievement,
     updateStats,
     loadUserProfile,
+    getLocalCachedXP,
   };
 
   return (
