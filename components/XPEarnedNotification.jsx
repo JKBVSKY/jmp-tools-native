@@ -1,17 +1,22 @@
 // components/XPEarnedNotification.jsx
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, memo } from 'react';
 import { Animated, View, Text, StyleSheet } from 'react-native';
 import { useColors } from '../_hooks/useColors';
 
-export function XPEarnedNotification({ xpAmount, visible, onDismiss }) {
+export const XPEarnedNotification = memo(function XPEarnedNotification({ xpAmount, visible, onDismiss }) {
+    // --- All Hooks must be called at the top ---
   const slideAnim = useRef(new Animated.Value(-150)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
   const colors = useColors();
 
   useEffect(() => {
+    console.log('📢 XPEarnedNotification useEffect triggered. visible:', visible);
+
     if (visible) {
-      // Animate in with slide + fade + scale
+      console.log('✅ Notification is VISIBLE - starting animation...');
+
+      // Animate in
       Animated.parallel([
         Animated.timing(slideAnim, {
           toValue: 0,
@@ -33,6 +38,8 @@ export function XPEarnedNotification({ xpAmount, visible, onDismiss }) {
 
       // Auto dismiss after 8 seconds
       const timer = setTimeout(() => {
+        console.log('⏰ 8 seconds passed - STARTING ANIMATION OUT...');
+
         Animated.parallel([
           Animated.timing(slideAnim, {
             toValue: -150,
@@ -49,14 +56,35 @@ export function XPEarnedNotification({ xpAmount, visible, onDismiss }) {
             duration: 300,
             useNativeDriver: true,
           }),
-        ]).start(() => onDismiss?.());
+        ]).start(() => {
+          console.log('🎬 Animation out COMPLETE - calling onDismiss()...');
+
+          if (onDismiss) {
+            console.log('📞 Calling onDismiss function...');
+            onDismiss();
+          } else {
+            console.warn('⚠️ onDismiss is NOT defined!');
+          }
+        });
       }, 8000);
 
-      return () => clearTimeout(timer);
-    }
-  }, [visible, slideAnim, opacityAnim, scaleAnim, onDismiss]);
+      console.log('⏱️ Timer set for 8 seconds. Timer ID:', timer);
 
-  if (!visible && slideAnim._value === -150) return null;
+      return () => {
+        console.log('🧹 Cleaning up timer:', timer);
+        clearTimeout(timer);
+      };
+    } else {
+      console.log('❌ Notification is HIDDEN');
+    }
+  }, [visible, xpAmount]);
+
+  console.log('🎨 Current render - visible:', visible);
+
+  if (!visible && slideAnim._value === -150) {
+    console.log('📭 Returning null - not rendering');
+    return null;
+  }
 
   return (
     <Animated.View
@@ -127,7 +155,9 @@ export function XPEarnedNotification({ xpAmount, visible, onDismiss }) {
       />
     </Animated.View>
   );
-}
+}, (prevProps, nextProps) => {
+   return prevProps.visible === nextProps.visible && prevProps.xpAmount === nextProps.xpAmount;
+ });
 
 const styles = StyleSheet.create({
   container: {

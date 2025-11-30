@@ -26,6 +26,9 @@ import { useBackgroundXP } from '../../_hooks/useBackgroundXP';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import NetInfo from '@react-native-community/netinfo';
+import { AppState } from 'react-native'; // You can use this directly or the hook
+import AsyncStorage from '@react-native-async-storage/async-storage'; // To save state
+import { XPEarnedNotification } from '../../components/XPEarnedNotification'; // Adjust path if needed
 
 const { width } = Dimensions.get('window');
 
@@ -60,13 +63,20 @@ export default function Working({
   const [leveledUpMessage, setLeveledUpMessage] = useState(null);
   const [lastLevelBeforeSession] = useState(profile?.level || 1);
 
+    // ADD this new state for the notification
+    const [notificationState, setNotificationState] = useState({ visible: false, xp: 0 });
+
   // ✅ USE BACKGROUND XP HOOK
   const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
   // Animation for XP floating text
   const floatingAnim = React.useRef(new Animated.Value(0)).current;
 
+  // ✅ USE COLORS HOOK
   const colors = useColors();
+
+  // ✅ USE APP STATE HOOK
+  const appState = useRef(AppState.currentState);
 
   // Use trucks data from context
   const trucks = calc.trucks || [];
@@ -98,10 +108,99 @@ export default function Working({
   const xpSaveInProgressRef = useRef(false);
 
 const palletsRateRef = useRef(palletsRate);
+
+// ✅ Calculate XP per minute based on current pallet rate
 useEffect(() => {
   palletsRateRef.current = palletsRate;
   setCurrentXPPerMin(calculateXPPerMin(palletsRateRef.current));
 }, [palletsRate]);
+
+  // Function to calculate and award offline progress
+  const handleAppComesToForeground = async () => {
+    if (calc.mode !== 'working' || isPaused) {
+        console.log("Not in a working session, skipping offline XP check.");
+        return;
+    }
+
+    try {
+        const lastSessionStateStr = await AsyncStorage.getItem('lastActiveSessionState');
+        if (!lastSessionStateStr) return;
+
+        const lastState = JSON.parse(lastSessionStateStr);
+        const { lastXPTime, lastPalletsRate } = lastState;
+
+        const now = Date.now();
+        const awayTimeMs = now - lastXPTime;
+        const awayTimeMinutes = awayTimeMs / 60000;
+
+        if (awayTimeMinutes < 1) { // Don't award for brief periods away
+            console.log("Away for less than a minute, skipping offline award.");
+            return;
+        }
+
+        const xpPerMin = calculateXPPerMin(lastPalletsRate);
+        if (xpPerMin > 0) {
+            const offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
+
+            if (offlineXPEarned > 0) {
+                console.log(`User was away for ${awayTimeMinutes.toFixed(1)} minutes. Awarding ${offlineXPEarned} offline XP.`);
+
+                // Award the XP
+                const result = await tryAwardXP(offlineXPEarned);
+                setSessionXPEarned(prev => prev + offlineXPEarned);
+
+                        // ✅ RESET notification state BEFORE showing new one
+                        setNotificationState({ visible: false, xp: 0 });
+
+                        // ✅ Small delay to let React process the state change
+                        setTimeout(() => {
+                          setNotificationState({ visible: true, xp: offlineXPEarned });
+                        }, 100);
+
+            if (result && result.leveledUp) {
+                setLeveledUpMessage(`Welcome back! You leveled up to Level ${result.newLevel} while away!`);
+                setTimeout(() => setLeveledUpMessage(null), 5000); // Longer duration for this special message
+            }
+            }
+        }
+
+        // IMPORTANT: Update the last reward time to NOW to prevent double-dipping
+        lastXPRewardTimeRef.current = now;
+
+    } catch (error) {
+        console.error("Error calculating offline XP:", error);
+    } finally {
+        await AsyncStorage.removeItem('lastActiveSessionState'); // Clean up
+    }
+  };
+
+  // This useEffect handles app state changes (background/foreground)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+        if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+            console.log('App has come to the foreground!');
+            await handleAppComesToForeground();
+        } else if (nextAppState.match(/inactive|background/)) {
+            console.log('App is going to the background.');
+            if (calc.mode === 'working' && !isPaused) {
+                const stateToSave = {
+                    lastXPTime: lastXPRewardTimeRef.current, // Use the ref's current value
+                    lastPalletsRate: palletsRateRef.current
+                };
+                await AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
+                console.log('Active session state saved.');
+            }
+        }
+        appState.current = nextAppState;
+    });
+
+    // Initial check on component mount in case it's the first load
+    handleAppComesToForeground();
+
+    return () => {
+        subscription.remove();
+    };
+  }, [calc.mode, isPaused]); // Rerun if the working mode changes
 
 // ✅ Check connection BEFORE trying Firestore
 const tryAwardXP = async (xpAmount) => {
@@ -158,15 +257,16 @@ useEffect(() => {
                 toValue: 1,
                 duration: 1500,
                 useNativeDriver: true,
-              }).start();
+              }).start(() => {
+                     // This is a more reliable way to hide the text after the animation
+                     setShowXPFloatingText(false);
+                 });
 
-              setTimeout(() => setShowXPFloatingText(false), 1500);
-
-              // Check if level up
-              if (result && result.leveledUp) {
-                setLeveledUpMessage(result.newLevel);
-                setTimeout(() => setLeveledUpMessage(null), 3000);
-              }
+                 // Check if level up
+                 if (result && result.leveledUp) {
+                     setLeveledUpMessage(`Leveled up to Level ${result.newLevel}!`); // Simplified message
+                     setTimeout(() => setLeveledUpMessage(null), 3000);
+                 }
       } catch (error) {
         console.error('❌ Error in XP loop:', error);
         // Fallback: cache it
@@ -432,6 +532,13 @@ const saveSessionToFirestore = async () => {
           </Text>
         </View>
       )}
+
+    {/* ADD THE NOTIFICATION COMPONENT HERE */}
+    <XPEarnedNotification
+      visible={notificationState.visible}
+      xpAmount={notificationState.xp}
+      onDismiss={() => setNotificationState({ visible: false, xp: 0 })}
+    />
 
       {/* ✅ FLOATING XP TEXT ANIMATION */}
       {showXPFloatingText && (
