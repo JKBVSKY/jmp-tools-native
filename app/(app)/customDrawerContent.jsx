@@ -45,7 +45,7 @@ function CustomDrawerContent(props) {
       >
         <MaterialIcons name="logout" size={24} style={{ color: colors.text, marginRight: 6 }} />
         <Text style={[styles.signOutText, { color: colors.text }]}>
-          Sign Out
+          Wyloguj
         </Text>
       </Pressable>
     </View>

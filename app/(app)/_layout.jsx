@@ -16,6 +16,7 @@ import About from './about';
 import Contact from './contact';
 import Calculator from '../calculator/Calculator';
 import Profile from './profile/index';
+import TimeConverter from './TimeConverter';
 
 // this is _layout from root/app/(app)/_layout.jsx
 const Drawer = createDrawerNavigator();
@@ -62,7 +63,7 @@ function DrawerScreens() {
         }}
       >
         <Drawer.Screen
-          name="Dashboard"
+          name="Panel Główny"
           component={Dashboard}
           options={{
             drawerIcon: ({ color, size }) => (
@@ -72,7 +73,7 @@ function DrawerScreens() {
         />
 
         <Drawer.Screen
-          name="Calculator"
+          name="Załadunek"
           component={Calculator}
           options={{
             drawerIcon: ({ color, size }) => (
@@ -82,7 +83,7 @@ function DrawerScreens() {
         />
 
         <Drawer.Screen
-          name="ScoreHistory"
+          name="Statystyki"
           component={ScoreHistory}
           options={{
             drawerIcon: ({ color, size }) => (
@@ -92,7 +93,17 @@ function DrawerScreens() {
         />
 
         <Drawer.Screen
-          name="Settings"
+          name="Przelicznik czasu"
+          component={TimeConverter}
+          options={{
+            drawerIcon: ({ color, size }) => (
+              <Ionicons name="time-outline" size={size} color={color} />
+              ),
+          }}
+        />
+
+        <Drawer.Screen
+          name="Ustawienia"
           component={Settings}
           options={{
             drawerIcon: ({ color, size }) => (
@@ -112,7 +123,7 @@ function DrawerScreens() {
         />
 
         <Drawer.Screen
-          name="About"
+          name="O aplikacji"
           component={About}
           options={{
             drawerIcon: ({ color, size }) => (
@@ -122,7 +133,7 @@ function DrawerScreens() {
         />
 
         <Drawer.Screen
-          name="Contact"
+          name="Kontakt"
           component={Contact}
           options={{
             drawerIcon: ({ color, size }) => (
@@ -132,7 +143,7 @@ function DrawerScreens() {
         />
 
         <Drawer.Screen
-          name="Profile"
+          name="Profil"
           component={Profile}
           options={{
             drawerIcon: ({ color, size }) => (
