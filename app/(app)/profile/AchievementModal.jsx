@@ -23,13 +23,13 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
           label: `${stats.totalSessions} / 1 sesja`,
         };
 
-      case 'achievement_speed_demon':
-        // Daily pallets - assuming max tracking is 100 pallets per day
+      case 'achievement_speed_hunter':
+        // Per-session pallets - shows current session pallet count
         return {
-          current: Math.min(stats.palletsLoadedToday || 0, 100),
-          total: 100,
-          percent: Math.min(((stats.palletsLoadedToday || 0) / 100) * 100, 100),
-          label: `${stats.palletsLoadedToday || 0} / 100 palet dzisiaj`,
+          current: Math.min(stats.palletsLoadedInSession || 0, 400),  // ✅ Use session pallets
+          total: 400,
+          percent: Math.min(((stats.palletsLoadedInSession || 0) / 400) * 100, 100),  // ✅ FIX percent calc
+          label: `${stats.palletsLoadedInSession || 0} / 400 palet w sesji`,
         };
 
       case 'achievement_consistency':
@@ -51,14 +51,14 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
           label: `${stats.nightShiftsCompleted || 0} / 20 zmian nocnych`,
         };
 
-      case 'achievement_master_loader':
-        const level = Math.floor(stats.totalXP / 1000) + 1;
-        return {
-          current: level,
-          total: 50,
-          percent: Math.min((level / 50) * 100, 100),
-          label: `Poziom ${level} / 50`,
-        };
+        case 'achievement_master_loader':
+          const currentLevel = stats.level || 0;  // ✅ Use level directly!
+          return {
+            current: currentLevel,
+            total: 50,
+            percent: Math.min((currentLevel / 50) * 100, 100),
+            label: `Poziom ${currentLevel} / 50`
+          };
 
       case 'achievement_perfectionist':
         return {

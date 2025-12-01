@@ -98,12 +98,12 @@ export const ACHIEVEMENTS = {
     description: 'Complete your first work session',
     requirement: 'Complete 1 session',
   },
-  SPEED_DEMON: {
-    id: 'achievement_speed_demon',
+  SPEED_HUNTER: {
+    id: 'achievement_speed_hunter',
     name: 'Rajdowiec',
     icon: '⚡',
-    description: 'Load 100 pallets in one day',
-    requirement: 'Load 100+ pallets in 24h',
+    description: 'Load 400+ pallets in one session',
+    requirement: '400+ pallets loaded in one session',
   },
   CONSISTENCY: {
     id: 'achievement_consistency',
@@ -124,7 +124,7 @@ export const ACHIEVEMENTS = {
     name: 'Mistrz Ładowania',
     icon: '👑',
     description: 'Reach level 50',
-    requirement: 'Level >= 50',
+    requirement: 'Level 50',
   },
   PERFECTIONIST: {
     id: 'achievement_perfectionist',
@@ -171,13 +171,38 @@ export const checkAchievements = (userStats, newScore, alreadyUnlocked = []) => 
     console.log('🏆 ❌ FIRST_SHIFT: FALSE - totalSessions is', userStats.totalSessions);
   }
 
-  // Check PERFECTIONIST - got 10.0 score
-  if (newScore >= 9.95 && !alreadyUnlocked.includes(ACHIEVEMENTS.PERFECTIONIST.id)) {
-    newAchievements.push(ACHIEVEMENTS.PERFECTIONIST.id);
-    console.log('🏆 ✅ PERFECTIONIST: TRUE - newScore is', newScore);
-  } else {
-    console.log('🏆 ❌ PERFECTIONIST: FALSE - newScore is', newScore);
-  }
+    // Check SPEED_HUNTER - load 400 pallets in ONE session
+    if (userStats.palletsLoadedInSession >= 400 && !alreadyUnlocked.includes(ACHIEVEMENTS.SPEED_HUNTER.id)) {
+      newAchievements.push(ACHIEVEMENTS.SPEED_HUNTER.id);
+      console.log('🏆 ✅ SPEED_HUNTER: TRUE - palletsLoadedInSession is', userStats.palletsLoadedInSession);
+    } else {
+      console.log('🏆 ❌ SPEED_HUNTER: FALSE - palletsLoadedInSession is', userStats.palletsLoadedInSession);
+    }
+
+// Check PERFECTIONIST - got 10.0 score 5+ times
+if (userStats.perfectScores >= 5 && !alreadyUnlocked.includes(ACHIEVEMENTS.PERFECTIONIST.id)) {
+  newAchievements.push(ACHIEVEMENTS.PERFECTIONIST.id);
+  console.log('🏆 ✅ PERFECTIONIST: TRUE - perfectScores is', userStats.perfectScores);
+} else {
+  console.log('🏆 ❌ PERFECTIONIST: FALSE - perfectScores is', userStats.perfectScores);
+}
+
+    // Check MASTER_LOADER - level 50
+    if (userStats.level >= 50 && !alreadyUnlocked.includes(ACHIEVEMENTS.MASTER_LOADER.id)) {
+        newAchievements.push(ACHIEVEMENTS.MASTER_LOADER.id);
+        console.log('🏆 ✅ MASTER_LOADER: TRUE - Level is', userStats.level);
+    } else {
+        console.log('🏆 ❌ MASTER_LOADER: FALSE - Level is', userStats.level);
+    }
+
+
+// Check NIGHT_OWL - 20 shifts between 22:00-06:00
+if (userStats.nightShiftsCompleted >= 20 && !alreadyUnlocked.includes(ACHIEVEMENTS.NIGHT_OWL.id)) {
+  newAchievements.push(ACHIEVEMENTS.NIGHT_OWL.id);
+  console.log('🏆 ✅ NIGHT_OWL: TRUE - Night shifts completed:', userStats.nightShiftsCompleted);
+} else {
+  console.log('🏆 ❌ NIGHT_OWL: FALSE - Night shifts completed:', userStats.nightShiftsCompleted);
+}
 
   // Check CONSISTENCY - average score >= 8.5
   const averageScore = userStats.totalSessions > 0 ? userStats.totalScore / userStats.totalSessions : 0;

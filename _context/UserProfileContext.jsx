@@ -52,10 +52,12 @@ export function UserProfileProvider({ children }) {
           stats: {
             totalTimeWorked: 0,
             palletsLoaded: 0,
+            palletsLoadedInSession: 0,
             totalSessions: 0,
             bestScore: 0,
             totalScore: 0,
           },
+          lastPalletsUpdateDate: new Date().toDateString(),
           createdAt: new Date().toISOString(),
         };
 
@@ -113,15 +115,17 @@ const awardXP = async (xpAmount) => {
 
       const freshProfile = freshSnap.data();
       const currentTotalXP = freshProfile.totalXP || 0;
-
       const newTotalXP = currentTotalXP + xpAmount;
+
+      // ✅ RECALCULATE LEVEL FROM NEW XP
       const levelData = calculateLevelFromXP(newTotalXP);
+      const newLevel = levelData.level; // Extract the level
 
       // ✅ Update with timeout
       await Promise.race([
         updateDoc(userRef, {
           totalXP: newTotalXP,
-          level: levelData.level,
+          level: newLevel,
         }),
         timeoutPromise
       ]);
@@ -129,16 +133,18 @@ const awardXP = async (xpAmount) => {
       const updated = {
         ...freshProfile,
         totalXP: newTotalXP,
-        level: levelData.level,
+        level: newLevel,
       };
+
       setProfile(updated);
 
-      console.log('✅ XP saved:', { xpAmount, newTotalXP, level: levelData.level });
+      console.log('✅ XP saved:', { xpAmount, newTotalXP, level: newLevel });
 
       return {
         xpEarned: xpAmount,
-        newLevel: levelData.level,
-        leveledUp: levelData.level > (freshProfile.level || 1),
+        newLevel: newLevel,
+        leveledUp: newLevel > (freshProfile.level || 1),
+        newTotalXP,
       };
     })();
 

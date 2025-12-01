@@ -329,7 +329,11 @@ const handleAchievementPress = (achievement) => {
       visible={modalVisible}
       achievement={selectedAchievement}
       onClose={() => setModalVisible(false)}
-      userStats={profile.stats}
+      userStats={{
+          ...profile.stats,
+          level: profile.level,
+          totalXP: profile.totalXP
+      }}
       isUnlocked={selectedAchievement ? profile.achievements.includes(selectedAchievement.id) : false}
     />
     </ScrollView>

@@ -105,13 +105,21 @@ export default function Results({
         palletsLoaded: (profile.stats.palletsLoaded || 0) + palletsLoaded,
         totalScore: (profile.stats.totalScore || 0) + sessionScore,
         bestScore: Math.max(profile.stats.bestScore || 0, sessionScore),
+        palletsLoadedInSession: palletsLoaded,  // ✅ ADD THIS - Save the session value
       };
 
       console.log('📊 New Stats calculated:', newStats);
 
       // ✅ STEP 4: Check achievements with NEW stats (BEFORE updating!)
       console.log('🔍 Checking achievements with NEW stats...');
-      const newAchievements = checkAchievements(newStats, sessionScore, profile.achievements);
+      const newAchievements = checkAchievements(
+        {
+          ...newStats,
+          palletsLoadedInSession: palletsLoaded  // ✅ Add this line - pallets from THIS session
+        },
+        sessionScore,
+        profile.achievements
+      );
       console.log('🏆 Achievements to unlock:', newAchievements);
 
       // ✅ STEP 5: Update stats in Firestore
