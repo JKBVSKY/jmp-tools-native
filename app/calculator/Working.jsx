@@ -42,6 +42,10 @@ export default function Working({
   setEndTime,
   mode
 }) {
+  // ============================================================================
+  // SECTION 1: ALL HOOKS - CALLED FIRST, NO CONDITIONS
+  // ============================================================================
+
   // Use Calculator Context for persistent data
   const calc = useCalculator();
 
@@ -53,30 +57,31 @@ export default function Working({
   const [editingTruck, setEditingTruck] = useState(null);
   const [showNewTransportModal, setShowNewTransportModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
+  const [expandedTruckId, setExpandedTruckId] = useState(null);
 
   // ✅ XP REWARD STATE
   const [currentXPPerMin, setCurrentXPPerMin] = useState(0);
   const [sessionXPEarned, setSessionXPEarned] = useState(0);
-    const lastXPRewardTimeRef = useRef(Date.now());
   const [showXPFloatingText, setShowXPFloatingText] = useState(false);
   const [floatingXPAmount, setFloatingXPAmount] = useState(0);
   const [leveledUpMessage, setLeveledUpMessage] = useState(null);
   const [lastLevelBeforeSession] = useState(profile?.level || 1);
+  const [notificationState, setNotificationState] = useState({ visible: false, xp: 0 });
 
-    // ADD this new state for the notification
-    const [notificationState, setNotificationState] = useState({ visible: false, xp: 0 });
+  // useRef _hooks
+  const lastXPRewardTimeRef = useRef(Date.now());
+  const floatingAnim = React.useRef(new Animated.Value(0)).current;
+  const colors = useColors();
+  const appState = useRef(AppState.currentState);
+  const xpSaveInProgressRef = useRef(false);
+  const palletsRateRef = useRef(palletsRate);
 
   // ✅ USE BACKGROUND XP HOOK
   const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
-  // Animation for XP floating text
-  const floatingAnim = React.useRef(new Animated.Value(0)).current;
-
-  // ✅ USE COLORS HOOK
-  const colors = useColors();
-
-  // ✅ USE APP STATE HOOK
-  const appState = useRef(AppState.currentState);
+  // ============================================================================
+  // SECTION 2: COMPUTED VALUES & CONTEXT DATA (NOT HOOKS)
+  // ============================================================================
 
   // Use trucks data from context
   const trucks = calc.trucks || [];
@@ -85,218 +90,300 @@ export default function Working({
   const isPaused = calc.isPaused || false;
   const pauseStart = calc.pauseStart || null;
   const totalPausedTime = calc.totalPausedTime || 0;
-
   const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
-
-  // ✅ Calculate XP per minute based on current pallet rate
-  const calculateXPPerMin = (rate) => {
-    const numRate = parseFloat(rate);
-    if (numRate >= 50) return 20;
-    if (numRate >= 48) return 15;
-    if (numRate >= 44) return 10;
-    if (numRate >= 40) return 5;
-    return 0;
-  };
-
-  // Calculate palletsRate as palletsLoaded per hour
   const palletsRate =
     loadingTime > 0 ? (palletsLoaded / (loadingTime / 3600)).toFixed(2) : "0.00";
-
-  // Count of trucks loaded
   const trucksLoadedCount = trucksHistory.length;
+  const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
+  const xpForNextLevel = profile ? profile.level * 1000 : 1000;
+  const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
 
-  const xpSaveInProgressRef = useRef(false);
+  // ============================================================================
+  // SECTION 3: ALL useEffect HOOKS - AFTER STATE/REF INITIALIZATION
+  // ============================================================================
 
-const palletsRateRef = useRef(palletsRate);
 
-// ✅ Calculate XP per minute based on current pallet rate
-useEffect(() => {
-  palletsRateRef.current = palletsRate;
-  setCurrentXPPerMin(calculateXPPerMin(palletsRateRef.current));
-}, [palletsRate]);
+  // ✅ Calculate XP per minute based on current pallet rate
+  useEffect(() => {
+    palletsRateRef.current = palletsRate;
+    setCurrentXPPerMin(calculateXPPerMin(palletsRateRef.current));
+  }, [palletsRate]);
 
-  // Function to calculate and award offline progress
-  const handleAppComesToForeground = async () => {
-    if (calc.mode !== 'working' || isPaused) {
-        console.log("Not in a working session, skipping offline XP check.");
-        return;
-    }
-
-    try {
-        const lastSessionStateStr = await AsyncStorage.getItem('lastActiveSessionState');
-        if (!lastSessionStateStr) return;
-
-        const lastState = JSON.parse(lastSessionStateStr);
-        const { lastXPTime, lastPalletsRate } = lastState;
-
-        const now = Date.now();
-        const awayTimeMs = now - lastXPTime;
-        const awayTimeMinutes = awayTimeMs / 60000;
-
-        if (awayTimeMinutes < 1) { // Don't award for brief periods away
-            console.log("Away for less than a minute, skipping offline award.");
-            return;
-        }
-
-        const xpPerMin = calculateXPPerMin(lastPalletsRate);
-        if (xpPerMin > 0) {
-            const offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
-
-            if (offlineXPEarned > 0) {
-                console.log(`User was away for ${awayTimeMinutes.toFixed(1)} minutes. Awarding ${offlineXPEarned} offline XP.`);
-
-                // Award the XP
-                const result = await tryAwardXP(offlineXPEarned);
-                setSessionXPEarned(prev => prev + offlineXPEarned);
-
-                        // ✅ RESET notification state BEFORE showing new one
-                        setNotificationState({ visible: false, xp: 0 });
-
-                        // ✅ Small delay to let React process the state change
-                        setTimeout(() => {
-                          setNotificationState({ visible: true, xp: offlineXPEarned });
-                        }, 100);
-
-            if (result && result.leveledUp) {
-                setLeveledUpMessage(`Welcome back! You leveled up to Level ${result.newLevel} while away!`);
-                setTimeout(() => setLeveledUpMessage(null), 5000); // Longer duration for this special message
-            }
-            }
-        }
-
-        // IMPORTANT: Update the last reward time to NOW to prevent double-dipping
-        lastXPRewardTimeRef.current = now;
-
-    } catch (error) {
-        console.error("Error calculating offline XP:", error);
-    } finally {
-        await AsyncStorage.removeItem('lastActiveSessionState'); // Clean up
-    }
-  };
-
-  // This useEffect handles app state changes (background/foreground)
+  // This handles app state changes (background/foreground)
   useEffect(() => {
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
-        if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-            console.log('App has come to the foreground!');
-            await handleAppComesToForeground();
-        } else if (nextAppState.match(/inactive|background/)) {
-            console.log('App is going to the background.');
-            if (calc.mode === 'working' && !isPaused) {
-                const stateToSave = {
-                    lastXPTime: lastXPRewardTimeRef.current, // Use the ref's current value
-                    lastPalletsRate: palletsRateRef.current
-                };
-                await AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
-                console.log('Active session state saved.');
-            }
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('App has come to the foreground!');
+        await handleAppComesToForeground();
+      } else if (nextAppState.match(/inactive|background/)) {
+        console.log('App is going to the background.');
+        if (calc.mode === 'working' && !isPaused) {
+          const stateToSave = {
+            lastXPTime: lastXPRewardTimeRef.current, // Use the ref's current value
+            lastPalletsRate: palletsRateRef.current
+          };
+          await AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
+          console.log('Active session state saved.');
         }
-        appState.current = nextAppState;
+      }
+      appState.current = nextAppState;
     });
 
     // Initial check on component mount in case it's the first load
     handleAppComesToForeground();
 
     return () => {
-        subscription.remove();
+      subscription.remove();
     };
   }, [calc.mode, isPaused]); // Rerun if the working mode changes
 
-// ✅ Check connection BEFORE trying Firestore
-const tryAwardXP = async (xpAmount) => {
-  try {
-    // Check if online
-    const state = await NetInfo.fetch();
+  // ✅ XP CALCULATION - Try Firestore first, cache on failure
+  useEffect(() => {
+    if (!startTime || isPaused || !profile) return;
 
-    if (!state.isConnected) {
-      console.warn('📡 No internet connection - caching XP');
-      return null; // Trigger cache fallback
+    const rewardXPIfNeeded = async () => {
+      const now = Date.now();
+      const timeSinceLastReward = now - lastXPRewardTimeRef.current;
+
+      // ✅ Calculate XP per min at this moment!
+      const xpPerMin = calculateXPPerMin(palletsRateRef.current);
+
+      // Award XP every 10 seconds for testing (should be 60000 for production)
+      if (timeSinceLastReward >= 10000 && xpPerMin > 0) {
+        if (xpSaveInProgressRef.current) {
+          console.warn('⚠️ XP save already in progress, skipping...');
+          return;
+        }
+
+        xpSaveInProgressRef.current = true;
+        lastXPRewardTimeRef.current = now;
+
+        try {
+          const result = await tryAwardXP(xpPerMin);
+          setSessionXPEarned(prev => prev + xpPerMin);
+
+          // Show floating XP
+          setFloatingXPAmount(xpPerMin);
+          setShowXPFloatingText(true);
+
+          // Animate floating text
+          floatingAnim.setValue(0);
+          Animated.timing(floatingAnim, {
+            toValue: 1,
+            duration: 1500,
+            useNativeDriver: true,
+          }).start(() => {
+            // This is a more reliable way to hide the text after the animation
+            setShowXPFloatingText(false);
+          });
+
+          // Check if level up
+          if (result && result.leveledUp) {
+            setLeveledUpMessage(`Leveled up to Level ${result.newLevel}!`); // Simplified message
+            setTimeout(() => setLeveledUpMessage(null), 3000);
+          }
+        } catch (error) {
+          console.error('❌ Error in XP loop:', error);
+          // Fallback: cache it
+          await PendingXPService.recordXPAction(xpPerMin, {
+            rate: palletsRate,
+            trucksLoaded: trucksLoadedCount,
+            timestamp: now,
+            reason: 'error',
+          });
+        } finally {
+          xpSaveInProgressRef.current = false;
+        }
+      }
+    };
+
+    // Use a normal function for setInterval!
+    const interval = setInterval(() => {
+      rewardXPIfNeeded();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [startTime, isPaused, profile, awardXP]); // ✅ Added awardXP
+
+  // Update loadingTime every second
+  useEffect(() => {
+    if (!startTime || isPaused) return;
+
+    const interval = setInterval(() => {
+      setLoadingTime(Math.floor((Date.now() - startTime - totalPausedTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime, totalPausedTime, isPaused, setLoadingTime]);
+
+  // Update elapsed loading time for each active truck every second
+  useEffect(() => {
+    if (isPaused || trucks.length === 0) return;
+
+    const interval = setInterval(() => {
+      const updatedTrucks = trucks.map(truck => {
+        const elapsed = Math.floor((Date.now() - truck.startLoadingTime) / 1000);
+        return {
+          ...truck,
+          elapsedLoadingTime: elapsed
+        };
+      });
+      calc.updateState({
+        trucks: updatedTrucks
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [trucks.length, isPaused, calc]);
+
+  // ✅ SIMPLIFIED: Only save remaining unsynced XP on unmount
+  useEffect(() => {
+    return () => {
+      // Component is unmounting
+      if (startTime && profile && sessionXPEarned > 0) {
+        saveSessionToFirestore();
+      }
+    };
+  }, []); // Empty array - only runs on unmount
+
+  // ============================================================================
+  // SECTION 4: HELPER FUNCTIONS & LOGIC
+  // ============================================================================
+
+
+  // ✅ Calculate XP per minute based on current pallet rate
+  const calculateXPPerMin = (rate) => {
+    return 10;
+  };
+
+  // Function to calculate and award offline progress
+  const handleAppComesToForeground = async () => {
+    if (calc.mode !== 'working' || isPaused) {
+      console.log("Not in a working session, skipping offline XP check.");
+      return;
     }
-      console.log('📡 Internet connection established - sending to firestore');
-    // Online, try Firestore
-    const result = await awardXP(xpAmount);
-    return result;
-  } catch (error) {
-    console.error('❌ Error:', error);
-    return null;
-  }
-};
 
-// ✅ XP CALCULATION - Try Firestore first, cache on failure
-useEffect(() => {
-  if (!startTime || isPaused || !profile) return;
+    try {
+      const lastSessionStateStr = await AsyncStorage.getItem('lastActiveSessionState');
+      if (!lastSessionStateStr) return;
 
-  const rewardXPIfNeeded = async () => {
-    const now = Date.now();
-    const timeSinceLastReward = now - lastXPRewardTimeRef.current;
+      const lastState = JSON.parse(lastSessionStateStr);
+      const { lastXPTime, lastPalletsRate } = lastState;
 
-    // ✅ Calculate XP per min at this moment!
-    const xpPerMin = calculateXPPerMin(palletsRateRef.current);
+      const now = Date.now();
+      const awayTimeMs = now - lastXPTime;
+      const awayTimeMinutes = awayTimeMs / 60000;
 
-    // Award XP every 10 seconds for testing (should be 60000 for production)
-    if (timeSinceLastReward >= 10000 && xpPerMin > 0) {
-      if (xpSaveInProgressRef.current) {
-        console.warn('⚠️ XP save already in progress, skipping...');
+      if (awayTimeMinutes < 1) { // Don't award for brief periods away
+        console.log("Away for less than a minute, skipping offline award.");
         return;
       }
 
-      xpSaveInProgressRef.current = true;
+      const xpPerMin = calculateXPPerMin(lastPalletsRate);
+      if (xpPerMin > 0) {
+        const offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
+
+        if (offlineXPEarned > 0) {
+          console.log(`User was away for ${awayTimeMinutes.toFixed(1)} minutes. Awarding ${offlineXPEarned} offline XP.`);
+
+          // Award the XP
+          const result = await tryAwardXP(offlineXPEarned);
+          setSessionXPEarned(prev => prev + offlineXPEarned);
+
+          // ✅ RESET notification state BEFORE showing new one
+          setNotificationState({ visible: false, xp: 0 });
+
+          // ✅ Small delay to let React process the state change
+          setTimeout(() => {
+            setNotificationState({ visible: true, xp: offlineXPEarned });
+          }, 100);
+
+          if (result && result.leveledUp) {
+            setLeveledUpMessage(`Welcome back! You leveled up to Level ${result.newLevel} while away!`);
+            setTimeout(() => setLeveledUpMessage(null), 5000); // Longer duration for this special message
+          }
+        }
+      }
+
+      // IMPORTANT: Update the last reward time to NOW to prevent double-dipping
       lastXPRewardTimeRef.current = now;
 
-      try {
-        const result = await tryAwardXP(xpPerMin);
-        setSessionXPEarned(prev => prev + xpPerMin);
-
-        // Show floating XP
-        setFloatingXPAmount(xpPerMin);
-        setShowXPFloatingText(true);
-
-              // Animate floating text
-              floatingAnim.setValue(0);
-              Animated.timing(floatingAnim, {
-                toValue: 1,
-                duration: 1500,
-                useNativeDriver: true,
-              }).start(() => {
-                     // This is a more reliable way to hide the text after the animation
-                     setShowXPFloatingText(false);
-                 });
-
-                 // Check if level up
-                 if (result && result.leveledUp) {
-                     setLeveledUpMessage(`Leveled up to Level ${result.newLevel}!`); // Simplified message
-                     setTimeout(() => setLeveledUpMessage(null), 3000);
-                 }
-      } catch (error) {
-        console.error('❌ Error in XP loop:', error);
-        // Fallback: cache it
-        await PendingXPService.recordXPAction(xpPerMin, {
-          rate: palletsRate,
-          trucksLoaded: trucksLoadedCount,
-          timestamp: now,
-          reason: 'error',
-        });
-      } finally {
-        xpSaveInProgressRef.current = false;
-      }
+    } catch (error) {
+      console.error("Error calculating offline XP:", error);
+    } finally {
+      await AsyncStorage.removeItem('lastActiveSessionState'); // Clean up
     }
   };
 
-  // Use a normal function for setInterval!
-  const interval = setInterval(() => {
-    rewardXPIfNeeded();
-  }, 10000);
+  // ✅ Check connection BEFORE trying Firestore
+  const tryAwardXP = async (xpAmount) => {
+    try {
+      // Check if online
+      const state = await NetInfo.fetch();
 
-  return () => clearInterval(interval);
-}, [startTime, isPaused, profile, awardXP]); // ✅ Added awardXP
+      if (!state.isConnected) {
+        console.warn('📡 No internet connection - caching XP');
+        return null; // Trigger cache fallback
+      }
+      console.log('📡 Internet connection established - sending to firestore');
+      // Online, try Firestore
+      const result = await awardXP(xpAmount);
+      return result;
+    } catch (error) {
+      console.error('❌ Error:', error);
+      return null;
+    }
+  };
+
+  const saveSessionToFirestore = async () => {
+    try {
+      // Check if there's any unsynced XP from errors
+      const pending = await PendingXPService.getPendingActions();
+      const unsyncedXP = pending
+        .filter(a => !a.isSynced)
+        .reduce((sum, a) => sum + a.xpAmount, 0);
+
+      if (unsyncedXP > 0) {
+        console.log(`💾 Saving ${unsyncedXP} XP from cache (session ending)...`);
+
+        const userRef = doc(db, 'users', profile.userId);
+        await updateDoc(userRef, {
+          offlineXP: (profile.offlineXP || 0) + unsyncedXP,
+          lastOfflineUpdate: Date.now(),
+        });
+
+        console.log('✅ Remaining session XP saved to offlineXP');
+      }
+    } catch (error) {
+      console.error('❌ Error saving remaining XP:', error);
+    }
+  };
+
+  // Format seconds as HH:MM:SS
+  const formatElapsed = (seconds) => {
+    const h = Math.floor(seconds / 3600);
+    const m = Math.floor((seconds % 3600) / 60);
+    const s = seconds % 60;
+    return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
+  };
+
+  const formatTruckTime = (seconds) => {
+    if (!seconds || seconds < 0) return "00:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+  };
 
   // Add truck function - now updates context
   const addTruck = (truck) => {
+    const now = Date.now();
     const newTruck = {
       ...truck,
-      id: Date.now() + Math.random(),
+      id: now + Math.random(),
       displayId: nextTruckId,
-      time: truck.time || "—"
+      time: truck.time || "—",
+      elapsedLoadingTime: 0, // ✅ NEW: Initialize timer
+      startLoadingTime: now, // ✅ NEW: Track when truck was added
     };
 
     calc.updateState({
@@ -314,9 +401,16 @@ useEffect(() => {
   const handleTruckDone = (truckId) => {
     const truckToRemove = trucks.find(t => t.id === truckId);
     if (truckToRemove) {
+      // Calculate final elapsed time
+      const finalElapsedTime = truckToRemove.elapsedLoadingTime || 0;
+
       calc.updateState({
         trucks: trucks.filter(t => t.id !== truckId),
-        trucksHistory: [{ ...truckToRemove }, ...trucksHistory]
+        trucksHistory: [{
+          ...truckToRemove,
+          elapsedLoadingTime: finalElapsedTime, // ✅ Save the elapsed time
+          completedTime: Date.now() // Optional: timestamp when completed
+        }, ...trucksHistory]
       });
     }
   };
@@ -367,134 +461,122 @@ useEffect(() => {
     }
   };
 
-  // Update loadingTime every second
-  useEffect(() => {
-    if (!startTime || isPaused) return;
-
-    const interval = setInterval(() => {
-      setLoadingTime(Math.floor((Date.now() - startTime - totalPausedTime) / 1000));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [startTime, totalPausedTime, isPaused, setLoadingTime]);
-
-  // Format seconds as HH:MM:SS
-  const formatElapsed = (seconds) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
-    return [h, m, s].map(v => String(v).padStart(2, '0')).join(':');
-  };
-
-  // ✅ CALCULATE LEVEL PROGRESS
-  const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
-  const xpForNextLevel = profile ? profile.level * 1000 : 1000;
-  const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
-
-// ✅ SIMPLIFIED: Only save remaining unsynced XP on unmount
-useEffect(() => {
-  return () => {
-    // Component is unmounting
-    if (startTime && profile && sessionXPEarned > 0) {
-      saveSessionToFirestore();
-    }
-  };
-}, []); // Empty array - only runs on unmount
-
-const saveSessionToFirestore = async () => {
-  try {
-    // Check if there's any unsynced XP from errors
-    const pending = await PendingXPService.getPendingActions();
-    const unsyncedXP = pending
-      .filter(a => !a.isSynced)
-      .reduce((sum, a) => sum + a.xpAmount, 0);
-
-    if (unsyncedXP > 0) {
-      console.log(`💾 Saving ${unsyncedXP} XP from cache (session ending)...`);
-
-      const userRef = doc(db, 'users', profile.userId);
-      await updateDoc(userRef, {
-        offlineXP: (profile.offlineXP || 0) + unsyncedXP,
-        lastOfflineUpdate: Date.now(),
-      });
-
-      console.log('✅ Remaining session XP saved to offlineXP');
-    }
-  } catch (error) {
-    console.error('❌ Error saving remaining XP:', error);
-  }
-};
+  // ============================================================================
+  // SECTION 5: RENDER FUNCTIONS (AFTER ALL HOOKS & HELPER FUNCTIONS)
+  // ============================================================================
 
   // Render truck item
-  const renderTruckItem = (truck, isHistory = false) => (
-    <View key={truck.id} style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
-      <Text style={{ marginRight: 8 }}>
-        <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
-      </Text>
-      <Text style={[styles.truckId, { color: colors.iconColor }]}>
-        #{truck.displayId}
-      </Text>
+  // ✅ NEW: Render truck item with collapsible design
+  const renderTruckItem = (truck, isHistory = false) => {
+    const isExpanded = expandedTruckId === truck.id;
+    const elapsedTime = truck.elapsedLoadingTime || 0;
 
-      <View style={[styles.truckInfo, { marginRight: 12 }]}>
-        {/* First Row: Shop and Trailer */}
-        <View style={{ flexDirection: 'row' }}>
-          {/* Left side: Shop */}
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingRight: 16 }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Sklep:</Text>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.shop || '—'}</Text>
-          </View>
-
-          {/* Right side: Trailer */}
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Naczepa:</Text>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.trailer || '—'}</Text>
-          </View>
+    return (
+        <View>
+      <View key={truck.id} style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
+        {/* LEFT SECTION: Truck ID */}
+        <View style={[styles.truckIdSection, {
+            backgroundColor: colors.cardBackground,
+            borderWidth: 2,
+            borderColor: colors.border,
+             }]}>
+          <Text style={{ marginRight: 8 }}>
+            <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
+          </Text>
+          <Text style={[styles.truckId, { color: colors.iconColor }]}>#{truck.displayId}</Text>
         </View>
 
-        {/* Second Row: Gate and Pallets */}
-        <View style={{ flexDirection: 'row' }}>
-          {/* Left side: Gate */}
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingRight: 16 }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Brama:</Text>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.gate || '—'}</Text>
-          </View>
-
-          {/* Right side: Pallets */}
-          <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>Palety:</Text>
-            <Text style={[styles.truckInfoText, { color: colors.text }]}>{truck.pallets || '—'}</Text>
-          </View>
-        </View>
-      </View>
-
-      <View style={[styles.truckActions, { backgroundColor: colors.truckButtons, borderRadius: 8, borderWidth: 1, borderColor: colors.breakLine }]}>
+        {/* MIDDLE SECTION: Collapsible Info */}
         <TouchableOpacity
-          onPress={() => setEditingTruck(truck)}
-          style={styles.iconButton}
+          onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
+          style={styles.truckInfoSection}
         >
-          <Ionicons name="pencil-outline" size={20} style={{ color: colors.editBut }} />
+          {/* COLLAPSED VIEW - Always Visible */}
+          <View style={styles.compactRow}>
+            {/* Shop */}
+            <View style={styles.compactField}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Sklep:</Text>
+              <Text style={[styles.fieldValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
+            </View>
+
+            {/* Pallets */}
+            <View style={styles.compactField}>
+              <Text style={[styles.fieldLabel, { color: colors.text }]}>Palety:</Text>
+              <Text style={[styles.fieldValue, { color: colors.text }]}>{truck.pallets || '—'}</Text>
+            </View>
+
+            {/* Expand Icon */}
+            <View style={styles.expandIcon}>
+              <MaterialCommunityIcons
+                name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                size={20}
+                color={colors.text}
+              />
+            </View>
+          </View>
+
+
         </TouchableOpacity>
 
-        {!isHistory && (
+        {/* RIGHT SECTION: Action Buttons */}
+        <View style={styles.truckActionsRight}>
           <TouchableOpacity
-            onPress={() => handleTruckDone(truck.id)}
-            style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+            onPress={() => setEditingTruck(truck)}
+            style={styles.iconButton}
           >
-            <Ionicons name="checkmark-outline" size={20} color="#4ade80" />
+            <MaterialCommunityIcons name="pencil" size={16} color={colors.text} />
           </TouchableOpacity>
-        )}
 
-        {isHistory && (
-          <TouchableOpacity
-            onPress={() => handleRemoveHistoryTruck(truck.id)}
-            style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
-          >
-            <Ionicons name="trash-outline" size={20} color="#ef4444" />
-          </TouchableOpacity>
-        )}
+          {!isHistory && (
+            <TouchableOpacity
+              onPress={() => handleTruckDone(truck.id)}
+              style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+            >
+              <MaterialCommunityIcons name="check" size={16} color={colors.success || '#10b981'} />
+            </TouchableOpacity>
+          )}
+
+          {isHistory && (
+            <TouchableOpacity
+              onPress={() => handleRemoveHistoryTruck(truck.id)}
+              style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+            >
+              <MaterialCommunityIcons name="delete" size={16} color={colors.error || '#ef4444'} />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
-    </View>
-  );
+        <View>
+          {/* EXPANDED VIEW - Additional Details */}
+          {isExpanded && (
+            <View style={[styles.expandedDetails, { borderColor: colors.breakLine }]}>
+              {/* Gate Row */}
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: colors.text }]}>Brama:</Text>
+                <Text style={[styles.detailValue, { color: colors.text }]}>{truck.gate || '—'}</Text>
+              </View>
+
+              {/* Trailer Row */}
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: colors.text }]}>Naczepa:</Text>
+                <Text style={[styles.detailValue, { color: colors.text }]}>{truck.trailer || '—'}</Text>
+              </View>
+
+              {/* Full Elapsed Time Display */}
+              <View style={styles.detailRow}>
+                <Text style={[styles.detailLabel, { color: colors.text }]}>Całkowity Czas:</Text>
+                <Text style={[styles.detailValue, { color: colors.text }]}>{formatElapsed(elapsedTime)}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  // ============================================================================
+  // SECTION 6: MAIN RENDER
+  // ============================================================================
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -533,12 +615,12 @@ const saveSessionToFirestore = async () => {
         </View>
       )}
 
-    {/* ADD THE NOTIFICATION COMPONENT HERE */}
-    <XPEarnedNotification
-      visible={notificationState.visible}
-      xpAmount={notificationState.xp}
-      onDismiss={() => setNotificationState({ visible: false, xp: 0 })}
-    />
+      {/* ADD THE NOTIFICATION COMPONENT HERE */}
+      <XPEarnedNotification
+        visible={notificationState.visible}
+        xpAmount={notificationState.xp}
+        onDismiss={() => setNotificationState({ visible: false, xp: 0 })}
+      />
 
       {/* ✅ FLOATING XP TEXT ANIMATION */}
       {showXPFloatingText && (
@@ -640,7 +722,7 @@ const saveSessionToFirestore = async () => {
           pageMargin={16}
         >
           <View key="1" style={{ flex: 1 }}>
-            <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground }]} contentContainerStyle={{ flexGrow: 1 }}>
+            <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
               {trucks.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                   <Text style={[styles.emptyText, { color: colors.text }]}>Rozpocznij nowy transport.</Text>
@@ -652,7 +734,7 @@ const saveSessionToFirestore = async () => {
           </View>
 
           <View key="2" style={{ flex: 1 }}>
-            <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground }]} contentContainerStyle={{ flexGrow: 1 }}>
+            <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
               {trucksHistory.length === 0 ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
                   <Text style={[styles.emptyText, { color: colors.text }]}>Brak historii transportów.</Text>
@@ -909,36 +991,6 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#ccc',
   },
-  trucksList: {
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 12,
-  },
-  truckItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 8,
-    minHeight: 50,
-    borderBottomWidth: 1,
-  },
-  truckId: {
-    fontWeight: '500',
-    fontSize: 16,
-    color: '#333',
-  },
-  truckInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  truckInfoText: {
-    fontSize: 12,
-    color: '#555',
-  },
-  truckActions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
   iconButton: {
     padding: 6,
   },
@@ -1009,5 +1061,113 @@ const styles = StyleSheet.create({
   btnResumeText: {
     fontSize: 14,
     fontWeight: '600',
+  },
+    // Truck List Section
+  trucksList: {
+    borderWidth: 1,
+    borderRadius: 12,
+  },
+  truckItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    minHeight: 60,
+    borderBottomWidth: 1,
+  },
+  truckId: {
+    fontWeight: '700',
+    fontSize: 15,
+    letterSpacing: 0.5,
+  },
+  truckIdSection: {
+    width: 'auto',
+    minWidth: 60,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingRight: 8,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    gap: 2,
+    height: 50,
+    borderRadius: 10,
+    marginRight: 4,
+  },
+  truckInfoSection: {
+    flex: 1,
+    marginHorizontal: 8,
+  },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 6,
+    gap: 8,
+  },
+  compactField: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    flex: 1,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 2,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  fieldValue: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+
+  timeValue: {
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+
+  expandIcon: {
+     padding: 4,
+     marginLeft: 4,
+  },
+
+  expandedDetails: {
+    marginTop: 12,
+    paddingLeft: 12,
+    paddingRight: 8,
+    paddingBottom: 12,
+    gap: 10,
+    borderBottomWidth: 1,
+  },
+
+  detailRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 0,
+  },
+
+  detailLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    flex: 0.4,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+
+  detailValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 0.6,
+    textAlign: 'right',
+  },
+
+  truckActionsRight: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    paddingLeft: 8,
   },
 });

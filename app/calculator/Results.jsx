@@ -31,15 +31,12 @@ export default function Results({
   // ✅ Calculate session score (0-10) based on pallets/hour efficiency
   const calculateScore = () => {
     const rate = parseFloat(palletsRate);
-    if (rate >= 48) return 10.0;
-    if (rate >= 47) return 9.0;
-    if (rate >= 46) return 8.0;
-    if (rate >= 45) return 7.0;
-    if (rate >= 44) return 6.0;
-    if (rate >= 43) return 5.0;
-    if (rate >= 42) return 4.0;
-    if (rate >= 41) return 3.0;
-    return 2.0;
+    if (rate >= 48) return 10.0; if (rate >= 47) return 9.5; if (rate >= 46) return 9.0; if (rate >= 45) return 8.5;
+    if (rate >= 44) return 8.0; if (rate >= 43) return 7.5; if (rate >= 42) return 7.0; if (rate >= 41) return 6.5;
+    if (rate >= 40) return 6.0; if (rate >= 39) return 5.5; if (rate >= 38) return 5.0; if (rate >= 37) return 4.5;
+    if (rate >= 36) return 4.0; if (rate >= 35) return 3.5; if (rate >= 34) return 3.0; if (rate >= 33) return 2.5;
+    if (rate >= 32) return 2.0; if (rate >= 31) return 1.5;
+    return 1.0;
   };
 
   const sessionScore = calculateScore();

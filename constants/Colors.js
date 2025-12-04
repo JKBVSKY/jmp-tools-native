@@ -33,7 +33,7 @@ export const Colors = {
     outButText: '#E8EAED',
 
     // UI Elements
-    border: '#3F4144',           // Gray border
+    border: '#111',           // Gray border
     breakLine: '#3F4144',        // Gray break line
     iconColor: '#9AA0A6',        // Light gray icons
     inputBackground: '#292A2D',
