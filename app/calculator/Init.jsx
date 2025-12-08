@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -8,6 +8,9 @@ import AdjustTimeModal from "./AdjustTimeModal";
 import Clock from "./Clock";
 import { useColors } from '../../_hooks/useColors';
 import Spacer from "../../components/Spacer";
+import { calculateSummary } from "../(app)/scoreHistory";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuth } from '../../_context/AuthContext';
 
 
 function getCurrentShift(date = new Date()) {
@@ -16,22 +19,44 @@ function getCurrentShift(date = new Date()) {
 
   // Morning: 06:00 - 12:00
   if ((h > 6 && h < 12) || (h === 6 && m >= 0) || (h === 12 && m === 0)) {
-    return "Morning";
+    return "Rano";
   }
 
   // Afternoon: 12:01 - 21:44
   if ((h > 12 && h < 21) || (h === 12 && m > 0) || (h === 21 && m < 45)) {
-    return "Afternoon";
+    return "Popołudnie";
   }
 
   // Night: 21:45 - 05:59
-  return "Night";
+  return "Noc";
 }
 
 export default function Init({ changeMode, setStartTime, startTime }) {
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const shift = getCurrentShift();
   const colors = useColors();
+  const [averageRate, setAverageRate] = useState('0.00');
+  const { user } = useAuth();
+
+
+    // Calculate average rate when component mounts
+  useEffect(() => {
+    const loadAverageRate = async () => {
+      try {
+        const savedSessions = await AsyncStorage.getItem('scoreHistory');
+        if (savedSessions) {
+          const sessions = JSON.parse(savedSessions);
+          const summary = calculateSummary(sessions);
+          if (summary) {
+            setAverageRate(summary.averageRate);
+          }
+        }
+      } catch (error) {
+        console.error('Failed to load average rate:', error);
+      }
+    };
+    loadAverageRate();
+  }, []);
 
   const handleStart = () => {
     changeMode("working");
@@ -46,7 +71,7 @@ export default function Init({ changeMode, setStartTime, startTime }) {
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Actual time</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Aktualny czas</Text>
             </View>
             <Text style={[styles.cardValue, styles.clock, { color: colors.text }]}>
               <Clock />
@@ -57,7 +82,7 @@ export default function Init({ changeMode, setStartTime, startTime }) {
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="timer-sand" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Choosen time</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Wybrany czas</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{new Date(startTime).toLocaleTimeString()}</Text>
           </View>
@@ -66,7 +91,7 @@ export default function Init({ changeMode, setStartTime, startTime }) {
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <MaterialIcons name="work-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Shift</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Zmniana</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{shift}</Text>
           </View>
@@ -75,18 +100,18 @@ export default function Init({ changeMode, setStartTime, startTime }) {
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="stats-chart-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Monthly score</Text>
+              <Text style={[styles.cardLabel, { color: colors.text }]}>Średnia ogólna</Text>
             </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>0</Text>
+            <Text style={[styles.cardValue, { color: colors.text }]}>{averageRate}</Text>
           </View>
         </View>
       </View>
 
       <View style={styles.middleContent}>
-        <Text style={[styles.shiftText, { color: colors.text }]}>Welcome back, Kuba</Text>
-        <Text style={[styles.infoText, { color: colors.text }]}>Please adjust your start time if needed.</Text>
+        <Text style={[styles.shiftText, { color: colors.text }]}>Witaj ponownie, {user?.name || 'User'}</Text>
+        <Text style={[styles.infoText, { color: colors.text }]}>Aby zmienić czas rozpoczęcia, kliknij przycisk "Dostosuj czas".</Text>
         <Text style={[styles.infoText, { color: colors.text }]}>
-          Press "Start Working" when you are ready to begin your shift.
+          Aby rozpocząć pracę, kliknij przycisk "Rozpocznij pracę".
         </Text>
       </View>
 
@@ -98,13 +123,13 @@ export default function Init({ changeMode, setStartTime, startTime }) {
           style={[styles.adjustButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
           onPress={() => setShowAdjustModal(true)}
         >
-          <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Adjust Start Time</Text>
+          <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
           <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
         </TouchableOpacity>
 
         <TouchableOpacity style={[styles.startButton, { backgroundColor: colors.butBackground }]} onPress={handleStart}>
           <Ionicons name="play" size={20} color="white" style={[styles.playIcon, { color: colors.butText }]} />
-          <Text style={[styles.startButtonText, { color: colors.butText }]}>Start Working</Text>
+          <Text style={[styles.startButtonText, { color: colors.butText }]}>Rozpocznij Pracę</Text>
         </TouchableOpacity>
       </View>
 

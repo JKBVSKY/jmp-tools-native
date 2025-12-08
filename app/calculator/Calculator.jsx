@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import Init from "./Init";
 import Working from "./Working";
 import Results from "./Results";
@@ -11,18 +12,35 @@ export default function Calculator() {
   const calc = useCalculator();
   const changeMode = (newMode) => setMode(newMode);
 
-  useEffect(() => {
-    if (!calc.isRestored) return;
-    
-    // If we're in init mode and startTime is null, generate a new startTime
-    if (calc.mode === 'init' && (calc.startTime === null || calc.startTime === undefined)) {
-      const newStartTime = getAutoStartTime();
-      calc.updateState({
-        startTime: newStartTime,
-        mode: 'init'
-      });
-    }
-  }, [calc.isRestored, calc.mode]); // Add calc.mode to dependencies!
+  // Helper function to check if startTime is from today
+  const isStartTimeFromToday = (startTime) => {
+    if (!startTime) return false;
+    const startDate = new Date(startTime);
+    const today = new Date();
+    return (
+      startDate.getDate() === today.getDate() &&
+      startDate.getMonth() === today.getMonth() &&
+      startDate.getFullYear() === today.getFullYear()
+    );
+  };
+
+  // This runs when the screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!calc.isRestored || calc.mode !== 'init') {
+        return;
+      }
+
+      // Check if startTime is from today
+      if (!isStartTimeFromToday(calc.startTime)) {
+        const newStartTime = getAutoStartTime();
+        calc.updateState({
+          startTime: newStartTime,
+          mode: 'init'
+        });
+      }
+    }, [calc.isRestored, calc.mode, calc.startTime])
+  );
 
   if (!calc.isRestored) {
     return null;

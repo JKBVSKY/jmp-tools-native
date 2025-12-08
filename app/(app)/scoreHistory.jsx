@@ -299,6 +299,15 @@ export default function ScoreHistory() {
   );
 }
 
+export const calculateSummary = (sessions) => {
+  if (sessions.length === 0) return null;
+  const totalTime = sessions.reduce((sum, s) => sum + s.loadingTime, 0);
+  const totalPallets = sessions.reduce((sum, s) => sum + s.palletsLoaded, 0);
+  const totalTrucks = sessions.reduce((sum, s) => sum + s.trucksCount, 0);
+  const averageRate = totalTime > 0 ? (totalPallets / (totalTime / 3600)).toFixed(2) : '0.00';
+  return { totalTime, totalPallets, totalTrucks, averageRate };
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
