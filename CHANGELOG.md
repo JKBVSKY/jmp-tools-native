@@ -27,6 +27,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.2.0] - 2025-12-10
+
+### Added
+- Added "Pallets in progress" toggle to New Transport form, allowing creation of transports without known pallet count.
+
+### Changed
+- Reduced padding of containers to increase visible workspace in the app.
+- Improved the design of the Results component.
+- Improved the design of the TimeConverter component.
+
+---
+
 ## Unreleased
 
 ### Added
