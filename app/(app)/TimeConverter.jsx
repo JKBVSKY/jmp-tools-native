@@ -87,7 +87,7 @@ export default function TimeConverter() {
   };
 
   return (
-    <ScrollView
+    <View
       style={[styles.container, { backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
     >
@@ -251,14 +251,16 @@ export default function TimeConverter() {
       </TouchableOpacity>
 
       <Spacer height={32} />
-    </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
+    paddingHorizontal: 8,
+    justifyContent: 'center',
+    gap: 5,
   },
   header: {
     flexDirection: 'row',

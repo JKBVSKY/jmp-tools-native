@@ -191,7 +191,7 @@ export default function Results({
   };
 
   return (
-    <ScrollView style={[styles.scrollContent, { backgroundColor: colors.background }]}>
+    <View style={[styles.scrollContent, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
         <Text style={[styles.title, { color: colors.title }]}>Session Complete! ✓</Text>
 
@@ -266,20 +266,23 @@ export default function Results({
           </View>
         </View>
 
-        {/* Trucks Summary */}
-        <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Text style={[styles.trucksTitle, { color: colors.title }]}>Trucks Summary</Text>
-          {trucksHistory.map((truck, idx) => (
-            <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
-              <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
-              <View style={styles.truckInfo}>
-                <Text style={[styles.truckInfo, { color: colors.text }]}>
-                  {truck.pallets} pallets • Shop {truck.shop} • Gate {truck.gate}
-                </Text>
-              </View>
+        <ScrollView style={styles.scrollView}>
+            {/* Trucks Summary */}
+            <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={[styles.trucksTitle, { color: colors.title }]}>Trucks Summary</Text>
+              {trucksHistory.map((truck, idx) => (
+                <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
+                  <View style={styles.truckInfo}>
+                    <Text style={[styles.truckInfo, { color: colors.text }]}>
+                      {truck.pallets} pallets • Shop {truck.shop} • Gate {truck.gate}
+                    </Text>
+                  </View>
+                </View>
+              ))}
             </View>
-          ))}
-        </View>
+        </ScrollView>
+
 
         {/* Action Buttons */}
         <View style={styles.buttonsContainer}>
@@ -302,7 +305,8 @@ export default function Results({
               styles.discardButton,
               {
                 backgroundColor: 'transparent',
-                borderColor: colors.border,
+                borderWidth: 2,
+                borderColor: colors.breakLine,
               },
             ]}
             onPress={handleDiscard}
@@ -312,7 +316,7 @@ export default function Results({
           </Pressable>
         </View>
       </View>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -320,9 +324,13 @@ const styles = StyleSheet.create({
   scrollContent: {
     flex: 1,
   },
+    scrollView: {
+    marginBottom: 20,
+  },
   container: {
     flex: 1,
-    padding: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 32,
     justifyContent: 'space-between',
   },
   title: {
@@ -438,7 +446,6 @@ const styles = StyleSheet.create({
   buttonsContainer: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 40,
   },
   button: {
     flex: 1,

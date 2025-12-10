@@ -150,7 +150,8 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'space-between',
-    padding: 32,
+    paddingHorizontal: 8,
+    paddingVertical: 32,
   },
   statsSection: {
     marginBottom: 16,

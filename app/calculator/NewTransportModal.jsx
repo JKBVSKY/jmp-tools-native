@@ -8,8 +8,9 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
 } from "react-native";
+import { Switch } from 'react-native';
 import { useColors } from '../../_hooks/useColors';
 import { getFirestore, collection, getDocs } from 'firebase/firestore';
 import { initializeApp } from 'firebase/app';
@@ -82,6 +83,9 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     pallets: "",
   });
 
+  // NEW: State for "Pallets in progress" checkbox
+  const [palletsInProgress, setPalletsInProgress] = useState(false);
+
   // New state for dynamic data
   const [shopNumbers, setShopNumbers] = useState([]);
   const [trailerNumbers, setTrailerNumbers] = useState([]);
@@ -125,8 +129,6 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
       setShopNumbers(shops);
       setTrailerNumbers(trailers);
 
-      console.log('Fetched shops:', shops);
-      console.log('Fetched trailers:', trailers);
     } catch (error) {
       console.error('Error fetching numbers from Firestore:', error);
       // Fallback to empty arrays or defaults
@@ -156,6 +158,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   const handleClose = () => {
     onClose();
     setForm({ shop: "", gate: "", trailer: "", pallets: "" });
+    setPalletsInProgress(false);
     setActiveDropdown(null);
     setFilteredOptions([]);
   };
@@ -164,10 +167,26 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     Number(form.pallets) > 0 &&
     (Number(form.pallets) * 100) % 25 === 0;
 
+ const canAddTransport = isPalletsValid || palletsInProgress;
+
   const handleAdd = () => {
-    if (isPalletsValid) {
-      onAdd(form);
+    if (canAddTransport) {
+      // If "Pallets in progress" is checked, don't include pallets in the form
+      const dataToAdd = {
+        ...form,
+        palletsInProgress: palletsInProgress,
+      };
+      onAdd(dataToAdd);
       handleClose();
+    }
+  };
+
+  // NEW: Handler for switch toggle - clears pallets when switch is turned ON
+  const handlePalletsInProgressChange = (value) => {
+    setPalletsInProgress(value);
+    // Clear pallets input when switch is turned ON
+    if (value === true) {
+      setForm((prev) => ({ ...prev, pallets: "" }));
     }
   };
 
@@ -276,6 +295,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       placeholderTextColor={colors.phText}
                       keyboardType="numeric"
                       onFocus={() => handleInputFocus('pallets')}
+                      editable={!palletsInProgress}
                     />
                     {!isPalletsValid && form.pallets && (
                       <Text style={styles.errorText}>
@@ -320,6 +340,18 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       </View>
                     )}
                   </View>
+                </View>
+
+                <View style={styles.checkboxContainer}>
+                  <Text style={[styles.checkboxLabel, { color: colors.text }]}>
+                    Pallets in progress
+                  </Text>
+                  <Switch
+                    value={palletsInProgress}
+                    onValueChange={handlePalletsInProgressChange}
+                    trackColor={{ false: "#333", true: colors.butBackground }}
+                    thumbColor={ "#fff" }
+                  />
                 </View>
 
                 {/* Second Row: Gate and Trailer */}
@@ -409,21 +441,27 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       Cancel
                     </Text>
                   </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[
-                      styles.addButton, { backgroundColor: colors.butBackground },
-                      !isPalletsValid && styles.addButtonDisabled
-                    ]}
-                    onPress={handleAdd}
-                    disabled={!isPalletsValid}
-                  >
-                    <Text style={[
-                      styles.addButtonText, { color: colors.butText },
-                      !isPalletsValid && styles.addButtonTextDisabled
-                    ]}>
-                      Add Transport
-                    </Text>
-                  </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={handleAdd}
+                      disabled={!canAddTransport}
+                      style={[
+                        styles.addButton,
+                        canAddTransport
+                          ? { backgroundColor: colors.butBackground || '#2B8087' }
+                          : { backgroundColor: colors.disabled || '#ccc' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.addButtonText,
+                          canAddTransport
+                            ? { color: colors.buttonText || '#fff' }
+                            : { color: colors.disabledText || '#999' },
+                        ]}
+                      >
+                        Add Transport
+                      </Text>
+                    </TouchableOpacity>
                 </View>
               </View>
             </View>
@@ -567,4 +605,16 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
   },
+checkboxContainer: {
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  marginBottom: 20,
+  paddingVertical: 8,
+  paddingHorizontal: 8,
+},
+checkboxLabel: {
+  fontSize: 14,
+  fontWeight: '500',
+},
 });
