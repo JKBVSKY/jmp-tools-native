@@ -39,6 +39,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.3.0] - 2026-01-07
+
+### Added
+- **Automatic Session Timeout**: Users can now set a forced finish time before starting work, preventing forgotten manual finishes
+- **Time-based Session Capping**: Elapsed time automatically stops at the user-defined deadline, preventing inflated session durations
+- **Automatic Truck Finalization**: Active trucks are automatically moved to history when forced finish deadline is reached
+- **XP Deadline Enforcement**: XP rewards are capped at the forced finish time, preventing overflow from background time
+- **Visual Auto-finish Indicator**: Clear on-screen display showing when the session will automatically finish
+- **Offline XP Protection**: Properly handles offline XP awards with deadline enforcement when app returns from background
+- **Session State Lock**: Session becomes read-only after forced finish, preventing accidental resume
+
+### Fixed
+- **Session Integrity Issue**: Fixed bug where users could forget to manually finish sessions, resulting in unreliable scoring and massive XP overflow (previously could log 72+ hours unintentionally)
+- **XP Accumulation Bug**: Fixed XP being awarded for extended offline periods after user left the app
+- **Deadline Accuracy**: Ensured elapsed time respects forced finish deadline even when app is in background
+
+### Technical
+- Implemented `checkAndEnforceForcedFinish()` callback for robust deadline enforcement
+- Added app foreground detection with `useAppState` hook for reliable state checks
+- Improved background session state management with `AsyncStorage`
+
+---
+
 ## Unreleased
 
 ### Added
