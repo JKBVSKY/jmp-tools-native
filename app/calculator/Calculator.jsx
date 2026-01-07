@@ -11,6 +11,7 @@ export default function Calculator() {
   const [mode, setMode] = useState("init"); // State to manage current mode
   const calc = useCalculator();
   const changeMode = (newMode) => setMode(newMode);
+  const [forcedFinishTime, setForcedFinishTime] = useState(null);
 
   // Helper function to check if startTime is from today
   const isStartTimeFromToday = (startTime) => {
@@ -53,6 +54,8 @@ export default function Calculator() {
           changeMode={(newMode) => calc.updateState({ mode: newMode })}
           setStartTime={(time) => calc.updateState({ startTime: time })}
           startTime={calc.startTime || getAutoStartTime()}
+          forcedFinishTime={forcedFinishTime}
+          setForcedFinishTime={setForcedFinishTime}
         />
       )}
 
@@ -81,6 +84,8 @@ export default function Calculator() {
           totalPausedTime={calc.totalPausedTime}
           setTotalPausedTime={(time) => calc.updateState({ totalPausedTime: time })}
           mode={calc.mode}
+          forcedFinishTime={forcedFinishTime}
+          setForcedFinishTime={setForcedFinishTime}
         />
       )}
 

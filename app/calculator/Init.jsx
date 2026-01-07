@@ -11,6 +11,7 @@ import Spacer from "../../components/Spacer";
 import { calculateSummary } from "../(app)/scoreHistory";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../_context/AuthContext';
+import { getAutoForcedFinishTime } from '../../_utils/timeUtils';
 
 
 function getCurrentShift(date = new Date()) {
@@ -31,15 +32,22 @@ function getCurrentShift(date = new Date()) {
   return "Noc";
 }
 
-export default function Init({ changeMode, setStartTime, startTime }) {
-  const [showAdjustModal, setShowAdjustModal] = useState(false);
+export default function Init({ changeMode, setStartTime, startTime, forcedFinishTime, setForcedFinishTime }) {
+  const [showAdjustStartTimeModal, setShowAdjustStartTimeModal] = useState(false);
+  const [showAdjustFinishTimeModal, setShowAdjustFinishTimeModal] = useState(false);
   const shift = getCurrentShift();
   const colors = useColors();
   const [averageRate, setAverageRate] = useState('0.00');
   const { user } = useAuth();
 
+  // Auto-set forcedFinishTime when component mounts or when modal closes
+  useEffect(() => {
+    if (!forcedFinishTime) {
+      setForcedFinishTime(getAutoForcedFinishTime());
+    }
+  }, []);
 
-    // Calculate average rate when component mounts
+  // Calculate average rate when component mounts
   useEffect(() => {
     const loadAverageRate = async () => {
       try {
@@ -79,13 +87,13 @@ export default function Init({ changeMode, setStartTime, startTime }) {
           </View>
 
           {/* Card 2: Choosen time */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+          <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustStartTimeModal(true)}>
             <View style={styles.cardHeader}>
               <MaterialCommunityIcons name="timer-sand" size={24} style={{ color: colors.iconColor }} />
               <Text style={[styles.cardLabel, { color: colors.text }]}>Wybrany czas</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{new Date(startTime).toLocaleTimeString()}</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Card 3: Shift */}
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
@@ -104,6 +112,15 @@ export default function Init({ changeMode, setStartTime, startTime }) {
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{averageRate}</Text>
           </View>
+
+          {/* Card 5: Forced finish time */}
+          <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="timer-off-outline" size={24} style={{ color: colors.iconColor }} />
+                <Text style={[styles.cardLabel, { color: colors.text }]}>Czas zakończenia</Text>
+              </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>{forcedFinishTime ? new Date(forcedFinishTime).toLocaleTimeString() : 'Brak'}</Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -121,27 +138,48 @@ export default function Init({ changeMode, setStartTime, startTime }) {
       <View style={styles.buttonsContainer}>
         <TouchableOpacity
           style={[styles.adjustButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
-          onPress={() => setShowAdjustModal(true)}
+          onPress={() => setShowAdjustStartTimeModal(true)}
         >
           <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
           <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.startButton, { backgroundColor: colors.butBackground }]} onPress={handleStart}>
+        <TouchableOpacity
+            style={[styles.startButton, { backgroundColor: colors.butBackground, opacity: forcedFinishTime ? 1 : 0.5 }]}
+            onPress={handleStart}
+            disabled={!forcedFinishTime}
+        >
           <Ionicons name="play" size={20} color="white" style={[styles.playIcon, { color: colors.butText }]} />
           <Text style={[styles.startButtonText, { color: colors.butText }]}>Rozpocznij Pracę</Text>
         </TouchableOpacity>
       </View>
 
-      <AdjustTimeModal
-        visible={showAdjustModal}
-        onClose={() => setShowAdjustModal(false)}
-        onConfirm={(newStartTime) => {
-          setStartTime(newStartTime);
-          setShowAdjustModal(false);
-        }}
-        initialTime={startTime}
-      />
+    {/* Start Time Modal */}
+    <AdjustTimeModal
+      visible={showAdjustStartTimeModal}
+      onClose={() => setShowAdjustStartTimeModal(false)}
+      onConfirm={(newStartTime) => {
+        setStartTime(newStartTime);
+        // Auto-update forcedFinishTime when startTime changes
+        setForcedFinishTime(getAutoForcedFinishTime());
+        setShowAdjustStartTimeModal(false);
+      }}
+      initialTime={startTime}
+      type="start"
+    />
+
+    {/* Finish Time Modal */}
+    <AdjustTimeModal
+      visible={showAdjustFinishTimeModal}
+      onClose={() => setShowAdjustFinishTimeModal(false)}
+      onConfirm={(newForcedFinishTime) => {
+        setForcedFinishTime(newForcedFinishTime);
+        setShowAdjustFinishTimeModal(false);
+      }}
+      initialTime={forcedFinishTime || getAutoForcedFinishTime()}
+      type="finish"
+      startTime={startTime}  // NEW: Pass startTime for validation
+    />
     </View>
   );
 }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import NewTransportModal from "./NewTransportModal";
 import EditTruckModal from "./EditTruckModal";
 import PauseModal from "./PauseModal";
+import AdjustTimeModal from "./AdjustTimeModal";
 import PagerView from "react-native-pager-view";
 import { useColors } from '../../_hooks/useColors';
 import { getAutoStartTime } from "./utils";
@@ -26,7 +27,7 @@ import { useBackgroundXP } from '../../_hooks/useBackgroundXP';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import NetInfo from '@react-native-community/netinfo';
-import { AppState } from 'react-native'; // You can use this directly or the hook
+import { useAppState } from '../../_hooks/useAppState';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // To save state
 import { XPEarnedNotification } from '../../components/XPEarnedNotification'; // Adjust path if needed
 
@@ -40,7 +41,9 @@ export default function Working({
   setLoadingTime,
   setStartTime,
   setEndTime,
-  mode
+  mode,
+  forcedFinishTime,
+  setForcedFinishTime
 }) {
   // ============================================================================
   // SECTION 1: ALL HOOKS - CALLED FIRST, NO CONDITIONS
@@ -58,6 +61,8 @@ export default function Working({
   const [showNewTransportModal, setShowNewTransportModal] = useState(false);
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [expandedTruckId, setExpandedTruckId] = useState(null);
+  const [showAdjustFinishTimeModal, setShowAdjustFinishTimeModal] = useState(false);
+
 
   // ✅ XP REWARD STATE
   const [currentXPPerMin, setCurrentXPPerMin] = useState(0);
@@ -72,13 +77,135 @@ export default function Working({
   const lastXPRewardTimeRef = useRef(Date.now());
   const floatingAnim = React.useRef(new Animated.Value(0)).current;
   const colors = useColors();
-  const appState = useRef(AppState.currentState);
   const xpSaveInProgressRef = useRef(false);
   const palletsRateRef = useRef(palletsRate);
+  const checkAndEnforceForcedFinishRef = useRef();
 
   // ✅ USE BACKGROUND XP HOOK
   const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
+    // ✅ Define what should happen when the app goes to the background
+    const handleAppGoesToBackground = useCallback(() => {
+      console.log('App is going to the background.');
+      // Only save state if in a working session
+      if (calc.mode === 'working' && !isPaused) {
+        const stateToSave = {
+          lastXPTime: lastXPRewardTimeRef.current,
+          lastPalletsRate: palletsRateRef.current
+        };
+        AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
+        console.log('Active session state saved.');
+      }
+    }, [calc.mode, isPaused]); // Dependencies ensure it always has fresh data
+
+  // Function to calculate and award offline progress
+  const handleAppComesToForeground = useCallback(async () => {
+      console.log("📱 App came to foreground - checking forced finish...");
+
+      // ✅ FIRST: Check if forced finish has occurred
+      const wasForcedFinished = await checkAndEnforceForcedFinish();
+
+      if (wasForcedFinished) {
+        // ⚠️ IMPORTANT: DO NOT award offline XP when forced finishing!
+        console.log("✅ Session was auto-finished. Results will be shown.");
+
+        // Transition to results screen
+        setTimeout(() => {
+          setEndTime(Date.now());
+          changeMode('results'); // Show results directly
+        }, 500);
+
+        return;
+      }
+
+    if (calc.mode !== 'working' || isPaused) {
+      console.log("Not in a working session, skipping offline XP check.");
+      return;
+    }
+
+      const now = Date.now();
+      const forcedFinishTimestamp = calc.timeOfForcedFinish;
+
+      // Safety check: Don't award XP if we're past deadline
+      if (forcedFinishTimestamp && now > forcedFinishTimestamp) {
+        console.warn("⚠️ We're past the forced finish deadline - skipping offline XP");
+        return;
+      }
+
+    try {
+      const lastSessionStateStr = await AsyncStorage.getItem('lastActiveSessionState');
+      if (!lastSessionStateStr) return;
+
+      const lastState = JSON.parse(lastSessionStateStr);
+      const { lastXPTime, lastPalletsRate } = lastState;
+
+      const now = Date.now();
+      const awayTimeMs = now - lastXPTime;
+      const awayTimeMinutes = awayTimeMs / 60000;
+
+      if (awayTimeMinutes < 1) { // Don't award for brief periods away
+        console.log("Away for less than a minute, skipping offline award.");
+        return;
+      }
+
+      const xpPerMin = calculateXPPerMin(lastPalletsRate);
+
+    // ✅ NEW SAFETY: Cap offline XP by deadline
+    let offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
+
+    // If there's a forced finish time, only award XP for time BEFORE it
+    if (forcedFinishTimestamp && lastXPTime < forcedFinishTimestamp) {
+      const allowedMinutes = Math.max(0, (forcedFinishTimestamp - lastXPTime) / 60000);
+      offlineXPEarned = Math.floor(allowedMinutes * xpPerMin);
+
+      console.log(`⏰ Capping offline XP by deadline: ${offlineXPEarned} XP`);
+    }
+
+      if (xpPerMin > 0) {
+        const offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
+
+        if (offlineXPEarned > 0) {
+          console.log(`User was away for ${awayTimeMinutes.toFixed(1)} minutes. Awarding ${offlineXPEarned} offline XP.`);
+
+          // Award the XP
+          const result = await tryAwardXP(offlineXPEarned);
+          setSessionXPEarned(prev => prev + offlineXPEarned);
+
+          // ✅ RESET notification state BEFORE showing new one
+          setNotificationState({ visible: false, xp: 0 });
+
+          // ✅ Small delay to let React process the state change
+          setTimeout(() => {
+            setNotificationState({ visible: true, xp: offlineXPEarned });
+          }, 100);
+
+          if (result && result.leveledUp) {
+            setLeveledUpMessage(`Welcome back! You leveled up to Level ${result.newLevel} while away!`);
+            setTimeout(() => setLeveledUpMessage(null), 5000); // Longer duration for this special message
+          }
+        }
+      }
+
+      // IMPORTANT: Update the last reward time to NOW to prevent double-dipping
+      lastXPRewardTimeRef.current = now;
+
+    } catch (error) {
+      console.error("Error calculating offline XP:", error);
+    } finally {
+      await AsyncStorage.removeItem('lastActiveSessionState'); // Clean up
+    }
+  }, [calc.mode, calc.timeOfForcedFinish, isPaused, checkAndEnforceForcedFinish, tryAwardXP, changeMode,]);
+
+    // ✅ Call the new useAppState hook
+    useAppState({
+      onForeground: handleAppComesToForeground,
+      onBackground: handleAppGoesToBackground,
+    });
+
+    // ✅ Initial check on component mount (this is still a good practice)
+    useEffect(() => {
+      handleAppComesToForeground();
+    }, []); // Empty array ensures it only runs once on mount
   // ============================================================================
   // SECTION 2: COMPUTED VALUES & CONTEXT DATA (NOT HOOKS)
   // ============================================================================
@@ -108,34 +235,6 @@ export default function Working({
     palletsRateRef.current = palletsRate;
     setCurrentXPPerMin(calculateXPPerMin(palletsRateRef.current));
   }, [palletsRate]);
-
-  // This handles app state changes (background/foreground)
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', async (nextAppState) => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        console.log('App has come to the foreground!');
-        await handleAppComesToForeground();
-      } else if (nextAppState.match(/inactive|background/)) {
-        console.log('App is going to the background.');
-        if (calc.mode === 'working' && !isPaused) {
-          const stateToSave = {
-            lastXPTime: lastXPRewardTimeRef.current, // Use the ref's current value
-            lastPalletsRate: palletsRateRef.current
-          };
-          await AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
-          console.log('Active session state saved.');
-        }
-      }
-      appState.current = nextAppState;
-    });
-
-    // Initial check on component mount in case it's the first load
-    handleAppComesToForeground();
-
-    return () => {
-      subscription.remove();
-    };
-  }, [calc.mode, isPaused]); // Rerun if the working mode changes
 
   // ✅ XP CALCULATION - Try Firestore first, cache on failure
   useEffect(() => {
@@ -246,6 +345,11 @@ export default function Working({
     };
   }, []); // Empty array - only runs on unmount
 
+    // Place this with your other useEffects
+    useEffect(() => {
+      checkAndEnforceForcedFinishRef.current = checkAndEnforceForcedFinish;
+    }, [checkAndEnforceForcedFinish]); // Dependency array ensures it updates when the function does
+
   // ============================================================================
   // SECTION 4: HELPER FUNCTIONS & LOGIC
   // ============================================================================
@@ -254,65 +358,6 @@ export default function Working({
   // ✅ Calculate XP per minute based on current pallet rate
   const calculateXPPerMin = (rate) => {
     return 10;
-  };
-
-  // Function to calculate and award offline progress
-  const handleAppComesToForeground = async () => {
-    if (calc.mode !== 'working' || isPaused) {
-      console.log("Not in a working session, skipping offline XP check.");
-      return;
-    }
-
-    try {
-      const lastSessionStateStr = await AsyncStorage.getItem('lastActiveSessionState');
-      if (!lastSessionStateStr) return;
-
-      const lastState = JSON.parse(lastSessionStateStr);
-      const { lastXPTime, lastPalletsRate } = lastState;
-
-      const now = Date.now();
-      const awayTimeMs = now - lastXPTime;
-      const awayTimeMinutes = awayTimeMs / 60000;
-
-      if (awayTimeMinutes < 1) { // Don't award for brief periods away
-        console.log("Away for less than a minute, skipping offline award.");
-        return;
-      }
-
-      const xpPerMin = calculateXPPerMin(lastPalletsRate);
-      if (xpPerMin > 0) {
-        const offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
-
-        if (offlineXPEarned > 0) {
-          console.log(`User was away for ${awayTimeMinutes.toFixed(1)} minutes. Awarding ${offlineXPEarned} offline XP.`);
-
-          // Award the XP
-          const result = await tryAwardXP(offlineXPEarned);
-          setSessionXPEarned(prev => prev + offlineXPEarned);
-
-          // ✅ RESET notification state BEFORE showing new one
-          setNotificationState({ visible: false, xp: 0 });
-
-          // ✅ Small delay to let React process the state change
-          setTimeout(() => {
-            setNotificationState({ visible: true, xp: offlineXPEarned });
-          }, 100);
-
-          if (result && result.leveledUp) {
-            setLeveledUpMessage(`Welcome back! You leveled up to Level ${result.newLevel} while away!`);
-            setTimeout(() => setLeveledUpMessage(null), 5000); // Longer duration for this special message
-          }
-        }
-      }
-
-      // IMPORTANT: Update the last reward time to NOW to prevent double-dipping
-      lastXPRewardTimeRef.current = now;
-
-    } catch (error) {
-      console.error("Error calculating offline XP:", error);
-    } finally {
-      await AsyncStorage.removeItem('lastActiveSessionState'); // Clean up
-    }
   };
 
   // ✅ Check connection BEFORE trying Firestore
@@ -460,6 +505,81 @@ export default function Working({
       });
     }
   };
+
+  // ============================================================================
+  // LOGIC FUNCTIONS FOR AUTOMATIC CALCULATION FINISHER
+  // ============================================================================
+    /**
+     * ✅ CHECK AND ENFORCE FORCED FINISH
+     * Called when app comes to foreground
+     * Handles 3 scenarios:
+     * 1. Not time yet → continue normally
+     * 2. Time has passed → force finish with capped time
+     * 3. Currently working past deadline → immediate finish
+     */
+
+  const checkAndEnforceForcedFinish = useCallback (async () => {
+    if (calc.mode !== 'working' || !forcedFinishTime) {
+      console.log("Not in working mode or no forced finish time set");
+      console.log("Mode:", calc.mode);
+      console.log("Forced Finish Time:", forcedFinishTime);
+      return false; // Not forced finish scenario
+    }
+
+    const now = Date.now();
+    const forcedFinishTimestamp = forcedFinishTime;
+
+    // ✅ STEP 1: Determine if we've passed the deadline
+    if (now < forcedFinishTimestamp) {
+      console.log("⏰ Not yet time for forced finish. Continuing...");
+      return false; // Continue normal working
+    }
+
+    console.warn("🚨 FORCED FINISH TIME HAS PASSED - Finalizing session...");
+
+    // ✅ STEP 2: Calculate time UP TO the deadline ONLY
+    const elapsedUntilDeadline = forcedFinishTimestamp - startTime - totalPausedTime;
+    const cappedLoadingTimeSeconds = Math.max(0, Math.floor(elapsedUntilDeadline / 1000));
+
+    console.log(`⏱️ Capped loading time: ${formatElapsed(cappedLoadingTimeSeconds)}`);
+
+    // ✅ STEP 3: Stop all active trucks (they don't count past deadline)
+    const finalTrucks = trucks.map(truck => ({
+      ...truck,
+      // Calculate elapsed time for this truck UP TO deadline
+      elapsedLoadingTime: Math.min(
+        truck.elapsedLoadingTime || 0,
+        Math.floor((forcedFinishTimestamp - truck.startLoadingTime) / 1000)
+      )
+    }));
+
+    // ✅ STEP 4: Move active trucks to history (mark as auto-finished)
+    const autoFinishedTrucks = finalTrucks.map(t => ({
+      ...t,
+      isAutoFinished: true, // Flag for UI
+      completedTime: forcedFinishTimestamp
+    }));
+
+    const updatedTrucksHistory = [
+      ...autoFinishedTrucks,
+      ...trucksHistory
+    ];
+
+    // ✅ STEP 5: Update calculator state
+    calc.updateState({
+      trucks: [], // Clear active trucks
+      trucksHistory: updatedTrucksHistory,
+      isPaused: false,
+      pauseStart: null,
+      mode: 'forced-finished', // NEW: Lock state to prevent resume
+    });
+
+    // ✅ STEP 6: Set end time and trigger results (NO XP awarded yet)
+    setLoadingTime(cappedLoadingTimeSeconds);
+    setEndTime(forcedFinishTimestamp);
+
+    return true; // Forced finish was applied
+  }, [calc.mode, calc.forcedFinishTime, startTime, totalPausedTime, trucks, trucksHistory]);
 
   // ============================================================================
   // SECTION 5: RENDER FUNCTIONS (AFTER ALL HOOKS & HELPER FUNCTIONS)
@@ -663,7 +783,7 @@ export default function Working({
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Czas Ładowania</Text>
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>
               {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
@@ -671,31 +791,65 @@ export default function Working({
           </View>
 
           {/* Card 2: Pallets Loaded */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
+            onPress={() => Alert.alert('Palety Załadowane', `${palletsLoaded}`)}
+          >
             <View style={styles.cardHeader}>
+              <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Palety</Text>
               <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Palety Załadowane</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
-          </View>
+          </TouchableOpacity>
 
-          {/* Card 3: Rate (per hour) */}
+          {/* Card 3: Trucks Loaded */}
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
+            onPress={() => Alert.alert('Dostawy załadowane', `${trucksLoadedCount}`)}
+          >
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Dostawy</Text>
+              <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
+            </View>
+            <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
+          </TouchableOpacity>
+
+          {/* Card 4: Rate (per hour) */}
           <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <View style={styles.cardHeader}>
               <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Wynik/godz</Text>
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/godz</Text>
             </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
           </View>
 
-          {/* Card 4: Trucks Loaded */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.cardHeader}>
-              <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Ciężarówki Załadowane</Text>
+          {/* Card 5: Forced Finish Time */}
+          <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
+              <View style={styles.cardHeader}>
+                <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
+              </View>
+            <Text style={[styles.cardValue, { color: colors.text }]}>
+              {forcedFinishTime
+                ? `${new Date(forcedFinishTime).toLocaleTimeString()} (${new Date(forcedFinishTime).getDate()})`
+                : 'Brak'}
+            </Text>
+          </TouchableOpacity>
+
+          {calc.timeOfForcedFinish && (
+            <View style={{
+              backgroundColor: '#fff3cd',
+              borderRadius: 12,
+              padding: 12,
+              marginBottom: 16,
+              borderLeftWidth: 4,
+              borderLeftColor: '#ff6b6b'
+            }}>
+              <Text style={{ fontSize: 12, fontWeight: '600', color: '#cc5200' }}>
+                ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
+              </Text>
             </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
-          </View>
+          )}
         </View>
       </View>
 
@@ -782,22 +936,6 @@ export default function Working({
             <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zatrzymaj</Text>
           </TouchableOpacity>
 
-          {/* Finish button
-          <TouchableOpacity
-            style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
-            onPress={() => {
-              setLoadingTime(0);
-              setStartTime(getAutoStartTime());
-              setEndTime(Date.now());
-              setShopNum(0);
-              setGateNum(0);
-              setTrailerNum(0);
-              changeMode('init');
-            }}
-          >
-            <Ionicons name="checkmark-done-outline" size={20} color={colors.butText} />
-            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Finish</Text>
-          </TouchableOpacity> */}
           <TouchableOpacity
             onPress={() => {
               Alert.alert(
@@ -846,6 +984,17 @@ export default function Working({
         onClose={() => setShowPauseModal(false)}
         onConfirm={handlePauseConfirm}
       />
+
+        <AdjustTimeModal
+          visible={showAdjustFinishTimeModal}
+          onClose={() => setShowAdjustFinishTimeModal(false)}
+          onConfirm={(newForcedFinishTime) => {
+            setForcedFinishTime(newForcedFinishTime);
+            setShowAdjustFinishTimeModal(false);
+          }}
+          initialTime={forcedFinishTime}
+          type="finish"
+        />
     </View>
   );
 }
@@ -941,21 +1090,36 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statCard: {
-    width: '48%',
+    width: '48.61%',
     borderRadius: 24,
     padding: 16,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,  // Android equivalent
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
+    marginBottom: 4,
     gap: 8,
   },
+    cardLabelBadge: {
+      fontSize: 9,
+      fontWeight: '600',
+      marginTop: 4,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
   cardLabel: {
     fontSize: 12,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     flex: 1,
   },
   cardValue: {

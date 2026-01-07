@@ -21,6 +21,8 @@ export function CalculatorProvider({ children }) {
     isRestored: false, // Track if we've restored from storage
   });
 
+    timeOfForcedFinish: null // Timestamp when work MUST end
+
   // Save state to AsyncStorage
   const saveState = async (newState) => {
     try {

@@ -13,9 +13,30 @@ import {
 import { useColors } from '../../_hooks/useColors';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import CustomTimePicker from './CustomTimePicker';
+import { getFinishTimeRange, isFinishTimeValid } from '../../_utils/timeUtils';
 
-export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTime }) {
+export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTime, type = 'start', startTime = null }) {
   const colors = useColors();
+
+  // Define content based on type
+  const getModalContent = () => {
+    const contents = {
+      start: {
+        title: 'Czas rozpoczęcia',
+        description: 'Wybierz czas "strzelenia" pierwszej palety.'
+      },
+      finish: {
+        title: 'Czas zakończenia',
+        description: 'Wybierz kiedy kalkulator ma zakończyć pracę (w przypadku, gdy użytkownik zapomni manualnie wyłączyć).'
+      }
+    };
+    return contents[type] || contents.start;
+  };
+
+  const { title, description } = getModalContent();
+
+  // Get time constraints for finish type
+  const timeRange = type === 'finish' && startTime ? getFinishTimeRange(startTime) : null;
 
   // Parse initial time into hours, minutes, seconds
   const getTimeComponents = (timestamp) => {
@@ -31,6 +52,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
   const [hours, setHours] = useState(initial.hours);
   const [minutes, setMinutes] = useState(initial.minutes);
   const [seconds, setSeconds] = useState(initial.seconds);
+  const [validationError, setValidationError] = useState('');
 
   // Update when modal opens with new initialTime
   useEffect(() => {
@@ -39,6 +61,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
       setHours(h);
       setMinutes(m);
       setSeconds(s);
+      setValidationError('');
     }
   }, [initialTime, visible]);
 
@@ -48,6 +71,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     setHours(String(now.getHours()).padStart(2, '0'));
     setMinutes(String(now.getMinutes()).padStart(2, '0'));
     setSeconds(String(now.getSeconds()).padStart(2, '0'));
+    setValidationError('');
   };
 
   const [showCustomPicker, setShowCustomPicker] = useState(false);
@@ -61,6 +85,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     setMinutes(m);
     setSeconds(s);
     setShowCustomPicker(false);
+    setValidationError('');
   };
 
   const handleTimeChange = (event, selectedDate) => {
@@ -77,17 +102,21 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
 
   // Validate and format input
   const handleHoursChange = (text) => {
-    // Only allow numbers
     const cleaned = text.replace(/[^0-9]/g, '');
-
-    // Limit to 2 digits
     if (cleaned.length > 2) return;
 
-    // Validate range (0-23)
     const num = parseInt(cleaned, 10);
-    if (cleaned.length === 2 && num > 23) return;
+
+    // For finish type, validate against max hours
+    if (type === 'finish' && timeRange && cleaned.length === 2) {
+      const maxHours = parseInt(timeRange.maxHours, 10);
+      if (num > maxHours) return;
+    } else if (cleaned.length === 2 && num > 23) {
+      return;
+    }
 
     setHours(cleaned);
+    setValidationError('');
   };
 
   const handleMinutesChange = (text) => {
@@ -98,6 +127,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     if (cleaned.length === 2 && num > 59) return;
 
     setMinutes(cleaned);
+    setValidationError('');
   };
 
   const handleSecondsChange = (text) => {
@@ -108,6 +138,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     if (cleaned.length === 2 && num > 59) return;
 
     setSeconds(cleaned);
+    setValidationError('');
   };
 
   // Check if all fields are filled with 2 digits
@@ -126,50 +157,58 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
       parseInt(seconds, 10)
     ).getTime();
 
+    // For finish type, validate against start time
+    if (type === 'finish' && startTime) {
+      if (!isFinishTimeValid(adjusted, startTime)) {
+        setValidationError(
+          `Czas musi być między ${timeRange.minHours}:${timeRange.minMinutes} a ${timeRange.maxHours}:${timeRange.maxMinutes}`
+        );
+        return;
+      }
+    }
+
     onConfirm(adjusted);
     onClose();
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.overlay}
-      >
-        <View style={styles.modalContainer}>
-          <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.title, { color: colors.text }]}>
-              Adjust Start Time
-            </Text>
-            <Text style={[styles.description, { color: colors.textSecondary }]}>
-              Please select the time when you confirmed the first pallet.
-            </Text>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={ styles.modalContainer }>
+            <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+              <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+              <Text style={[styles.description, { color: colors.textSecondary }]}>
+                {description}
+              </Text>
 
-            {/* Helper buttons row */}
-            <View style={styles.helperButtonsRow}>
-              <TouchableOpacity
-                style={[styles.helperButton, { backgroundColor: colors.outButBackground, borderColor: colors.border }]}
-                onPress={handleSetNow}
-              >
-                <MaterialCommunityIcons name="clock-check" size={18} color={colors.outButText} />
-                <Text style={[styles.helperButtonText, { color: colors.outButText }]}>Now</Text>
-              </TouchableOpacity>
-
-              {Platform.OS === 'android' && (
-                <TouchableOpacity
-                  style={[styles.helperButton, { backgroundColor: colors.outButBackground, borderColor: colors.border }]}
-                  onPress={handleOpenTimePicker}
-                >
-                  <MaterialCommunityIcons name="clock-outline" size={18} color={colors.outButText} />
-                  <Text style={[styles.helperButtonText, { color: colors.outButText }]}>Picker</Text>
-                </TouchableOpacity>
+              {/* Show time range for finish type */}
+              {type === 'finish' && timeRange && (
+                <Text style={[styles.rangeInfo, { color: colors.textSecondary }]}>
+                  Zakres: {timeRange.minHours}:{timeRange.minMinutes} - {timeRange.maxHours}:{timeRange.maxMinutes}
+                </Text>
               )}
-            </View>
+
+              {/* Helper buttons row */}
+              <View style={styles.helperButtonsRow}>
+                <TouchableOpacity
+                  style={[styles.helperButton, { borderColor: colors.primary }]}
+                  onPress={handleSetNow}
+                >
+                  <MaterialCommunityIcons name="clock-outline" size={16} color={colors.text} />
+                  <Text style={[styles.helperButtonText, { color: colors.text }]}>Now</Text>
+                </TouchableOpacity>
+
+                {Platform.OS === 'android' && (
+                  <TouchableOpacity
+                    style={[styles.helperButton, { borderColor: colors.primary }]}
+                    onPress={handleOpenTimePicker}
+                  >
+                    <MaterialCommunityIcons name="calendar-clock" size={16} color={colors.text} />
+                    <Text style={[styles.helperButtonText, { color: colors.text }]}>Picker</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
 
             {/* Time Input Row */}
             <View style={styles.timeInputContainer}>
@@ -191,7 +230,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
                 selectTextOnFocus
               />
 
-              <Text style={[styles.separator, { color: colors.text }]}>:</Text>
+                <Text style={[styles.separator, { color: colors.text }]}>:</Text>
 
               {/* Minutes */}
               <TextInput
@@ -211,7 +250,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
                 selectTextOnFocus
               />
 
-              <Text style={[styles.separator, { color: colors.text }]}>:</Text>
+                <Text style={[styles.separator, { color: colors.text }]}>:</Text>
 
               {/* Seconds */}
               <TextInput
@@ -232,50 +271,50 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
               />
             </View>
 
-            {/* Helper text */}
-            <Text style={[styles.helperText, { color: colors.text }]}>
-              Format: HH : MM : SS
-            </Text>
+              {/* Helper text */}
+              <Text style={[styles.helperText, { color: colors.textSecondary }]}>
+                Format: HH : MM : SS
+              </Text>
 
-            {/* Buttons */}
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[styles.cancelButton, { borderColor: colors.border }]}
-                onPress={onClose}
-              >
-                <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                  Cancel
+              {/* Validation error */}
+              {validationError && (
+                <Text style={[styles.errorText, { color: colors.textSecondary }]}>
+                  {validationError}
                 </Text>
-              </TouchableOpacity>
+              )}
 
-              <TouchableOpacity
-                style={[
-                  styles.okButton,
-                  {
-                    backgroundColor: isValid ? colors.butBackground : '#999',
-                    opacity: isValid ? 1 : 0.5
-                  }
-                ]}
-                onPress={handleOk}
-                disabled={!isValid}
-              >
-                <Text style={styles.okButtonText}>OK</Text>
-              </TouchableOpacity>
+              {/* Buttons */}
+              <View style={styles.buttonContainer}>
+                <TouchableOpacity
+                  style={[styles.cancelButton, { borderColor: colors.border }]}
+                  onPress={onClose}
+                >
+                  <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[
+                    styles.okButton,
+                    { backgroundColor: isValid ? colors.butBackground : '#999' }
+                  ]}
+                  onPress={handleOk}
+                  disabled={!isValid}
+                >
+                  <Text style={styles.okButtonText}>OK</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
-        </View>
-        {showCustomPicker && (
-          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000 }}>
-            <CustomTimePicker
-              initialHours={hours}
-              initialMinutes={minutes}
-              initialSeconds={seconds}
-              onConfirm={handleCustomPickerConfirm}
-              onCancel={() => setShowCustomPicker(false)}
-            />
-          </View>
-        )}
-      </KeyboardAvoidingView>
+        </KeyboardAvoidingView>
+              {showCustomPicker && (
+                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000 }}>
+                    <CustomTimePicker
+                      onConfirm={handleCustomPickerConfirm}
+                      onCancel={() => setShowCustomPicker(false)}
+                    />
+                   </View>
+              )}
+      </View>
     </Modal>
   );
 }
@@ -309,7 +348,13 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     textAlign: 'center',
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  rangeInfo: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontWeight: '500',
   },
   helperButtonsRow: {
     flexDirection: 'row',
@@ -353,7 +398,13 @@ const styles = StyleSheet.create({
   helperText: {
     fontSize: 12,
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  errorText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginBottom: 12,
+    fontWeight: '600',
   },
   buttonContainer: {
     flexDirection: 'row',
