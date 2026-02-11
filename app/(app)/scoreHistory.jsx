@@ -97,7 +97,7 @@ export default function ScoreHistory() {
     <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header with toggle */}
       <View style={styles.header}>
-        <Text style={[styles.title, { color: colors.text }]}>Score History</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Statystyki</Text>
 
         <View style={styles.toggleContainer}>
           <Pressable
@@ -133,12 +133,12 @@ export default function ScoreHistory() {
       {/* Summary Table - Always visible when sessions exist */}
       {sessions.length > 0 && summary && (
         <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Text style={[styles.summaryTitle, { color: colors.text }]}>Overall Statistics</Text>
+          <Text style={[styles.summaryTitle, { color: colors.text }]}>Ogólne</Text>
 
           <View style={styles.summaryGrid}>
             {/* Total Time */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Time</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Całkowity Czas</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
                 {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
               </Text>
@@ -146,19 +146,19 @@ export default function ScoreHistory() {
 
             {/* Total Pallets */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Pallets</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Całkowita Ilość Palet</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalPallets}</Text>
             </View>
 
             {/* Total Trucks */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Total Trucks</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Wszystkie Naczepy</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalTrucks}</Text>
             </View>
 
             {/* Average Rate */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Avg Rate/h</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Średnia Ogólna</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.averageRate}</Text>
             </View>
           </View>
@@ -174,10 +174,10 @@ export default function ScoreHistory() {
           <View style={styles.emptyContainer}>
             <MaterialCommunityIcons name="history" size={64} color={colors.text} />
             <Text style={[styles.emptyText, { color: colors.text }]}>
-              No saved sessions yet
+              Brak zapisanych sesji
             </Text>
             <Text style={[styles.emptySubtext, { color: colors.text }]}>
-              Complete a calculation session to see your history here
+              Zakończ sesję, aby zobaczyć historię.
             </Text>
           </View>
         </ScrollView>
@@ -186,7 +186,7 @@ export default function ScoreHistory() {
           {viewMode === 'graph' && sessions.length > 0 && (
             <View style={styles.chartContainer}>
               <Text style={[styles.chartTitle, { color: colors.text }]}>
-                Pallets per Hour Rate
+                Ostatnie 7 Sesji - Średnia Ilość Palet
               </Text>
               <LineChart
                 data={chartData}
@@ -222,12 +222,12 @@ export default function ScoreHistory() {
             >
               {/* Table Header */}
               <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
-                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Date</Text>
-                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Time</Text>
-                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Pallets</Text>
-                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Trucks</Text>
-                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Rate/h</Text>
-                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Delete</Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Palety</Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Naczepy</Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
+                <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
               </View>
 
               {/* Table Rows */}
@@ -262,15 +262,15 @@ export default function ScoreHistory() {
                   <Pressable
                     onPress={() => {
                       Alert.alert(
-                        'Delete Session',
-                        'Are you sure you want to delete this session?',
+                        'Usuń Sesję',
+                        'Czy na pewno chcesz usunąć tę sesję?',
                         [
                           {
-                            text: 'Cancel',
+                            text: 'Anuluj',
                             style: 'cancel'
                           },
                           {
-                            text: 'Delete',
+                            text: 'Usuń',
                             onPress: async () => {
                               try {
                                 const updatedSessions = sessions.filter(s => s.id !== session.id);

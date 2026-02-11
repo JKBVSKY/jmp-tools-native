@@ -25,7 +25,7 @@ function CustomDrawerContent(props) {
             style={[styles.logo, { borderWidth: 4, borderColor: colors.outButBorder }]}
             resizeMode="contain"
           />
-          <Text style={[styles.title, { color: colors.text }]}>JMP-Tools v1.0</Text>
+          <Text style={[styles.title, { color: colors.text }]}>JMP-Tools v0.4.0</Text>
         </View>
 
         {/* Navigation items */}

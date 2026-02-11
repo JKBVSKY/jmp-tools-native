@@ -16,7 +16,7 @@ export default function Login() {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Błąd', 'Wypełnij wszystkie pola');
       return;
     }
 
@@ -27,16 +27,16 @@ export default function Login() {
     if (result.success) {
       router.replace('/(app)');
     } else {
-      Alert.alert('Login Failed', result.error);
+      Alert.alert('Logowanie nieudane', result.error);
     }
   };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.title }]}>Sign in</Text>
+        <Text style={[styles.title, { color: colors.title }]}>Zaloguj Się</Text>
         <Text style={[styles.desc, { color: colors.textSecondary }]}>
-          Enter valid e-mail address & password to continue
+          Wprowadź swoje dane osobowe, aby się zalogować.
         </Text>
 
         <TextInput
@@ -61,7 +61,7 @@ export default function Login() {
               borderColor: colors.inputBorder,
               color: colors.text,
             }]}
-            placeholder="Password"
+            placeholder="Hasło"
             placeholderTextColor={colors.phText}
             value={password}
             onChangeText={setPassword}
@@ -90,19 +90,19 @@ export default function Login() {
           disabled={loading}
         >
           <Text style={[styles.buttonText, { color: colors.butText }]}>
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? 'Logowanie...' : 'Zaloguj'}
           </Text>
         </Pressable>
 
         <Pressable onPress={() => router.push('/(auth)/register')}>
           <Text style={[styles.linkText, { color: colors.text }]}>
-            Don't have an account? Sign up
+            Nie masz konta? Utwórz tutaj
           </Text>
         </Pressable>
 
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.backText, { color: colors.textSecondary }]}>
-            ← Back
+            ← Powrót
           </Text>
         </Pressable>
       </View>

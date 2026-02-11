@@ -622,7 +622,14 @@ export default function Working({
             {/* Pallets */}
             <View style={styles.compactField}>
               <Text style={[styles.fieldLabel, { color: colors.text }]}>Palety:</Text>
-              <Text style={[styles.fieldValue, { color: colors.text }]}>{truck.pallets || '—'}</Text>
+              <Text
+                style={[
+                  styles.fieldValue,
+                  { color: truck.pallets ? colors.text : 'red' },
+                ]}
+              >
+                {truck.pallets || 'WTRA'}
+              </Text>
             </View>
 
             {/* Expand Icon */}
@@ -939,15 +946,15 @@ export default function Working({
           <TouchableOpacity
             onPress={() => {
               Alert.alert(
-                'Finish Session',
-                'Are you sure you want to finish this calculation session?',
+                'Zakończ Sesję',
+                'Czy na pewno chcesz zakończyć tę sesję obliczeniową?',
                 [
                   {
-                    text: 'Cancel',
+                    text: 'Anuluj',
                     style: 'cancel'
                   },
                   {
-                    text: 'Finish',
+                    text: 'Zakończ',
                     onPress: () => {
                       setEndTime(Date.now());
                       changeMode('results'); // Show results screen

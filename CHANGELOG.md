@@ -62,6 +62,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.4.0] - 2026-02-11
+
+### Added
+- 6 new achievements to unlock.
+
+### Changed
+- App fully translated to Polish (English will be added in a later release).
+- New transport and edit transport modals slightly redesigned.
+
+### Removed
+- Dropdown menu from new transport and edit transport (removed due to bugs).
+
+---
+
 ## Unreleased
 
 ### Added

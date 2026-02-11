@@ -196,7 +196,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
                   onPress={handleSetNow}
                 >
                   <MaterialCommunityIcons name="clock-outline" size={16} color={colors.text} />
-                  <Text style={[styles.helperButtonText, { color: colors.text }]}>Now</Text>
+                  <Text style={[styles.helperButtonText, { color: colors.text }]}>Teraz</Text>
                 </TouchableOpacity>
 
                 {Platform.OS === 'android' && (
@@ -205,7 +205,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
                     onPress={handleOpenTimePicker}
                   >
                     <MaterialCommunityIcons name="calendar-clock" size={16} color={colors.text} />
-                    <Text style={[styles.helperButtonText, { color: colors.text }]}>Picker</Text>
+                    <Text style={[styles.helperButtonText, { color: colors.text }]}>Wybierz</Text>
                   </TouchableOpacity>
                 )}
               </View>
@@ -289,7 +289,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
                   style={[styles.cancelButton, { borderColor: colors.border }]}
                   onPress={onClose}
                 >
-                  <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
+                  <Text style={[styles.cancelButtonText, { color: colors.text }]}>Anuluj</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity

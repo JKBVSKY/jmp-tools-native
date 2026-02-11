@@ -40,9 +40,9 @@ export default function CustomTimePicker({
     <View style={[styles.container, { backgroundColor: colors.cardBackground }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onCancel}>
-          <Text style={[styles.headerButton, { color: colors.text }]}>Cancel</Text>
+          <Text style={[styles.headerButton, { color: colors.text }]}>Anuluj</Text>
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: colors.text }]}>Select Time</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Wybór Czasu</Text>
         <TouchableOpacity onPress={handleConfirm}>
           <Text style={[styles.headerButton, { color: colors.selection, fontWeight: 'bold' }]}>OK</Text>
         </TouchableOpacity>
@@ -65,7 +65,7 @@ export default function CustomTimePicker({
       <View style={styles.pickersContainer}>
         {/* Hours Picker */}
         <View style={styles.pickerColumn}>
-          <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Hours</Text>
+          <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Godzina</Text>
           <ScrollView
             style={[styles.scrollPicker, { borderColor: colors.border }]}
             showsVerticalScrollIndicator={false}
@@ -101,7 +101,7 @@ export default function CustomTimePicker({
 
         {/* Minutes Picker */}
         <View style={styles.pickerColumn}>
-          <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Minutes</Text>
+          <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Minuta</Text>
           <ScrollView
             style={[styles.scrollPicker, { borderColor: colors.border }]}
             showsVerticalScrollIndicator={false}
@@ -137,7 +137,7 @@ export default function CustomTimePicker({
 
         {/* Seconds Picker */}
         <View style={styles.pickerColumn}>
-          <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Seconds</Text>
+          <Text style={[styles.pickerLabel, { color: colors.textSecondary }]}>Sekunda</Text>
           <ScrollView
             style={[styles.scrollPicker, { borderColor: colors.border }]}
             showsVerticalScrollIndicator={false}

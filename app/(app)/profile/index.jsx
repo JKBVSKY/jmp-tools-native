@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TouchableOpacity } from 'react-native';
 import { useAuth } from '../../../_context/AuthContext';
 import { useUserProfile } from '../../../_context/UserProfileContext';
 import { useColors } from '../../../_hooks/useColors';
@@ -20,62 +20,62 @@ export default function Profile() {
   if (isGuest) {
     return (
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { backgroundColor: colors.cardBackground }]}>
-          <Ionicons name="person-outline" size={80} color={colors.textSecondary} />
-          <Text style={[styles.userName, { color: colors.title }]}>Guest User</Text>
+        <View style={[styles.header, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1 }]}>
+          <Ionicons name="person-outline" size={80} color={colors.iconColor} />
+          <Text style={[styles.userName, { color: colors.title }]}>Gość</Text>
           <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-            You're browsing as a guest
+            Przeglądasz jako gość
           </Text>
         </View>
 
-        <View style={[styles.guestCard, { backgroundColor: colors.inputBackground, borderColor: colors.primary, borderWidth: 2 }]}>
-          <Ionicons name="information-circle" size={24} color={colors.primary} />
-          <Text style={[styles.guestTitle, { color: colors.title }]}>Create an Account</Text>
+        <View style={[styles.guestCard, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
+          <Ionicons name="information-circle" size={24} color={colors.iconColor} />
+          <Text style={[styles.guestTitle, { color: colors.title }]}>Utwórz Konto</Text>
           <Text style={[styles.guestText, { color: colors.textSecondary }]}>
-            Sign up to unlock the full experience! Track your progress, earn XP, unlock achievements, and compete on leaderboards.
+            Zarejestruj się, aby odblokować pełną wersję! Śledź swoje postępy, zdobywaj XP, odblokowuj osiągnięcia i rywalizuj w rankingach.
           </Text>
 
           <View style={styles.guestFeatures}>
             <View style={styles.featureRow}>
-              <Ionicons name="star" size={20} color={colors.primary} />
-              <Text style={[styles.featureText, { color: colors.text }]}>Track XP and Levels</Text>
+              <Ionicons name="star" size={20} color={colors.iconColor} />
+              <Text style={[styles.featureText, { color: colors.text }]}>System XP i Poziomów</Text>
             </View>
             <View style={styles.featureRow}>
-              <Ionicons name="trophy" size={20} color={colors.primary} />
-              <Text style={[styles.featureText, { color: colors.text }]}>Unlock Achievements</Text>
+              <Ionicons name="trophy" size={20} color={colors.iconColor} />
+              <Text style={[styles.featureText, { color: colors.text }]}>Zdobywaj Osiągnięcia</Text>
             </View>
             <View style={styles.featureRow}>
-              <Ionicons name="bar-chart" size={20} color={colors.primary} />
-              <Text style={[styles.featureText, { color: colors.text }]}>Detailed Statistics</Text>
+              <Ionicons name="bar-chart" size={20} color={colors.iconColor} />
+              <Text style={[styles.featureText, { color: colors.text }]}>Statystyki i Rankingi</Text>
             </View>
             <View style={styles.featureRow}>
-              <Ionicons name="cloud-upload" size={20} color={colors.primary} />
-              <Text style={[styles.featureText, { color: colors.text }]}>Cloud Sync</Text>
+              <Ionicons name="cloud-upload" size={20} color={colors.iconColor} />
+              <Text style={[styles.featureText, { color: colors.text }]}>Synchronizacja w Chmurze</Text>
             </View>
           </View>
         </View>
 
-        <Pressable
-          style={[styles.signUpButton, { backgroundColor: colors.primary }]}
+        <TouchableOpacity
+          style={[styles.signUpButton, { backgroundColor: colors.butBackground }]}
           onPress={() => {
             signOut();
             router.replace('/(auth)/register');
           }}
         >
           <Ionicons name="pencil" size={20} color={colors.butText} />
-          <Text style={[styles.buttonText, { color: colors.butText }]}>Create Account Now</Text>
-        </Pressable>
+          <Text style={[styles.buttonText, { color: colors.butText }]}>Utwórz Konto Teraz..</Text>
+        </TouchableOpacity>
 
-        <Pressable
+        <TouchableOpacity
           style={[styles.loginButton, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}
           onPress={() => {
             signOut();
             router.replace('/(auth)/login');
           }}
         >
-          <Ionicons name="log-in" size={20} color={colors.primary} />
-          <Text style={[styles.buttonText, { color: colors.primary }]}>Sign In Instead</Text>
-        </Pressable>
+          <Ionicons name="log-in" size={20} color={colors.iconColor} />
+          <Text style={[styles.buttonText, { color: colors.textSecondary }]}>..lub Zaloguj Się</Text>
+        </TouchableOpacity>
 
         <View style={{ height: 30 }} />
       </ScrollView>
@@ -87,7 +87,7 @@ export default function Profile() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={[styles.loadingText, { color: colors.textSecondary, marginTop: 10 }]}>Loading profile...</Text>
+        <Text style={[styles.loadingText, { color: colors.textSecondary, marginTop: 10 }]}>Ładowanie profilu...</Text>
       </View>
     );
   }
@@ -97,14 +97,14 @@ export default function Profile() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
         <Ionicons name="alert-circle" size={50} color={colors.primary} />
-        <Text style={[styles.errorText, { color: colors.title, marginTop: 10 }]}>Error loading profile</Text>
-        <Text style={[styles.errorSubText, { color: colors.textSecondary, marginTop: 5 }]}>Please try again later</Text>
-        <Pressable
+        <Text style={[styles.errorText, { color: colors.title, marginTop: 10 }]}>Błąd ładowania profilu</Text>
+        <Text style={[styles.errorSubText, { color: colors.textSecondary, marginTop: 5 }]}>Proszę spróbować ponownie później</Text>
+        <TouchableOpacity
           style={[styles.retryButton, { backgroundColor: colors.primary, marginTop: 20 }]}
           onPress={() => router.back()}
         >
-          <Text style={[styles.buttonText, { color: colors.butText }]}>Go Back</Text>
-        </Pressable>
+          <Text style={[styles.buttonText, { color: colors.butText }]}>Powrót</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -146,6 +146,19 @@ const handleAchievementPress = (achievement) => {
     ...achievement,
     unlocked: profile.achievements.includes(achievement.id),
   }));
+
+    const renderIcon = (icon) => {
+      if (typeof icon === 'string') {
+        return <Text style={styles.achievementIcon}>{icon}</Text>;
+      }
+
+      if (typeof icon === 'function' || (typeof icon === 'object' && icon?.render)) {
+        const IconComponent = icon;
+        return <IconComponent size={48} />;
+      }
+
+      return null;
+    };
 
   return (
     <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
@@ -296,7 +309,7 @@ const handleAchievementPress = (achievement) => {
                   </View>
                 )}
 
-                <Text style={styles.achievementIcon}>{achievement.icon}</Text>
+                <Text style={styles.achievementIcon}>{renderIcon(achievement.icon)}</Text>
                   <Text
                     style={[
                       styles.achievementName,

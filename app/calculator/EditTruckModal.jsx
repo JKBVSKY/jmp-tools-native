@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { 
+import React, { useState, useEffect, useRef } from "react";
+import {
   Modal,
   View,
   Text,
@@ -8,10 +8,14 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
-  ScrollView
+  ScrollView,
+  Switch,
 } from "react-native";
+import { useColors } from '../../_hooks/useColors';
 
 export default function EditTruckModal({ visible, truck, onClose, onSave }) {
+  const colors = useColors();
+
   const [form, setForm] = useState({
     shop: "",
     gate: "",
@@ -19,125 +23,240 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
     pallets: "",
   });
 
+  // State for "Pallets in progress" checkbox
+  const [palletsInProgress, setPalletsInProgress] = useState(false);
+
+  // Refs
+  const scrollViewRef = useRef(null);
+  const palletsInputRef = useRef(null);
+  const shopInputRef = useRef(null);
+  const gateInputRef = useRef(null);
+  const trailerInputRef = useRef(null);
+
+  // Load truck data when modal becomes visible
   useEffect(() => {
-    if (truck) {
+    if (visible && truck) {
       setForm({
         shop: truck.shop || "",
         gate: truck.gate || "",
         trailer: truck.trailer || "",
         pallets: truck.pallets || "",
       });
+      setPalletsInProgress(truck.palletsInProgress || false);
     }
   }, [truck, visible]);
 
   const handleChange = (name, value) => {
+    if (name === "pallets") {
+      // Allow decimals and empty string
+      if (value === '' || !isNaN(value)) {
+        const numValue = Number(value);
+        // Only update if empty or if number is between 0 and 50
+        if (value === '' || (numValue > 0 && numValue <= 50)) {
+          setForm((prev) => ({ ...prev, [name]: value }));
+        }
+        return;
+      }
+    }
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
-  const isPalletsValid = form.pallets && 
-    Number(form.pallets) > 0 && 
+  const handleClose = () => {
+    onClose();
+  };
+
+  const isPalletsValid = form.pallets &&
+    Number(form.pallets) > 0 &&
     (Number(form.pallets) * 100) % 25 === 0;
 
+  const canSaveTransport = isPalletsValid || palletsInProgress;
+
   const handleSave = () => {
-    if (isPalletsValid) {
-      onSave({ ...truck, ...form });
-      onClose();
+    if (canSaveTransport) {
+      // Pass updated data to parent
+      const dataToSave = {
+        ...truck,
+        ...form,
+        palletsInProgress: palletsInProgress,
+      };
+      onSave(dataToSave);
+      handleClose();
     }
   };
 
-  if (!visible) return null;
+  // Handler for switch toggle - clears pallets when switch is turned ON
+  const handlePalletsInProgressChange = (value) => {
+    setPalletsInProgress(value);
+    // Clear pallets input when switch is turned ON
+    if (value === true) {
+      setForm((prev) => ({ ...prev, pallets: "" }));
+    }
+  };
+
+
+  const handleInputChange = (name, value) => {
+    // Update form value
+    handleChange(name, value);
+  };
 
   return (
     <Modal
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      animationType="fade"
+      transparent={true}
+      onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.overlay}
       >
         <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <ScrollView showsVerticalScrollIndicator={false}>
-              <Text style={styles.title}>Edit Transport</Text>
-              <Text style={styles.description}>
-                Edit transport #{truck?.displayId}
-              </Text>
+          <ScrollView
+            ref={scrollViewRef}
+            contentContainerStyle={[styles.modalContent, { backgroundColor: colors.background }]}
+            keyboardShouldPersistTaps="handled"
+          >
+            {/* Title */}
+            <Text style={[styles.title, { color: colors.text }]}>Edytuj Transport</Text>
+            <Text style={[styles.description, { color: colors.textSecondary }]}>
+              Edytuj szczegóły transportu #{truck?.displayId}.
+            </Text>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Pallets *</Text>
+            {/* First Row: Pallets and Shop */}
+            <View style={styles.inputRow}>
+              <View style={styles.inputHalf}>
+                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
                 <TextInput
+                  ref={palletsInputRef}
                   style={[
-                    styles.input,
-                    !isPalletsValid && form.pallets ? styles.inputError : null
+                    styles.inputSmall,
+                    {
+                      backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
+                      color: colors.text,
+                      borderColor: palletsInProgress ? 'red' : colors.border
+                    },
+                    !isPalletsValid && form.pallets && styles.inputError
                   ]}
                   value={form.pallets}
                   onChangeText={(value) => handleChange("pallets", value)}
-                  placeholder="Enter number of pallets"
+                  placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
+                  placeholderTextColor={palletsInProgress ? "red" : colors.phText}
                   keyboardType="numeric"
+                  editable={!palletsInProgress}
                 />
                 {!isPalletsValid && form.pallets && (
-                  <Text style={styles.errorText}>
-                    Must be a positive number divisible by 0.25
-                  </Text>
+                  <Text style={styles.errorText}>Ilość musi być poprawna</Text>
                 )}
               </View>
 
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Shop</Text>
+              <View style={styles.inputHalf}>
+                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
                 <TextInput
-                  style={styles.input}
-                  value={form.shop}
-                  onChangeText={(value) => handleChange("shop", value)}
-                  placeholder="Shop number"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Gate</Text>
-                <TextInput
-                  style={styles.input}
-                  value={form.gate}
-                  onChangeText={(value) => handleChange("gate", value)}
-                  placeholder="Gate number"
-                />
-              </View>
-
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Trailer</Text>
-                <TextInput
-                  style={styles.input}
-                  value={form.trailer}
-                  onChangeText={(value) => handleChange("trailer", value)}
-                  placeholder="Trailer number"
-                />
-              </View>
-
-              <View style={styles.buttonContainer}>
-                <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                  <Text style={styles.cancelButtonText}>Cancel</Text>
-                </TouchableOpacity>
-                
-                <TouchableOpacity 
+                  ref={shopInputRef}
                   style={[
-                    styles.saveButton,
-                    !isPalletsValid && styles.saveButtonDisabled
-                  ]} 
-                  onPress={handleSave}
-                  disabled={!isPalletsValid}
-                >
-                  <Text style={[
-                    styles.saveButtonText,
-                    !isPalletsValid && styles.saveButtonTextDisabled
-                  ]}>
-                    Save Changes
-                  </Text>
-                </TouchableOpacity>
+                    styles.inputSmall,
+                    {
+                      backgroundColor: colors.inputBackground,
+                      color: colors.text,
+                      borderColor: colors.border
+                    }
+                  ]}
+                  value={form.shop}
+                  onChangeText={(value) => handleInputChange("shop", value)}
+                  placeholder="Shop"
+                  placeholderTextColor={colors.phText}
+                  keyboardType="numeric"
+                />
               </View>
-            </ScrollView>
-          </View>
+            </View>
+
+            {/* Second Row: Gate and Trailer */}
+            <View style={styles.inputRow}>
+              <View style={styles.inputHalf}>
+                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
+                <TextInput
+                  ref={gateInputRef}
+                  style={[
+                    styles.inputSmall,
+                    {
+                      backgroundColor: colors.inputBackground,
+                      color: colors.text,
+                      borderColor: colors.border
+                    }
+                  ]}
+                  value={form.gate}
+                  onChangeText={(value) => handleInputChange("gate", value)}
+                  placeholder="Gate"
+                  placeholderTextColor={colors.phText}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.inputHalf}>
+                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Naczepa</Text>
+                <TextInput
+                  ref={trailerInputRef}
+                  style={[
+                    styles.inputSmall,
+                    {
+                      backgroundColor: colors.inputBackground,
+                      color: colors.text,
+                      borderColor: colors.border
+                    }
+                  ]}
+                  value={form.trailer}
+                  onChangeText={(value) => handleInputChange("trailer", value)}
+                  placeholder="Trailer"
+                  placeholderTextColor={colors.phText}
+                  keyboardType="numeric"
+                />
+              </View>
+            </View>
+
+            {/* Pallets in Progress Switch */}
+            <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 8 }]}>
+              <Text style={[styles.checkboxLabel, { color: colors.text }]}>Palety w trakcie</Text>
+              <Switch
+                value={palletsInProgress}
+                onValueChange={handlePalletsInProgressChange}
+                trackColor={{ false: "#333", true: colors.butBackground }}
+                thumbColor={"#fff"}
+              />
+            </View>
+
+            {/* Button Container */}
+            <View style={styles.buttonContainer}>
+              <TouchableOpacity
+                style={[styles.cancelButton, { backgroundColor: colors.cancelBackground, borderColor: colors.border }]}
+                onPress={handleClose}
+              >
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>
+                  Anuluj
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.addButton,
+                  { backgroundColor: colors.butBackground },
+                  !canSaveTransport && styles.addButtonDisabled
+                ]}
+                onPress={handleSave}
+                disabled={!canSaveTransport}
+              >
+                <Text
+                  style={[
+                    styles.addButtonText,
+                    canSaveTransport
+                      ? { color: colors.buttonText || '#fff' }
+                      : { color: colors.disabledText || '#999' },
+                  ]}
+                >
+                  Zapisz zmiany
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -152,12 +271,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalContainer: {
+    borderRadius: 16,
     width: '90%',
     maxWidth: 400,
     maxHeight: '80%',
   },
   modalContent: {
-    backgroundColor: 'white',
     borderRadius: 16,
     padding: 24,
     elevation: 8,
@@ -171,12 +290,10 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
     marginBottom: 8,
-    color: '#b30000',
   },
   description: {
     fontSize: 16,
     textAlign: 'center',
-    color: '#444',
     marginBottom: 20,
   },
   inputContainer: {
@@ -186,7 +303,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     marginBottom: 6,
-    color: '#333',
   },
   input: {
     borderWidth: 1,
@@ -211,35 +327,82 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ccc',
   },
   cancelButtonText: {
     textAlign: 'center',
     fontSize: 16,
-    color: '#666',
   },
-  saveButton: {
+  addButton: {
     flex: 1,
-    backgroundColor: '#c50000',
     paddingVertical: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
-  saveButtonDisabled: {
+  addButtonDisabled: {
     backgroundColor: '#ccc',
   },
-  saveButtonText: {
+  addButtonText: {
     textAlign: 'center',
     fontSize: 16,
-    color: 'white',
     fontWeight: '600',
   },
-  saveButtonTextDisabled: {
+  addButtonTextDisabled: {
     color: '#999',
+  },
+  dropdown: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fff',
+    marginTop: 4,
+    maxHeight: 200,
+    overflow: 'hidden',
+    zIndex: 1000,
+  },
+  dropdownItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#111',
+  },
+  dropdownItemText: {
+    fontSize: 14,
+  },
+  inputRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+    marginBottom: 16,
+  },
+  inputHalf: {
+    flex: 1,
+  },
+  inputLabelHalf: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  inputSmall: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 8,
+    padding: 10,
+    fontSize: 14,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  checkboxLabel: {
+    fontSize: 14,
+    fontWeight: '500',
   },
 });

@@ -22,9 +22,9 @@ export default function Welcome() {
         resizeMode="contain"
       />
       <Spacer />
-      <Text style={[styles.title, { color: colors.text }]}>Welcome to JMP-Tools</Text>
+      <Text style={[styles.title, { color: colors.text }]}>Witaj w JMP-Tools</Text>
       <Text style={[styles.subtitle, { color: colors.text }]}>
-        Track your work efficiently
+        Śledź swoją pracę efektywnie
       </Text>
 
       <View style={styles.buttonContainer}>
@@ -32,21 +32,21 @@ export default function Welcome() {
           style={[styles.button, styles.primaryButton, { backgroundColor: colors.butBackground }]}
           onPress={() => router.push('/(auth)/login')}
         >
-          <Text style={[styles.primaryButtonText, { color: colors.butText }]}>Login</Text>
+          <Text style={[styles.primaryButtonText, { color: colors.butText }]}>Zaloguj Się</Text>
         </Pressable>
 
         <Pressable
           style={[styles.button, styles.secondaryButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder   }]}
           onPress={() => router.push('/(auth)/register')}
         >
-          <Text style={[styles.secondaryButtonText, { color: colors.outButText }]}>Create Account</Text>
+          <Text style={[styles.secondaryButtonText, { color: colors.outButText }]}>Utwórz Konto</Text>
         </Pressable>
 
         <Pressable
           style={styles.guestButton}
           onPress={handleGuestMode}
         >
-          <Text style={[styles.guestButtonText, { color: colors.text }]}>Continue as Guest</Text>
+          <Text style={[styles.guestButtonText, { color: colors.text }]}>Zaloguj się Jako Gość</Text>
         </Pressable>
       </View>
     </View>

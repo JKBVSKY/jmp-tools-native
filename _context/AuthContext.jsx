@@ -75,11 +75,11 @@ export function AuthProvider({ children }) {
 
       // Friendly error messages
       if (error.code === 'auth/email-already-in-use') {
-        errorMessage = 'Email already in use. Please try another email.';
+        errorMessage = 'Adres e-mail jest już używany. Spróbuj użyć innego adresu.';
       } else if (error.code === 'auth/weak-password') {
-        errorMessage = 'Password is too weak. Use at least 6 characters.';
+        errorMessage = 'Hasło jest za słabe. Użyj co najmniej 6 znaków.';
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address.';
+        errorMessage = 'Nieprawidłowy adres e-mail.';
       }
 
       return { success: false, error: errorMessage };
@@ -109,11 +109,11 @@ export function AuthProvider({ children }) {
 
       // Friendly error messages
       if (error.code === 'auth/user-not-found') {
-        errorMessage = 'User not found. Please check your email.';
+        errorMessage = 'Użytkownik nie został znaleziony. Sprawdź swoją pocztę e-mail.';
       } else if (error.code === 'auth/wrong-password') {
-        errorMessage = 'Incorrect password. Please try again.';
+        errorMessage = 'Niewłaściwe hasło. Spróbuj ponownie.';
       } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Invalid email address.';
+        errorMessage = 'Nieprawidłowy adres e-mail.';
       }
 
       return { success: false, error: errorMessage };

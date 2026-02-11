@@ -14,6 +14,13 @@
 /**
  * Calculate XP earned from a work session based on score (0-10)
  */
+import PalletTier1 from '../assets/icons/PalletTier1';
+import PalletTier2 from '../assets/icons/PalletTier2';
+import PalletTier3 from '../assets/icons/PalletTier3';
+import PalletTier4 from '../assets/icons/PalletTier4';
+import PalletTier5 from '../assets/icons/PalletTier5';
+import PalletTier6 from '../assets/icons/PalletTier6';
+
 export const calculateXPFromScore = (score) => {
   // Convert to number just in case
   const numScore = parseFloat(score);
@@ -95,57 +102,92 @@ export const ACHIEVEMENTS = {
     id: 'achievement_first_shift',
     name: 'Pierwsza zmiana',
     icon: '🌅',
-    description: 'Complete your first work session',
-    requirement: 'Complete 1 session',
+    description: 'Tu zaczyna się legenda.',
+    requirement: 'Zakończ swoją pierwszą sesję roboczą w aplikacji.',
   },
   SPEED_HUNTER: {
     id: 'achievement_speed_hunter',
     name: 'Rajdowiec',
     icon: '⚡',
-    description: 'Load 400+ pallets in one session',
-    requirement: '400+ pallets loaded in one session',
+    description: '400 palet. Tempo jak wózek bez blokady.',
+    requirement: 'Załaduj 400 palet w jednej sesji!',
   },
   CONSISTENCY: {
     id: 'achievement_consistency',
     name: 'Konsekwentny',
     icon: '📈',
-    description: 'Maintain 8.5+ average score',
-    requirement: 'Average score >= 8.5',
+    description: 'Stabilność godna mistrza.',
+    requirement: 'Utrzymaj średnią ocenę na poziomie 8.5 lub wyżej.',
   },
   NIGHT_OWL: {
     id: 'achievement_night_owl',
     name: 'Nocny Marek',
     icon: '🌙',
-    description: 'Complete 20 night shifts',
-    requirement: '20 shifts between 22:00-06:00',
+    description: 'Nocna zmiana? Standard. 🌙',
+    requirement: 'Ukończ 20 sesji między 21:45 - 06:00',
   },
   MASTER_LOADER: {
     id: 'achievement_master_loader',
     name: 'Mistrz Ładowania',
     icon: '👑',
-    description: 'Reach level 50',
-    requirement: 'Level 50',
+    description: 'Poziom 50. Status: legenda hali.',
+    requirement: 'Zdobądź poziom 50',
   },
   PERFECTIONIST: {
     id: 'achievement_perfectionist',
     name: 'Perfekcjonista',
     icon: '💎',
-    description: 'Score 10.0 on 5 sessions',
-    requirement: 'Get perfect score 5 times',
+    description: 'Pięć sesji. Pełna dziesiątka.',
+    requirement: 'Zdobądź ocenę 10.0 w 5 sesjach',
   },
-  CENTURY: {
-    id: 'achievement_century',
-    name: 'Klub Stulecia',
-    icon: '💯',
-    description: 'Load 1000 pallets total',
-    requirement: 'totalPallets >= 1000',
+  PALLETS_1:{
+    id: 'achievement_pallets_1',
+    name: 'Tysiąc na liczniku',
+    icon: PalletTier1,
+    description: 'To już nie przypadek. To regularna robota.',
+    requirement: 'Załaduj w sumie 1 000 palet.',
+  },
+  PALLETS_2:{
+    id: 'achievement_pallets_2',
+    name: 'Wyjadacz Hali',
+    icon: PalletTier2,
+    description: 'Palety lecą, doświadczenie rośnie.',
+    requirement: 'Załaduj w sumie 5 000 palet.',
+  },
+  PALLETS_3:{
+    id: 'achievement_pallets_3',
+    name: 'Maszyna do Palet',
+    icon: PalletTier3,
+    description: 'Tempo, które robi wrażenie.',
+    requirement: 'Załaduj w sumie 10 000 palet.',
+  },
+  PALLETS_4:{
+    id: 'achievement_pallets_4',
+    name: 'Legenda Zmiany',
+    icon: PalletTier4,
+    description: 'Twoje wyniki krążą po hali.',
+    requirement: 'Załaduj w sumie 25 000 palet.',
+  },
+  PALLETS_5:{
+    id: 'achievement_pallets_5',
+    name: 'Żywa Instrukcja Obsługi',
+    icon: PalletTier5,
+    description: 'Jeśli ktoś wie, jak to się robi — to Ty.',
+    requirement: 'Załaduj w sumie 50 000 palet.',
+  },
+  PALLETS_6:{
+    id: 'achievement_pallets_6',
+    name: 'Mit Paletowy',
+    icon: PalletTier6,
+    description: 'Tego wyniku nie da się przebić. Można go tylko podziwiać.',
+    requirement: 'Załaduj w sumie 100 000 palet.',
   },
   MARATHON: {
     id: 'achievement_marathon',
     name: 'Maratończyk',
     icon: '🏃',
-    description: 'Work for 100 hours total',
-    requirement: 'totalTimeWorked >= 100h',
+    description: '100 godzin na liczniku. Bez gadania.',
+    requirement: 'Przepracuj w sumie 100 godzin',
   },
 };
 
@@ -213,13 +255,53 @@ if (userStats.nightShiftsCompleted >= 20 && !alreadyUnlocked.includes(ACHIEVEMEN
     console.log('🏆 ❌ CONSISTENCY: FALSE - Average score:', averageScore, '(need >= 8.5)');
   }
 
-  // ✅ Check CENTURY - 1000+ total pallets
-  if (userStats.palletsLoaded >= 1000 && !alreadyUnlocked.includes(ACHIEVEMENTS.CENTURY.id)) {
-    newAchievements.push(ACHIEVEMENTS.CENTURY.id);
-    console.log('🏆 ✅ CENTURY: TRUE - Pallets loaded:', userStats.palletsLoaded);
-  } else {
-    console.log('🏆 ❌ CENTURY: FALSE - Pallets loaded:', userStats.palletsLoaded);
-  }
+    // ✅ Check PALLETS_1 - 1000+ pallets
+    if (userStats.palletsLoaded >= 1000 && !alreadyUnlocked.includes(ACHIEVEMENTS.PALLETS_1.id)) {
+        newAchievements.push(ACHIEVEMENTS.PALLETS_1.id);
+        console.log('🏆 ✅ PALLETS_1: TRUE - Pallets loaded:', userStats.palletsLoaded);
+    } else {
+        console.log('🏆 ❌ PALLETS_1: FALSE - Pallets loaded:', userStats.palletsLoaded);
+    }
+
+    // ✅ Check PALLETS_2 - 5000+ pallets
+    if (userStats.palletsLoaded >= 5000 && !alreadyUnlocked.includes(ACHIEVEMENTS.PALLETS_2.id)) {
+        newAchievements.push(ACHIEVEMENTS.PALLETS_2.id);
+        console.log('🏆 ✅ PALLETS_2: TRUE - Pallets loaded:', userStats.palletsLoaded);
+    } else {
+        console.log('🏆 ❌ PALLETS_2: FALSE - Pallets loaded:', userStats.palletsLoaded);
+    }
+
+    // ✅ Check PALLETS_3 - 10000+ pallets
+    if (userStats.palletsLoaded >= 10000 && !alreadyUnlocked.includes(ACHIEVEMENTS.PALLETS_3.id)) {
+        newAchievements.push(ACHIEVEMENTS.PALLETS_3.id);
+        console.log('🏆 ✅ PALLETS_3: TRUE - Pallets loaded:', userStats.palletsLoaded);
+    } else {
+        console.log('🏆 ❌ PALLETS_3: FALSE - Pallets loaded:', userStats.palletsLoaded);
+    }
+
+    // ✅ Check PALLETS_4 - 25000+ pallets
+    if (userStats.palletsLoaded >= 25000 && !alreadyUnlocked.includes(ACHIEVEMENTS.PALLETS_4.id)) {
+        newAchievements.push(ACHIEVEMENTS.PALLETS_4.id);
+        console.log('🏆 ✅ PALLETS_4: TRUE - Pallets loaded:', userStats.palletsLoaded);
+    } else {
+        console.log('🏆 ❌ PALLETS_4: FALSE - Pallets loaded:', userStats.palletsLoaded);
+    }
+
+    // ✅ Check PALLETS_5 - 50000+ pallets
+    if (userStats.palletsLoaded >= 50000 && !alreadyUnlocked.includes(ACHIEVEMENTS.PALLETS_5.id)) {
+        newAchievements.push(ACHIEVEMENTS.PALLETS_5.id);
+        console.log('🏆 ✅ PALLETS_5: TRUE - Pallets loaded:', userStats.palletsLoaded);
+    } else {
+        console.log('🏆 ❌ PALLETS_5: FALSE - Pallets loaded:', userStats.palletsLoaded);
+    }
+
+    // ✅ Check PALLETS_6 - 100000+ pallets
+    if (userStats.palletsLoaded >= 100000 && !alreadyUnlocked.includes(ACHIEVEMENTS.PALLETS_6.id)) {
+        newAchievements.push(ACHIEVEMENTS.PALLETS_6.id);
+        console.log('🏆 ✅ PALLETS_6: TRUE - Pallets loaded:', userStats.palletsLoaded);
+    } else {
+        console.log('🏆 ❌ PALLETS_6: FALSE - Pallets loaded:', userStats.palletsLoaded);
+    }
 
   // ✅ Check MARATHON - 100+ hours worked
   if (userStats.totalTimeWorked >= 100 && !alreadyUnlocked.includes(ACHIEVEMENTS.MARATHON.id)) {

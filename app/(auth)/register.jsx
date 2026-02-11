@@ -19,17 +19,17 @@ export default function Register() {
 
   const handleRegister = async () => {
     if (!name || !email || !password || !confirmPassword) {
-      Alert.alert('Error', 'Please fill in all fields');
+      Alert.alert('Błąd', 'Wypełnij wszystkie pola');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('Error', 'Passwords do not match');
+      Alert.alert('Błąd', 'Hasła nie są takie same');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
+      Alert.alert('Błąd', 'Hasło musi mieć co najmniej 6 znaków');
       return;
     }
 
@@ -40,16 +40,16 @@ export default function Register() {
     if (result.success) {
       router.replace('/(app)');
     } else {
-      Alert.alert('Registration Failed', result.error);
+      Alert.alert('Rejestracja nieudana', result.error);
     }
   };
 
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={[styles.title, { color: colors.title }]}>Create an account</Text>
+        <Text style={[styles.title, { color: colors.title }]}>Utwórz Konto</Text>
         <Text style={[styles.desc, { color: colors.textSecondary }]}>
-          Enter your personal data to create your account.
+          Wprowadź swoje dane osobowe, aby utworzyć konto.
         </Text>
 
         <TextInput
@@ -58,7 +58,7 @@ export default function Register() {
             borderColor: colors.inputBorder,
             color: colors.text,
           }]}
-          placeholder="Full Name"
+          placeholder="Imię"
           placeholderTextColor={colors.phText}
           value={name}
           onChangeText={setName}
@@ -86,7 +86,7 @@ export default function Register() {
               borderColor: colors.inputBorder,
               color: colors.text,
             }]}
-            placeholder="Password"
+            placeholder="Hasło"
             placeholderTextColor={colors.phText}
             value={password}
             onChangeText={setPassword}
@@ -113,7 +113,7 @@ export default function Register() {
               borderColor: colors.inputBorder,
               color: colors.text,
             }]}
-            placeholder="Confirm Password"
+            placeholder="Potwierdź Hasło"
             placeholderTextColor={colors.phText}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
@@ -142,19 +142,19 @@ export default function Register() {
           disabled={loading}
         >
           <Text style={[styles.buttonText, { color: colors.butText }]}>
-            {loading ? 'Creating Account...' : 'Sign Up'}
+            {loading ? 'Tworzenie Konta...' : 'Utwórz Konto'}
           </Text>
         </Pressable>
 
         <Pressable onPress={() => router.push('/(auth)/login')}>
           <Text style={[styles.linkText, { color: colors.text }]}>
-            Already have an account? Login
+            Masz już konto? Zaloguj się
           </Text>
         </Pressable>
 
         <Pressable onPress={() => router.back()}>
           <Text style={[styles.backText, { color: colors.textSecondary }]}>
-            ← Back
+            ← Powrót
           </Text>
         </Pressable>
       </View>

@@ -24,21 +24,21 @@ export default function Dashboard() {
       {isGuest && (
         <View style={[styles.guestBanner, { backgroundColor: colors.guestBackground }]}>
           <Text style={[styles.guestText, { color: colors.guestText }]}>
-            You're in guest mode. Sign up to save your data!
+            Korzystasz z aplikacji w trybie gościa. Zarejestruj się, aby zapisać swoje dane!
           </Text>
           <Pressable
             style={[styles.upgradeButton, { backgroundColor: colors.butBackground }]}
             onPress={handleCreateAccount}
           >
-            <Text style={[styles.upgradeText, { color: colors.butText }] }>Create Account</Text>
+            <Text style={[styles.upgradeText, { color: colors.butText }] }>Utwórz Konto</Text>
           </Pressable>
         </View>
       )}
 
       {/* Center content wrapper */}
       <View style={styles.centerContent}>
-        <Text style={[styles.welcome, { color: colors.text }]}>Welcome, {user?.name || 'User'}!</Text>
-        <Text style={{ color: colors.text }}>Your productivity at a glance</Text>
+        <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
+        <Text style={{ color: colors.text }}>Produktywność na wyciągnięcie ręki.</Text>
       </View>
     </ThemedView>
   );

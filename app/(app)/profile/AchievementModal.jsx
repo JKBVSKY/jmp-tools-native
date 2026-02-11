@@ -1,7 +1,7 @@
 // AchievementModal.jsx - New file to add to your project
 
 import React from 'react';
-import { View, Text, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '../../../_hooks/useColors';
 
@@ -68,12 +68,52 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
           label: `${stats.perfectScores || 0} / 5 idealnych wyników`,
         };
 
-      case 'achievement_century':
+      case 'achievement_pallets_1':
         return {
           current: stats.palletsLoaded || 0,
           total: 1000,
           percent: Math.min(((stats.palletsLoaded || 0) / 1000) * 100, 100),
           label: `${stats.palletsLoaded || 0} / 1000 palet`,
+        };
+
+      case 'achievement_pallets_2':
+        return {
+          current: stats.palletsLoaded || 0,
+          total: 5000,
+          percent: Math.min(((stats.palletsLoaded || 0) / 5000) * 100, 100),
+          label: `${stats.palletsLoaded || 0} / 5000 palet`,
+        };
+
+      case 'achievement_pallets_3':
+        return {
+          current: stats.palletsLoaded || 0,
+          total: 10000,
+          percent: Math.min(((stats.palletsLoaded || 0) / 10000) * 100, 100),
+          label: `${stats.palletsLoaded || 0} / 10000 palet`,
+        };
+
+      case 'achievement_pallets_4':
+        return {
+          current: stats.palletsLoaded || 0,
+          total: 25000,
+          percent: Math.min(((stats.palletsLoaded || 0) / 25000) * 100, 100),
+          label: `${stats.palletsLoaded || 0} / 25000 palet`,
+        };
+
+      case 'achievement_pallets_5':
+        return {
+          current: stats.palletsLoaded || 0,
+          total: 50000,
+          percent: Math.min(((stats.palletsLoaded || 0) / 50000) * 100, 100),
+          label: `${stats.palletsLoaded || 0} / 50000 palet`,
+        };
+
+      case 'achievement_pallets_6':
+        return {
+          current: stats.palletsLoaded || 0,
+          total: 100000,
+          percent: Math.min(((stats.palletsLoaded || 0) / 100000) * 100, 100),
+          label: `${stats.palletsLoaded || 0} / 100000 palet`,
         };
 
       case 'achievement_marathon':
@@ -93,6 +133,19 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
 
   if (!achievement) return null;
 
+    const renderIcon = (icon) => {
+      if (typeof icon === 'string') {
+        return <Text style={styles.achievementIcon}>{icon}</Text>;
+      }
+
+      if (typeof icon === 'function' || (typeof icon === 'object' && icon?.render)) {
+        const IconComponent = icon;
+        return <IconComponent size={48} />;
+      }
+
+      return null;
+    };
+
   return (
     <Modal
       visible={visible}
@@ -111,13 +164,13 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
           ]}
         >
           {/* Close Button */}
-          <Pressable style={styles.closeButton} onPress={onClose}>
+          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
             <Ionicons
               name="close"
               size={24}
               color={colors.text}
             />
-          </Pressable>
+          </TouchableOpacity>
 
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -132,7 +185,7 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
                   : 'rgba(107, 114, 128, 0.1)'
               }
             ]}>
-              <Text style={styles.icon}>{achievement.icon}</Text>
+              <Text style={styles.icon}>{renderIcon(achievement.icon)}</Text>
               {isUnlocked && (
                 <View style={styles.unlockedBadge}>
                   <Ionicons name="checkmark-circle" size={32} color="#22c55e" />
@@ -230,7 +283,7 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
           </ScrollView>
 
           {/* Close Button at Bottom */}
-          <Pressable
+          <TouchableOpacity
             onPress={onClose}
             style={[
               styles.closeModalButton,
@@ -238,7 +291,7 @@ export const AchievementModal = ({ visible, achievement, onClose, userStats, isU
             ]}
           >
             <Text style={styles.closeModalButtonText}>Zamknij</Text>
-          </Pressable>
+          </TouchableOpacity>
         </View>
       </View>
     </Modal>

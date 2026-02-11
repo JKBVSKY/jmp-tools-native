@@ -135,35 +135,35 @@ export default function Results({
       }
 
       // ✅ STEP 7: Show results to user
-      let message = `🎯 Session Complete!\n+${xpEarned} XP earned`;
+      let message = `🎯 Sesja Ukończona!\n+${xpEarned} XP zdobytych`;
 
       if (newAchievements.length > 0) {
         const achievementNames = newAchievements
           .map(id => Object.values(ACHIEVEMENTS).find(a => a.id === id)?.name)
           .filter(Boolean)
           .join(', ');
-        message += `\n🏆 Achievement${newAchievements.length > 1 ? 's' : ''} unlocked: ${achievementNames}`;
+        message += `\n🏆 Osiągnięcie${newAchievements.length > 1 ? 's' : ''} odblokowane: ${achievementNames}`;
       }
 
       if (xpResult.leveledUp) {
         Alert.alert(
           '🎉 Level Up!',
-          `Congratulations! You reached level ${xpResult.newLevel}!\n\n${message}`,
-          [{ text: 'Continue', onPress: finishSession }]
+          `Gratulacje! Zdobyłeś poziom ${xpResult.newLevel}!\n\n${message}`,
+          [{ text: 'Kontynuuj', onPress: finishSession }]
         );
       } else {
         const levelData = calculateLevelFromXP(profile.totalXP + xpEarned);
-        const progressText = `Progress to Level ${xpResult.newLevel + 1}: ${levelData.currentXP} / ${levelData.xpToNextLevel} XP`;
+        const progressText = `Postęp do Poziomu ${xpResult.newLevel + 1}: ${levelData.currentXP} / ${levelData.xpToNextLevel} XP`;
 
         Alert.alert(
-          '⭐ Session Saved!',
+          '⭐ Sesja Zapisana!',
           `${message}\n\n${progressText}`,
-          [{ text: 'Continue', onPress: finishSession }]
+          [{ text: 'Kontynuuj', onPress: finishSession }]
         );
       }
     } catch (error) {
       console.error('❌ Error saving session:', error);
-      Alert.alert('Error', 'Failed to save session: ' + error.message);
+      Alert.alert('Błąd', 'Nie udało się zapisać sesji: ' + error.message);
     }
   };
 
@@ -172,15 +172,15 @@ export default function Results({
       await calc.clearState();
       changeMode('init');
     } catch (error) {
-      console.error('Error clearing calculator:', error);
+      console.error('Błąd podczas czyszczenia kalkulatora:', error);
     }
   };
 
   const handleDiscard = async () => {
-    Alert.alert('Discard Session', 'Are you sure? You will lose XP rewards!', [
-      { text: 'Cancel' },
+    Alert.alert('Odrzucanie sesji', 'Jesteś pewien? Stracisz punkty XP!', [
+      { text: 'Powrót' },
       {
-        text: 'Discard',
+        text: 'Odrzuć',
         onPress: async () => {
           await calc.clearState();
           changeMode('init');
@@ -193,12 +193,12 @@ export default function Results({
   return (
     <View style={[styles.scrollContent, { backgroundColor: colors.background }]}>
       <View style={styles.container}>
-        <Text style={[styles.title, { color: colors.title }]}>Session Complete! ✓</Text>
+        <Text style={[styles.title, { color: colors.title }]}>Sesja Zakończona! ✓</Text>
 
         {/* Score Display */}
         <View style={[styles.scoreCard, { backgroundColor: colors.cardBackground }]}>
           <View style={styles.scoreContent}>
-            <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Session Score</Text>
+            <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Ocena Sesji</Text>
             <Text style={[styles.scoreValue, { color: colors.text }]}>{sessionScore.toFixed(1)}/10.0</Text>
             <Text style={[styles.scoreXP, { color: colors.textSecondary }]}>
               +{calculateXPFromScore(sessionScore)} XP
@@ -216,7 +216,7 @@ export default function Results({
             <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="clock" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Total Time</Text>
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Sesji</Text>
               </View>
               <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
             </View>
@@ -225,7 +225,7 @@ export default function Results({
             <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="cube-send" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Pallets Loaded</Text>
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Palety Załadowane</Text>
               </View>
               <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
             </View>
@@ -235,7 +235,7 @@ export default function Results({
             <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="speedometer" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Rate/hour</Text>
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/h</Text>
               </View>
               <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
             </View>
@@ -244,7 +244,7 @@ export default function Results({
             <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <View style={styles.cardHeader}>
                 <MaterialCommunityIcons name="truck" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Trucks Loaded</Text>
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Naczepy Załadowane</Text>
               </View>
               <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
             </View>
@@ -255,13 +255,13 @@ export default function Results({
 
         {/* Session Details */}
         <View style={[styles.detailsBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Text style={[styles.detailsTitle, { color: colors.title }]}>Session Details</Text>
+          <Text style={[styles.detailsTitle, { color: colors.title }]}>Szczegóły Sesji</Text>
           <View style={[styles.detailRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Started:</Text>
+            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Rozpoczęto o:</Text>
             <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(startTime)}</Text>
           </View>
           <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Ended:</Text>
+            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Zakończono o:</Text>
             <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(endTime)}</Text>
           </View>
         </View>
@@ -269,13 +269,13 @@ export default function Results({
         <ScrollView style={styles.scrollView}>
             {/* Trucks Summary */}
             <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.trucksTitle, { color: colors.title }]}>Trucks Summary</Text>
+              <Text style={[styles.trucksTitle, { color: colors.title }]}>Szczegóły Dostaw</Text>
               {trucksHistory.map((truck, idx) => (
                 <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
                   <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
                   <View style={styles.truckInfo}>
                     <Text style={[styles.truckInfo, { color: colors.text }]}>
-                      {truck.pallets} pallets • Shop {truck.shop} • Gate {truck.gate}
+                      {truck.pallets} palet • Sklep {truck.shop} • Brama {truck.gate} • Naczepa {truck.trailer}
                     </Text>
                   </View>
                 </View>
@@ -296,7 +296,7 @@ export default function Results({
             onPress={handleSave}
           >
             <MaterialCommunityIcons name="check" size={20} color={colors.butText} />
-            <Text style={[styles.buttonText, { color: colors.butText }]}>Save to History</Text>
+            <Text style={[styles.buttonText, { color: colors.butText }]}>Zapisz Sesję</Text>
           </Pressable>
 
           <Pressable
@@ -312,7 +312,7 @@ export default function Results({
             onPress={handleDiscard}
           >
             <MaterialCommunityIcons name="close" size={20} color={colors.text} />
-            <Text style={[styles.buttonText, { color: colors.text }]}>Discard</Text>
+            <Text style={[styles.buttonText, { color: colors.text }]}>Nie Zapisuj</Text>
           </Pressable>
         </View>
       </View>

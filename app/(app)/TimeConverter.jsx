@@ -98,7 +98,7 @@ export default function TimeConverter() {
           size={32}
           color={colors.text}
         />
-        <Text style={[styles.title, { color: colors.title }]}>Time Converter</Text>
+        <Text style={[styles.title, { color: colors.title }]}>Przelicznik Czasu</Text>
       </View>
 
       <Spacer height={24} />
@@ -122,7 +122,7 @@ export default function TimeConverter() {
               mode === 'toDecimal' ? { color: colors.butText } : { color: colors.text }
             ]}
           >
-            To Decimal
+            Na Dziesiętny
           </Text>
         </TouchableOpacity>
 
@@ -143,7 +143,7 @@ export default function TimeConverter() {
               mode === 'toStandard' ? { color: colors.butText } : { color: colors.text }
             ]}
           >
-            To Standard
+            Na Standardowy
           </Text>
         </TouchableOpacity>
       </View>
@@ -153,7 +153,7 @@ export default function TimeConverter() {
       {/* Input Card */}
       <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
         <Text style={[styles.label, { color: colors.text }]}>
-          {mode === 'toDecimal' ? 'Enter Time (HH:MM:SS)' : 'Enter Decimal Hours'}
+          {mode === 'toDecimal' ? 'Wprowadź Czas (HH:MM:SS)' : 'Wprowadź Godziny (dziesiętne)'}
         </Text>
         <Spacer height={12} />
 
@@ -198,7 +198,7 @@ export default function TimeConverter() {
       {/* Result Card */}
       {result && (
         <View style={[styles.resultCard, { backgroundColor: colors.cardBackground, borderColor: colors.selection }]}>
-          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Result</Text>
+          <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Wynik</Text>
           <Spacer height={8} />
           <Text style={[styles.resultValue, { color: colors.selection }]}>
             {result}
@@ -212,7 +212,7 @@ export default function TimeConverter() {
             }}
           >
             <MaterialCommunityIcons name="content-copy" size={16} color={colors.selection} />
-            <Text style={[styles.copyButtonText, { color: colors.selection }]}>Copy Result</Text>
+            <Text style={[styles.copyButtonText, { color: colors.selection }]}>Kopiuj Wynik</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -230,12 +230,12 @@ export default function TimeConverter() {
       {/* Info Cards */}
       <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
         <MaterialCommunityIcons name="information" size={20} color={colors.text} />
-        <Text style={[styles.infoTitle, { color: colors.title }]}>How it works</Text>
+        <Text style={[styles.infoTitle, { color: colors.title }]}>Jak to działa</Text>
         <Spacer height={8} />
         <Text style={[styles.infoText, { color: colors.textSecondary }]}>
           {mode === 'toDecimal'
-            ? '14:30:45 = 14 + (30/60) + (45/3600) = 14.5125 hours'
-            : '14.5125 = 14 hours, 30 minutes, 45 seconds'}
+            ? '14:30:45 = 14 + (30/60) + (45/3600) = 14.5125 godzin'
+            : '14.5125 = 14 godzin, 30 minut, 45 sekund'}
         </Text>
       </View>
 
@@ -247,7 +247,7 @@ export default function TimeConverter() {
         onPress={handleClear}
       >
         <MaterialCommunityIcons name="refresh" size={18} color={colors.text} />
-        <Text style={[styles.clearButtonText, { color: colors.text }]}>Clear All</Text>
+        <Text style={[styles.clearButtonText, { color: colors.text }]}>Wyczyść Wszystko</Text>
       </TouchableOpacity>
 
       <Spacer height={32} />

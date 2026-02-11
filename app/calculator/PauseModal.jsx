@@ -113,10 +113,10 @@ export default function PauseModal({ visible, onClose, onConfirm }) {
         <View style={styles.modalContainer}>
           <View style={[styles.modalContent, { backgroundColor: colors.cardBackground }]}>
             <Text style={[styles.title, { color: colors.text }]}>
-              Pause Work
+              Zatrzymaj
             </Text>
             <Text style={[styles.description, { color: colors.textSecondary }]}>
-              When do you want to start your pause?
+              Kiedy chcesz się zatrzymać?
             </Text>
 
             {/* Helper buttons row */}
@@ -126,7 +126,7 @@ export default function PauseModal({ visible, onClose, onConfirm }) {
                 onPress={handleSetNow}
               >
                 <MaterialCommunityIcons name="clock-check" size={18} color={colors.text} />
-                <Text style={[styles.helperButtonText, { color: colors.text }]}>Now</Text>
+                <Text style={[styles.helperButtonText, { color: colors.text }]}>Teraz</Text>
               </TouchableOpacity>
 
               {Platform.OS === 'android' && (
@@ -135,7 +135,7 @@ export default function PauseModal({ visible, onClose, onConfirm }) {
                   onPress={handleOpenTimePicker}
                 >
                   <MaterialCommunityIcons name="clock-outline" size={18} color={colors.text} />
-                  <Text style={[styles.helperButtonText, { color: colors.text }]}>Picker</Text>
+                  <Text style={[styles.helperButtonText, { color: colors.text }]}>Wybierz czas</Text>
                 </TouchableOpacity>
               )}
             </View>
@@ -209,7 +209,7 @@ export default function PauseModal({ visible, onClose, onConfirm }) {
                 onPress={onClose}
               >
                 <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                  Cancel
+                  Anuluj
                 </Text>
               </TouchableOpacity>
 
