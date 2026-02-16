@@ -18,10 +18,11 @@ export function CalculatorProvider({ children }) {
     shopNum: 0,
     gateNum: 0,
     trailerNum: 0,
+    forcedFinishTime: null,
+    sessionStatus: 'active',
     isRestored: false, // Track if we've restored from storage
   });
 
-    timeOfForcedFinish: null // Timestamp when work MUST end
 
   // Save state to AsyncStorage
   const saveState = async (newState) => {
@@ -66,6 +67,8 @@ export function CalculatorProvider({ children }) {
         shopNum: 0,
         gateNum: 0,
         trailerNum: 0,
+        forcedFinishTime: null,
+        sessionStatus: 'cleared',
         isRestored: true,
       });
     } catch (error) {

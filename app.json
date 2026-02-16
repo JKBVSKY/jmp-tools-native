@@ -3,7 +3,7 @@
     "scheme": "jmp-tools-native",
     "name": "JMP-Tools-Native",
     "slug": "JMP-Tools-Native",
-    "version": "1.0.0",
+    "version": "0.4.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",

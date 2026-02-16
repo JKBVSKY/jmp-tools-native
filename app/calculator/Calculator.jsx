@@ -11,7 +11,8 @@ export default function Calculator() {
   const [mode, setMode] = useState("init"); // State to manage current mode
   const calc = useCalculator();
   const changeMode = (newMode) => setMode(newMode);
-  const [forcedFinishTime, setForcedFinishTime] = useState(null);
+  const forcedFinishTime = calc.forcedFinishTime;
+  const setForcedFinishTime = (time) => calc.updateState({ forcedFinishTime: time });
 
   // Helper function to check if startTime is from today
   const isStartTimeFromToday = (startTime) => {
@@ -26,22 +27,27 @@ export default function Calculator() {
   };
 
   // This runs when the screen comes into focus
-  useFocusEffect(
-    React.useCallback(() => {
-      if (!calc.isRestored || calc.mode !== 'init') {
-        return;
-      }
+useFocusEffect(
+  React.useCallback(() => {
+    if (!calc.isRestored || calc.mode !== 'init') {
+      return;
+    }
 
-      // Check if startTime is from today
-      if (!isStartTimeFromToday(calc.startTime)) {
-        const newStartTime = getAutoStartTime();
-        calc.updateState({
-          startTime: newStartTime,
-          mode: 'init'
-        });
-      }
-    }, [calc.isRestored, calc.mode, calc.startTime])
-  );
+    // 1. Reset old startTime (existing logic)
+    if (!isStartTimeFromToday(calc.startTime)) {
+      const newStartTime = getAutoStartTime();
+      calc.updateState({
+        startTime: newStartTime,
+        mode: 'init'
+      });
+    }
+
+    // 2. NEW: Clear finalized sessions (only if old date)
+    if (calc.sessionStatus === 'finalized' && !isStartTimeFromToday(calc.startTime)) {
+      calc.clearState();  // Full reset OR targeted: { startTime: null, sessionStatus: 'cleared', mode: 'init' }
+    }
+  }, [calc.isRestored, calc.mode, calc.startTime, calc.sessionStatus])  // ← ADD sessionStatus to deps
+);
 
   if (!calc.isRestored) {
     return null;
@@ -52,6 +58,7 @@ export default function Calculator() {
       {calc.mode === "init" && (
         <Init
           changeMode={(newMode) => calc.updateState({ mode: newMode })}
+          calcUpdateState={calc.updateState}
           setStartTime={(time) => calc.updateState({ startTime: time })}
           startTime={calc.startTime || getAutoStartTime()}
           forcedFinishTime={forcedFinishTime}

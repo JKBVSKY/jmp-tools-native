@@ -22,10 +22,10 @@ function CustomDrawerContent(props) {
         <View style={[styles.logoContainer, { paddingTop: 10 }]}>
           <Image
             source={require("../../assets/icon.png")}
-            style={[styles.logo, { borderWidth: 4, borderColor: colors.outButBorder }]}
+            style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={[styles.title, { color: colors.text }]}>JMP-Tools v0.4.0</Text>
+          <Text style={[styles.title, { color: colors.text }]}>JMP-Tools v0.4.1</Text>
         </View>
 
         {/* Navigation items */}

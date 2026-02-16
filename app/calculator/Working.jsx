@@ -247,6 +247,12 @@ export default function Working({
       // ✅ Calculate XP per min at this moment!
       const xpPerMin = calculateXPPerMin(palletsRateRef.current);
 
+      // Before awarding XP
+      if (calc.sessionStatus === 'finalized') {
+        console.log("Session already finalized, no XP accrual");
+        return 0;  // or reset startTime here
+      }
+      
       // Award XP every 10 seconds for testing (should be 60000 for production)
       if (timeSinceLastReward >= 10000 && xpPerMin > 0) {
         if (xpSaveInProgressRef.current) {
@@ -572,6 +578,7 @@ export default function Working({
       isPaused: false,
       pauseStart: null,
       mode: 'forced-finished', // NEW: Lock state to prevent resume
+      sessionStatus: 'finalized',
     });
 
     // ✅ STEP 6: Set end time and trigger results (NO XP awarded yet)
