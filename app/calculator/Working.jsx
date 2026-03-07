@@ -6,7 +6,9 @@ import {
   ScrollView,
   StyleSheet,
   Dimensions,
-  Animated
+  Animated,
+  Modal,
+  TextInput
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -62,7 +64,9 @@ export default function Working({
   const [showPauseModal, setShowPauseModal] = useState(false);
   const [expandedTruckId, setExpandedTruckId] = useState(null);
   const [showAdjustFinishTimeModal, setShowAdjustFinishTimeModal] = useState(false);
-
+  const [showPalletsModal, setShowPalletsModal] = useState(false);
+  const [palletsInput, setPalletsInput] = useState("");
+  const [pendingTruckId, setPendingTruckId] = useState(null);
 
   // ✅ XP REWARD STATE
   const [currentXPPerMin, setCurrentXPPerMin] = useState(0);
@@ -80,57 +84,58 @@ export default function Working({
   const xpSaveInProgressRef = useRef(false);
   const palletsRateRef = useRef(palletsRate);
   const checkAndEnforceForcedFinishRef = useRef();
+  const palletsInputRef = useRef(null);
 
   // ✅ USE BACKGROUND XP HOOK
   const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
-    // ✅ Define what should happen when the app goes to the background
-    const handleAppGoesToBackground = useCallback(() => {
-      console.log('App is going to the background.');
-      // Only save state if in a working session
-      if (calc.mode === 'working' && !isPaused) {
-        const stateToSave = {
-          lastXPTime: lastXPRewardTimeRef.current,
-          lastPalletsRate: palletsRateRef.current
-        };
-        AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
-        console.log('Active session state saved.');
-      }
-    }, [calc.mode, isPaused]); // Dependencies ensure it always has fresh data
+  // ✅ Define what should happen when the app goes to the background
+  const handleAppGoesToBackground = useCallback(() => {
+    console.log('App is going to the background.');
+    // Only save state if in a working session
+    if (calc.mode === 'working' && !isPaused) {
+      const stateToSave = {
+        lastXPTime: lastXPRewardTimeRef.current,
+        lastPalletsRate: palletsRateRef.current
+      };
+      AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
+      console.log('Active session state saved.');
+    }
+  }, [calc.mode, isPaused]); // Dependencies ensure it always has fresh data
 
   // Function to calculate and award offline progress
   const handleAppComesToForeground = useCallback(async () => {
-      console.log("📱 App came to foreground - checking forced finish...");
+    console.log("📱 App came to foreground - checking forced finish...");
 
-      // ✅ FIRST: Check if forced finish has occurred
-      const wasForcedFinished = await checkAndEnforceForcedFinish();
+    // ✅ FIRST: Check if forced finish has occurred
+    const wasForcedFinished = await checkAndEnforceForcedFinish();
 
-      if (wasForcedFinished) {
-        // ⚠️ IMPORTANT: DO NOT award offline XP when forced finishing!
-        console.log("✅ Session was auto-finished. Results will be shown.");
+    if (wasForcedFinished) {
+      // ⚠️ IMPORTANT: DO NOT award offline XP when forced finishing!
+      console.log("✅ Session was auto-finished. Results will be shown.");
 
-        // Transition to results screen
-        setTimeout(() => {
-          setEndTime(Date.now());
-          changeMode('results'); // Show results directly
-        }, 500);
+      // Transition to results screen
+      setTimeout(() => {
+        setEndTime(Date.now());
+        changeMode('results'); // Show results directly
+      }, 500);
 
-        return;
-      }
+      return;
+    }
 
     if (calc.mode !== 'working' || isPaused) {
       console.log("Not in a working session, skipping offline XP check.");
       return;
     }
 
-      const now = Date.now();
-      const forcedFinishTimestamp = calc.timeOfForcedFinish;
+    const now = Date.now();
+    const forcedFinishTimestamp = calc.timeOfForcedFinish;
 
-      // Safety check: Don't award XP if we're past deadline
-      if (forcedFinishTimestamp && now > forcedFinishTimestamp) {
-        console.warn("⚠️ We're past the forced finish deadline - skipping offline XP");
-        return;
-      }
+    // Safety check: Don't award XP if we're past deadline
+    if (forcedFinishTimestamp && now > forcedFinishTimestamp) {
+      console.warn("⚠️ We're past the forced finish deadline - skipping offline XP");
+      return;
+    }
 
     try {
       const lastSessionStateStr = await AsyncStorage.getItem('lastActiveSessionState');
@@ -150,16 +155,16 @@ export default function Working({
 
       const xpPerMin = calculateXPPerMin(lastPalletsRate);
 
-    // ✅ NEW SAFETY: Cap offline XP by deadline
-    let offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
+      // ✅ NEW SAFETY: Cap offline XP by deadline
+      let offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
 
-    // If there's a forced finish time, only award XP for time BEFORE it
-    if (forcedFinishTimestamp && lastXPTime < forcedFinishTimestamp) {
-      const allowedMinutes = Math.max(0, (forcedFinishTimestamp - lastXPTime) / 60000);
-      offlineXPEarned = Math.floor(allowedMinutes * xpPerMin);
+      // If there's a forced finish time, only award XP for time BEFORE it
+      if (forcedFinishTimestamp && lastXPTime < forcedFinishTimestamp) {
+        const allowedMinutes = Math.max(0, (forcedFinishTimestamp - lastXPTime) / 60000);
+        offlineXPEarned = Math.floor(allowedMinutes * xpPerMin);
 
-      console.log(`⏰ Capping offline XP by deadline: ${offlineXPEarned} XP`);
-    }
+        console.log(`⏰ Capping offline XP by deadline: ${offlineXPEarned} XP`);
+      }
 
       if (xpPerMin > 0) {
         const offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
@@ -196,16 +201,16 @@ export default function Working({
     }
   }, [calc.mode, calc.timeOfForcedFinish, isPaused, checkAndEnforceForcedFinish, tryAwardXP, changeMode,]);
 
-    // ✅ Call the new useAppState hook
-    useAppState({
-      onForeground: handleAppComesToForeground,
-      onBackground: handleAppGoesToBackground,
-    });
+  // ✅ Call the new useAppState hook
+  useAppState({
+    onForeground: handleAppComesToForeground,
+    onBackground: handleAppGoesToBackground,
+  });
 
-    // ✅ Initial check on component mount (this is still a good practice)
-    useEffect(() => {
-      handleAppComesToForeground();
-    }, []); // Empty array ensures it only runs once on mount
+  // ✅ Initial check on component mount (this is still a good practice)
+  useEffect(() => {
+    handleAppComesToForeground();
+  }, []); // Empty array ensures it only runs once on mount
   // ============================================================================
   // SECTION 2: COMPUTED VALUES & CONTEXT DATA (NOT HOOKS)
   // ============================================================================
@@ -252,9 +257,9 @@ export default function Working({
         console.log("Session already finalized, no XP accrual");
         return 0;  // or reset startTime here
       }
-      
-      // Award XP every 10 seconds for testing (should be 60000 for production)
-      if (timeSinceLastReward >= 10000 && xpPerMin > 0) {
+
+      // Award XP every 60 seconds for testing
+      if (timeSinceLastReward >= 60000 && xpPerMin > 0) {
         if (xpSaveInProgressRef.current) {
           console.warn('⚠️ XP save already in progress, skipping...');
           return;
@@ -351,14 +356,67 @@ export default function Working({
     };
   }, []); // Empty array - only runs on unmount
 
-    // Place this with your other useEffects
-    useEffect(() => {
-      checkAndEnforceForcedFinishRef.current = checkAndEnforceForcedFinish;
-    }, [checkAndEnforceForcedFinish]); // Dependency array ensures it updates when the function does
+  // Place this with your other useEffects
+  useEffect(() => {
+    checkAndEnforceForcedFinishRef.current = checkAndEnforceForcedFinish;
+  }, [checkAndEnforceForcedFinish]); // Dependency array ensures it updates when the function does
+
+  // Focus the pallets input when the modal opens
+  useEffect(() => {
+  if (showPalletsModal) {
+    const timer = setTimeout(() => {
+      if (palletsInputRef.current) {
+        palletsInputRef.current.focus();
+      }
+    }, 300); // tweak delay if needed
+
+    return () => clearTimeout(timer);
+  }
+}, [showPalletsModal]);
 
   // ============================================================================
   // SECTION 4: HELPER FUNCTIONS & LOGIC
   // ============================================================================
+
+
+  // Normalize comma/point decimal (e.g. "12,75" → "12.75")
+  const normalizeDecimal = (value) => value.replace(",", ".");
+
+  // Validate pallets: 0–50, step 0.25
+  const parseAndValidatePallets = (rawValue) => {
+    const trimmed = rawValue.trim();
+
+    // 🚫 Empty input is not allowed
+    if (!trimmed) {
+      return { ok: false, message: "Podaj liczbę palet." };
+    }
+
+    const normalized = normalizeDecimal(trimmed);
+    const num = Number(normalized);
+
+    if (!Number.isFinite(num)) {
+      return { ok: false, message: "Wpisz poprawną liczbę (np. 10.5)." };
+    }
+
+    // 🚫 0 is not allowed anymore
+    if (num <= 0 || num > 50) {
+      return {
+        ok: false,
+        message: "Liczba palet musi być większa od 0 i nie większa niż 50."
+      };
+    }
+
+    // Only 0.00, 0.25, 0.50, 0.75 steps
+    const scaled = num * 4;
+    if (Math.round(scaled) !== scaled) {
+      return {
+        ok: false,
+        message: "Dozwolone są tylko wartości z końcówką .00, .25, .50 lub .75."
+      };
+    }
+
+    return { ok: true, value: num };
+  };
 
 
   // ✅ Calculate XP per minute based on current pallet rate
@@ -449,22 +507,48 @@ export default function Working({
     });
   };
 
-  const handleTruckDone = (truckId) => {
-    const truckToRemove = trucks.find(t => t.id === truckId);
-    if (truckToRemove) {
-      // Calculate final elapsed time
-      const finalElapsedTime = truckToRemove.elapsedLoadingTime || 0;
+  const finalizeTruckDone = (truck, palletsValue) => {
+    if (!truck) return;
 
-      calc.updateState({
-        trucks: trucks.filter(t => t.id !== truckId),
-        trucksHistory: [{
-          ...truckToRemove,
-          elapsedLoadingTime: finalElapsedTime, // ✅ Save the elapsed time
-          completedTime: Date.now() // Optional: timestamp when completed
-        }, ...trucksHistory]
-      });
-    }
+    // Calculate final elapsed time
+    const finalElapsedTime = truck.elapsedLoadingTime || 0;
+
+    const updatedTruck = {
+      ...truck,
+      pallets: palletsValue,         // set pallets to chosen value
+      palletsInProgress: false,      // mark as finished
+      elapsedLoadingTime: finalElapsedTime,
+      completedTime: Date.now()
+    };
+
+    calc.updateState({
+      trucks: trucks.filter((t) => t.id !== truck.id),
+      trucksHistory: [updatedTruck, ...trucksHistory],
+      palletsInProgress: false       // if this flag is global in calc
+    });
   };
+
+  const handleTruckDone = (truckId) => {
+    const truckToRemove = trucks.find((t) => t.id === truckId);
+    if (!truckToRemove) return;
+
+    // 🚫 If pallets are still in progress, ask for the final number first
+    if (calc.palletsInProgress || truckToRemove.palletsInProgress) {
+      setPendingTruckId(truckId);
+      // Pre-fill with current pallets (if any)
+      setPalletsInput(
+        truckToRemove.pallets !== undefined && truckToRemove.pallets !== null
+          ? String(truckToRemove.pallets)
+          : ""
+      );
+      setShowPalletsModal(true);
+      return;
+    }
+
+    // ✅ Old behavior when nothing is in progress
+    finalizeTruckDone(truckToRemove, truckToRemove.pallets);
+  };
+
 
   const handleRemoveHistoryTruck = (truckId) => {
     calc.updateState({
@@ -512,19 +596,40 @@ export default function Working({
     }
   };
 
+  const handleConfirmPallets = () => {
+    const result = parseAndValidatePallets(palletsInput);
+
+    if (!result.ok) {
+      Alert.alert("Nieprawidłowa liczba palet", result.message);
+      return;
+    }
+
+    const truckToRemove = trucks.find((t) => t.id === pendingTruckId);
+    if (!truckToRemove) {
+      setShowPalletsModal(false);
+      setPendingTruckId(null);
+      return;
+    }
+
+    finalizeTruckDone(truckToRemove, result.value);
+
+    setShowPalletsModal(false);
+    setPendingTruckId(null);
+    setPalletsInput("");
+  };
   // ============================================================================
   // LOGIC FUNCTIONS FOR AUTOMATIC CALCULATION FINISHER
   // ============================================================================
-    /**
-     * ✅ CHECK AND ENFORCE FORCED FINISH
-     * Called when app comes to foreground
-     * Handles 3 scenarios:
-     * 1. Not time yet → continue normally
-     * 2. Time has passed → force finish with capped time
-     * 3. Currently working past deadline → immediate finish
-     */
+  /**
+   * ✅ CHECK AND ENFORCE FORCED FINISH
+   * Called when app comes to foreground
+   * Handles 3 scenarios:
+   * 1. Not time yet → continue normally
+   * 2. Time has passed → force finish with capped time
+   * 3. Currently working past deadline → immediate finish
+   */
 
-  const checkAndEnforceForcedFinish = useCallback (async () => {
+  const checkAndEnforceForcedFinish = useCallback(async () => {
     if (calc.mode !== 'working' || !forcedFinishTime) {
       console.log("Not in working mode or no forced finish time set");
       console.log("Mode:", calc.mode);
@@ -599,87 +704,87 @@ export default function Working({
     const elapsedTime = truck.elapsedLoadingTime || 0;
 
     return (
-        <View>
-      <View key={truck.id} style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
-        {/* LEFT SECTION: Truck ID */}
-        <View style={[styles.truckIdSection, {
+      <View>
+        <View key={truck.id} style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
+          {/* LEFT SECTION: Truck ID */}
+          <View style={[styles.truckIdSection, {
             backgroundColor: colors.cardBackground,
             borderWidth: 2,
             borderColor: colors.border,
-             }]}>
-          <Text style={{ marginRight: 8 }}>
-            <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
-          </Text>
-          <Text style={[styles.truckId, { color: colors.iconColor }]}>#{truck.displayId}</Text>
-        </View>
-
-        {/* MIDDLE SECTION: Collapsible Info */}
-        <TouchableOpacity
-          onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
-          style={styles.truckInfoSection}
-        >
-          {/* COLLAPSED VIEW - Always Visible */}
-          <View style={styles.compactRow}>
-            {/* Shop */}
-            <View style={styles.compactField}>
-              <Text style={[styles.fieldLabel, { color: colors.text }]}>Sklep:</Text>
-              <Text style={[styles.fieldValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
-            </View>
-
-            {/* Pallets */}
-            <View style={styles.compactField}>
-              <Text style={[styles.fieldLabel, { color: colors.text }]}>Palety:</Text>
-              <Text
-                style={[
-                  styles.fieldValue,
-                  { color: truck.pallets ? colors.text : 'red' },
-                ]}
-              >
-                {truck.pallets || 'WTRA'}
-              </Text>
-            </View>
-
-            {/* Expand Icon */}
-            <View style={styles.expandIcon}>
-              <MaterialCommunityIcons
-                name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                size={20}
-                color={colors.text}
-              />
-            </View>
+          }]}>
+            <Text style={{ marginRight: 8 }}>
+              <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
+            </Text>
+            <Text style={[styles.truckId, { color: colors.iconColor }]}>#{truck.displayId}</Text>
           </View>
 
-
-        </TouchableOpacity>
-
-        {/* RIGHT SECTION: Action Buttons */}
-        <View style={styles.truckActionsRight}>
+          {/* MIDDLE SECTION: Collapsible Info */}
           <TouchableOpacity
-            onPress={() => setEditingTruck(truck)}
-            style={styles.iconButton}
+            onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
+            style={styles.truckInfoSection}
           >
-            <MaterialCommunityIcons name="pencil" size={16} color={colors.text} />
+            {/* COLLAPSED VIEW - Always Visible */}
+            <View style={styles.compactRow}>
+              {/* Shop */}
+              <View style={styles.compactField}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Sklep:</Text>
+                <Text style={[styles.fieldValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
+              </View>
+
+              {/* Pallets */}
+              <View style={styles.compactField}>
+                <Text style={[styles.fieldLabel, { color: colors.text }]}>Palety:</Text>
+                <Text
+                  style={[
+                    styles.fieldValue,
+                    { color: truck.pallets ? colors.text : 'red' },
+                  ]}
+                >
+                  {truck.pallets || 'WTRA'}
+                </Text>
+              </View>
+
+              {/* Expand Icon */}
+              <View style={styles.expandIcon}>
+                <MaterialCommunityIcons
+                  name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                  size={20}
+                  color={colors.text}
+                />
+              </View>
+            </View>
+
+
           </TouchableOpacity>
 
-          {!isHistory && (
+          {/* RIGHT SECTION: Action Buttons */}
+          <View style={styles.truckActionsRight}>
             <TouchableOpacity
-              onPress={() => handleTruckDone(truck.id)}
-              style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+              onPress={() => setEditingTruck(truck)}
+              style={styles.iconButton}
             >
-              <MaterialCommunityIcons name="check" size={16} color={colors.success || '#10b981'} />
+              <MaterialCommunityIcons name="pencil" size={16} color={colors.text} />
             </TouchableOpacity>
-          )}
 
-          {isHistory && (
-            <TouchableOpacity
-              onPress={() => handleRemoveHistoryTruck(truck.id)}
-              style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
-            >
-              <MaterialCommunityIcons name="delete" size={16} color={colors.error || '#ef4444'} />
-            </TouchableOpacity>
-          )}
+            {!isHistory && (
+              <TouchableOpacity
+                onPress={() => handleTruckDone(truck.id)}
+                style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+              >
+                <MaterialCommunityIcons name="check" size={16} color={colors.success || '#10b981'} />
+              </TouchableOpacity>
+            )}
+
+            {isHistory && (
+              <TouchableOpacity
+                onPress={() => handleRemoveHistoryTruck(truck.id)}
+                style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+              >
+                <MaterialCommunityIcons name="delete" size={16} color={colors.error || '#ef4444'} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
-      </View>
         <View>
           {/* EXPANDED VIEW - Additional Details */}
           {isExpanded && (
@@ -839,10 +944,10 @@ export default function Working({
 
           {/* Card 5: Forced Finish Time */}
           <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
-              <View style={styles.cardHeader}>
-                <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
-              </View>
+            <View style={styles.cardHeader}>
+              <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
+            </View>
             <Text style={[styles.cardValue, { color: colors.text }]}>
               {forcedFinishTime
                 ? `${new Date(forcedFinishTime).toLocaleTimeString()} (${new Date(forcedFinishTime).getDate()})`
@@ -980,6 +1085,72 @@ export default function Working({
       )}
 
       {/* Modals */}
+      {/* Pallets in progress → ask for final number */}
+      <Modal
+        visible={showPalletsModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowPalletsModal(false);
+          setPendingTruckId(null);
+        }}
+      >
+        <View style={styles.palletsModalBackdrop}>
+          <View style={[styles.palletsModalContent, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.palletsModalTitle, { color: colors.text }]}>
+              Podaj liczbę palet!
+            </Text>
+
+            <Text style={[styles.palletsModalSubtitle, { color: colors.textSecondary }]}>
+              Skończyłeś ładować ten transport, ale nie podałeś liczby palet. Wpisz liczbę palet (np. 12.75) i zatwierdź, aby zakończyć transport.
+            </Text>
+
+            <TextInput
+              ref={palletsInputRef}
+              style={[
+                styles.palletsInput,
+                { borderColor: colors.border, color: colors.text }
+              ]}
+              value={palletsInput}
+              onChangeText={setPalletsInput}
+              keyboardType="decimal-pad"
+              placeholder="Np. 12.75"
+              placeholderTextColor={colors.textSecondary}
+            />
+
+            <View style={styles.palletsButtonsRow}>
+              <TouchableOpacity
+                onPress={() => {
+                  setShowPalletsModal(false);
+                  setPendingTruckId(null);
+                  setPalletsInput("");
+                }}
+                style={[
+                  styles.btnOutline,
+                  {
+                    borderColor: colors.outButBorder,
+                    backgroundColor: colors.outButBackground
+                  }
+                ]}
+              >
+                <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>
+                  Anuluj
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={handleConfirmPallets}
+                style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+              >
+                <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>
+                  OK
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <NewTransportModal
         visible={showNewTransportModal}
         onClose={() => setShowNewTransportModal(false)}
@@ -999,16 +1170,16 @@ export default function Working({
         onConfirm={handlePauseConfirm}
       />
 
-        <AdjustTimeModal
-          visible={showAdjustFinishTimeModal}
-          onClose={() => setShowAdjustFinishTimeModal(false)}
-          onConfirm={(newForcedFinishTime) => {
-            setForcedFinishTime(newForcedFinishTime);
-            setShowAdjustFinishTimeModal(false);
-          }}
-          initialTime={forcedFinishTime}
-          type="finish"
-        />
+      <AdjustTimeModal
+        visible={showAdjustFinishTimeModal}
+        onClose={() => setShowAdjustFinishTimeModal(false)}
+        onConfirm={(newForcedFinishTime) => {
+          setForcedFinishTime(newForcedFinishTime);
+          setShowAdjustFinishTimeModal(false);
+        }}
+        initialTime={forcedFinishTime}
+        type="finish"
+      />
     </View>
   );
 }
@@ -1122,13 +1293,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
     gap: 8,
   },
-    cardLabelBadge: {
-      fontSize: 9,
-      fontWeight: '600',
-      marginTop: 4,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
+  cardLabelBadge: {
+    fontSize: 9,
+    fontWeight: '600',
+    marginTop: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
   cardLabel: {
     fontSize: 12,
     fontWeight: '600',
@@ -1241,7 +1412,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-    // Truck List Section
+  // Truck List Section
   trucksList: {
     borderWidth: 1,
     borderRadius: 12,
@@ -1306,8 +1477,8 @@ const styles = StyleSheet.create({
   },
 
   expandIcon: {
-     padding: 4,
-     marginLeft: 4,
+    padding: 4,
+    marginLeft: 4,
   },
 
   expandedDetails: {
@@ -1349,4 +1520,40 @@ const styles = StyleSheet.create({
     height: 50,
     paddingLeft: 8,
   },
+  palletsModalBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+  },
+  palletsModalContent: {
+    width: "100%",
+    maxWidth: 360,
+    borderRadius: 16,
+    padding: 20,
+  },
+  palletsModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  palletsModalSubtitle: {
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  palletsInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 16,
+    marginBottom: 16,
+  },
+  palletsButtonsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+
 });

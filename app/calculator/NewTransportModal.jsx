@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -85,11 +85,21 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     // Update form value
     handleChange(name, value);
   };
-  
+
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        if (palletsInputRef.current) {
+          palletsInputRef.current.focus();
+        }
+      }, 300); // small delay so Modal is fully shown
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
-      animationType="fade"
       transparent={true}
       onRequestClose={handleClose}
     >
@@ -119,33 +129,6 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                 {/* First Row: Pallets and Shop */}
                 <View style={styles.inputRow}>
                   <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
-                    <TextInput
-                      ref={palletsInputRef}
-                      style={[
-                        styles.inputSmall,
-                        {
-                          backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
-                          color: colors.text,
-                          borderColor: palletsInProgress ? 'red' : colors.border
-                        },
-                        !isPalletsValid && form.pallets && styles.inputError
-                      ]}
-                      value={form.pallets}
-                      onChangeText={(value) => handleChange("pallets", value)}
-                      placeholder= {palletsInProgress ? "W TRAKCIE" : "Palety"}
-                      placeholderTextColor={palletsInProgress ? "red" : colors.phText}
-                      keyboardType="numeric"
-                      editable={!palletsInProgress}
-                    />
-                    {!isPalletsValid && form.pallets && (
-                      <Text style={styles.errorText}>
-                        Must be valid
-                      </Text>
-                    )}
-                  </View>
-
-                  <View style={styles.inputHalf}>
                     <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
                     <TextInput
                       ref={shopInputRef}
@@ -163,6 +146,33 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       placeholderTextColor={colors.phText}
                       keyboardType="numeric"
                     />
+                  </View>
+
+                  <View style={styles.inputHalf}>
+                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
+                    <TextInput
+                      ref={palletsInputRef}
+                      style={[
+                        styles.inputSmall,
+                        {
+                          backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
+                          color: colors.text,
+                          borderColor: palletsInProgress ? 'red' : colors.border
+                        },
+                        !isPalletsValid && form.pallets && styles.inputError
+                      ]}
+                      value={form.pallets}
+                      onChangeText={(value) => handleChange("pallets", value)}
+                      placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
+                      placeholderTextColor={palletsInProgress ? "red" : colors.phText}
+                      keyboardType="numeric"
+                      editable={!palletsInProgress}
+                    />
+                    {!isPalletsValid && form.pallets && (
+                      <Text style={styles.errorText}>
+                        Must be valid
+                      </Text>
+                    )}
                   </View>
                 </View>
 

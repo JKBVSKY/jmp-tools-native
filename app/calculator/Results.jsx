@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, ScrollView, StyleSheet, Pressable, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from '../../_hooks/useColors';
 import { useCalculator } from '../../_context/CalculatorContext';
@@ -9,6 +9,9 @@ import { useUserProfile } from '../../_context/UserProfileContext';
 import { calculateXPFromScore, calculateLevelFromXP, checkAchievements, ACHIEVEMENTS } from '../../constants/LevelSystem';
 import { PendingXPService } from '../../services/PendingXPService';
 import { useBackgroundXP } from '../../_hooks/useBackgroundXP';
+import { db } from '../../firebase/config';
+import { collection, addDoc } from 'firebase/firestore';
+import { useAuth } from '../../_context/AuthContext';
 
 export default function Results({
   loadingTime,
@@ -21,6 +24,9 @@ export default function Results({
   const colors = useColors();
   const calc = useCalculator();
   const { awardXP, updateStats, unlockAchievement, profile } = useUserProfile(); // ✅ MOVED INSIDE COMPONENT
+  const { user } = useAuth();
+  const userId = user?.id; // uid from AuthContext
+  const [isSaving, setIsSaving] = useState(false);
 
   const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
   const trucksCount = trucksHistory.length;
@@ -55,6 +61,7 @@ export default function Results({
   // ✅ MAIN SAVE HANDLER - NOW WITH CORRECT ORDER!
   const handleSave = async () => {
     try {
+      setIsSaving(true);
       // ✅ STEP 1: Sync cached XP as BATCH
       const syncResult = await syncPendingXP();
       if (syncResult && syncResult.synced > 0) {
@@ -64,7 +71,6 @@ export default function Results({
       }
 
       const sessionData = {
-        id: Date.now(),
         date: new Date().toISOString(),
         loadingTime,
         startTime,
@@ -76,15 +82,13 @@ export default function Results({
         trucks: trucksHistory,
       };
 
-      // Get existing scores
-      const existingScores = await AsyncStorage.getItem('scoreHistory');
-      const scores = existingScores ? JSON.parse(existingScores) : [];
+      if (!userId) {
+        Alert.alert('Błąd', 'Brak zalogowanego użytkownika – nie można zapisać historii.');
+        return;
+      }
 
-      // Add new score
-      scores.push(sessionData);
-
-      // Save back to AsyncStorage
-      await AsyncStorage.setItem('scoreHistory', JSON.stringify(scores));
+      const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
+      await addDoc(sessionsRef, sessionData);
 
       // ✅ STEP 2: Award session completion bonus
       const xpEarned = calculateXPFromScore(sessionScore);
@@ -161,9 +165,12 @@ export default function Results({
           [{ text: 'Kontynuuj', onPress: finishSession }]
         );
       }
+
     } catch (error) {
       console.error('❌ Error saving session:', error);
       Alert.alert('Błąd', 'Nie udało się zapisać sesji: ' + error.message);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -192,6 +199,12 @@ export default function Results({
 
   return (
     <View style={[styles.scrollContent, { backgroundColor: colors.background }]}>
+      {isSaving && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.iconColor} />
+          <Text style={{ color: colors.text, marginTop: 8 }}>Zapisywanie...</Text>
+        </View>
+      )}
       <View style={styles.container}>
         <Text style={[styles.title, { color: colors.title }]}>Sesja Zakończona! ✓</Text>
 
@@ -267,20 +280,20 @@ export default function Results({
         </View>
 
         <ScrollView style={styles.scrollView}>
-            {/* Trucks Summary */}
-            <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.trucksTitle, { color: colors.title }]}>Szczegóły Dostaw</Text>
-              {trucksHistory.map((truck, idx) => (
-                <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
-                  <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
-                  <View style={styles.truckInfo}>
-                    <Text style={[styles.truckInfo, { color: colors.text }]}>
-                      {truck.pallets} palet • Sklep {truck.shop} • Brama {truck.gate} • Naczepa {truck.trailer}
-                    </Text>
-                  </View>
+          {/* Trucks Summary */}
+          <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Text style={[styles.trucksTitle, { color: colors.title }]}>Szczegóły Dostaw</Text>
+            {trucksHistory.map((truck, idx) => (
+              <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
+                <View style={styles.truckInfo}>
+                  <Text style={[styles.truckInfo, { color: colors.text }]}>
+                    {truck.pallets} palet • Sklep {truck.shop} • Brama {truck.gate} • Naczepa {truck.trailer}
+                  </Text>
                 </View>
-              ))}
-            </View>
+              </View>
+            ))}
+          </View>
         </ScrollView>
 
 
@@ -290,10 +303,14 @@ export default function Results({
             style={[
               styles.button,
               {
-                backgroundColor: colors.butBackground,
+                backgroundColor: isSaving ? colors.disabledButBackground : colors.butBackground,
+                borderWidth: 1,
+                borderColor: isSaving ? colors.disabledButBorder : colors.butBorder,
+                color: isSaving ? colors.disabledButText : colors.butText,
               },
             ]}
             onPress={handleSave}
+            disabled={isSaving}
           >
             <MaterialCommunityIcons name="check" size={20} color={colors.butText} />
             <Text style={[styles.buttonText, { color: colors.butText }]}>Zapisz Sesję</Text>
@@ -304,9 +321,10 @@ export default function Results({
               styles.button,
               styles.discardButton,
               {
-                backgroundColor: 'transparent',
-                borderWidth: 2,
-                borderColor: colors.breakLine,
+                backgroundColor: colors.disabledButBackground,
+                borderWidth: 1,
+                borderColor: colors.disabledButBorder,
+                color: colors.disabledButText,
               },
             ]}
             onPress={handleDiscard}
@@ -324,7 +342,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flex: 1,
   },
-    scrollView: {
+  scrollView: {
     marginBottom: 20,
   },
   container: {
@@ -462,5 +480,16 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: '600',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
 });

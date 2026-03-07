@@ -99,6 +99,17 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
     handleChange(name, value);
   };
 
+  useEffect(() => {
+    if (visible) {
+      const timer = setTimeout(() => {
+        if (palletsInputRef.current) {
+          palletsInputRef.current.focus();
+        }
+      }, 300); // small delay so Modal is fully shown
+      return () => clearTimeout(timer);
+    }
+  }, [visible]);
+  
   return (
     <Modal
       visible={visible}
@@ -125,6 +136,26 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
             {/* First Row: Pallets and Shop */}
             <View style={styles.inputRow}>
               <View style={styles.inputHalf}>
+                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
+                <TextInput
+                  ref={shopInputRef}
+                  style={[
+                    styles.inputSmall,
+                    {
+                      backgroundColor: colors.inputBackground,
+                      color: colors.text,
+                      borderColor: colors.border
+                    }
+                  ]}
+                  value={form.shop}
+                  onChangeText={(value) => handleInputChange("shop", value)}
+                  placeholder="Shop"
+                  placeholderTextColor={colors.phText}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.inputHalf}>
                 <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
                 <TextInput
                   ref={palletsInputRef}
@@ -147,26 +178,6 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                 {!isPalletsValid && form.pallets && (
                   <Text style={styles.errorText}>Ilość musi być poprawna</Text>
                 )}
-              </View>
-
-              <View style={styles.inputHalf}>
-                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
-                <TextInput
-                  ref={shopInputRef}
-                  style={[
-                    styles.inputSmall,
-                    {
-                      backgroundColor: colors.inputBackground,
-                      color: colors.text,
-                      borderColor: colors.border
-                    }
-                  ]}
-                  value={form.shop}
-                  onChangeText={(value) => handleInputChange("shop", value)}
-                  placeholder="Shop"
-                  placeholderTextColor={colors.phText}
-                  keyboardType="numeric"
-                />
               </View>
             </View>
 

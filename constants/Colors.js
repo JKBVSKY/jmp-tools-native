@@ -31,6 +31,9 @@ export const Colors = {
     outButBackground: 'transparent',
     outButBorder: '#5F6368',     // Gray border
     outButText: '#E8EAED',
+    disabledButBackground: '#3A3C40', // or '#3F4144'
+    disabledButText: '#9AA0A6',
+    disabledButBorder: '#3F4144',
 
     // UI Elements
     border: '#111',           // Gray border
@@ -79,6 +82,9 @@ export const Colors = {
     outButBackground: '#FFFFFF',
     outButBorder: '#DADCE0',     // Light gray border
     outButText: '#202124',
+    disabledButBackground: '#E0E0E0',
+    disabledButText: '#9AA0A6',
+    disabledButBorder: '#DADCE0',
 
     // UI Elements
     border: '#DADCE0',           // Light gray border

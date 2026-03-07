@@ -17,7 +17,7 @@ export default function Welcome() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <Image
-        source={require("../../assets/icon.png")}
+        source={require("../../assets/welcome_icon.png")}
         style={[styles.logo, { borderWidth: 4, borderColor: colors.outButBorder }]}
         resizeMode="contain"
       />

@@ -21,11 +21,11 @@ function CustomDrawerContent(props) {
       <DrawerContentScrollView {...props}>
         <View style={[styles.logoContainer, { paddingTop: 10 }]}>
           <Image
-            source={require("../../assets/icon.png")}
+            source={require("../../assets/drawer_icon.png")}
             style={styles.logo}
             resizeMode="contain"
           />
-          <Text style={[styles.title, { color: colors.text }]}>JMP-Tools v0.4.1</Text>
+          <Text style={[styles.title, { color: colors.text }]}>JMP-Tools v0.5.0</Text>
         </View>
 
         {/* Navigation items */}

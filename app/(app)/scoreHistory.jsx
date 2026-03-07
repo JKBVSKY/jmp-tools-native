@@ -7,6 +7,16 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
 import { Alert } from 'react-native';
+import { useAuth } from '../../_context/AuthContext';
+import { db } from '../../firebase/config';
+import {
+  collection,
+  query,
+  orderBy,
+  getDocs,
+  deleteDoc,
+  doc,
+} from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
 
@@ -14,49 +24,109 @@ const { width } = Dimensions.get('window');
 const formatDateLabel = (startTimeIso) => {
   const date = new Date(startTimeIso);
   const day = date.getDate();
-  const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+  const monthNames = ['sty', 'lut', 'mar', 'kwi', 'maj', 'cze', 'lip', 'sie', 'wrze', 'paź', 'lis', 'gru'];
   const month = monthNames[date.getMonth()];
   return `${day} ${month}`;
 };
 
+const getMonthKey = (dateString) => {
+  const d = new Date(dateString);
+  const month = d.getMonth();      // 0-11
+  const year = d.getFullYear();
+  return { month, year, key: `${year}-${month}` };
+};
+
+const formatMonthLabel = ({ month, year }) => {
+  const monthNames = [
+    'Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec',
+    'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'
+  ];
+  return `${monthNames[month]} ${year}`;
+};
+
 export default function ScoreHistory() {
   const colors = useColors();
+  const { user } = useAuth();
+  const userId = user?.id;
   const [sessions, setSessions] = useState([]);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'graph'
   const [refreshing, setRefreshing] = useState(false);
+  const [currentMonth, setCurrentMonth] = useState(null); // { month: 0-11, year: 2026 }
+
+  // Unique months from all sessions, sorted newest → oldest
+  const months = React.useMemo(() => {
+    const map = new Map(); // key -> { month, year }
+    sessions.forEach((s) => {
+      const { month, year, key } = getMonthKey(s.date);
+      if (!map.has(key)) {
+        map.set(key, { month, year, key });
+      }
+    });
+
+    // Sort by year/month descending
+    return Array.from(map.values()).sort((a, b) => {
+      if (a.year !== b.year) return b.year - a.year;
+      return b.month - a.month;
+    });
+  }, [sessions]);
+
+  // Ensure currentMonth is always one of available months
+  useEffect(() => {
+    if (!currentMonth && months.length > 0) {
+      setCurrentMonth({ month: months[0].month, year: months[0].year });
+    }
+  }, [months, currentMonth]);
+
+  // Filter sessions to selected month
+  const sessionsForMonth = React.useMemo(() => {
+    if (!currentMonth) return [];
+    return sessions.filter((s) => {
+      const d = new Date(s.date);
+      return (
+        d.getMonth() === currentMonth.month &&
+        d.getFullYear() === currentMonth.year
+      );
+    });
+  }, [sessions, currentMonth]);
 
   // Calculate summary stats
-  const calculateSummary = () => {
-    if (sessions.length === 0) return null;
+  const summary = calculateSummary(sessionsForMonth);
 
-    const totalTime = sessions.reduce((sum, s) => sum + s.loadingTime, 0);
-    const totalPallets = sessions.reduce((sum, s) => sum + s.palletsLoaded, 0);
-    const totalTrucks = sessions.reduce((sum, s) => sum + s.trucksCount, 0);
-    const averageRate = totalTime > 0 ? (totalPallets / (totalTime / 3600)).toFixed(2) : '0.00';
-
-    return { totalTime, totalPallets, totalTrucks, averageRate };
-  };
-
-  const summary = calculateSummary();
-
-  // Load saved sessions from AsyncStorage
+  // Load saved sessions from Firestore
   const loadSessions = useCallback(async () => {
+    // No user yet → no sessions
+    if (!userId) {
+      setSessions([]);
+      setRefreshing(false);
+      return;
+    }
+
     try {
-      const savedSessions = await AsyncStorage.getItem('scoreHistory');
-      // console.log('Loaded sessions:', savedSessions); // Debug log
-      if (savedSessions) {
-        const parsed = JSON.parse(savedSessions);
-        // Sort by date (newest first)
-        setSessions(parsed.sort((a, b) => new Date(b.date) - new Date(a.date)));
-      } else {
-        setSessions([]);
+      const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
+      const q = query(sessionsRef, orderBy('date', 'desc'));
+      const snapshot = await getDocs(q);
+
+      const fetchedSessions = snapshot.docs.map((d) => {
+        const data = d.data();
+        return {
+          id: d.id, // Firestore document id
+          ...data,
+        };
+      });
+
+      setSessions(fetchedSessions);
+
+      // Keep your currentMonth logic
+      if (fetchedSessions.length > 0 && !currentMonth) {
+        const { month, year } = getMonthKey(fetchedSessions[0].date);
+        setCurrentMonth({ month, year });
       }
     } catch (error) {
-      console.error('Failed to load sessions:', error);
+      console.error('Failed to load sessions from Firestore:', error);
     } finally {
       setRefreshing(false);
     }
-  }, []);
+  }, [userId, currentMonth]);
 
   // Load sessions when screen is focused (every time you navigate to it)
   useFocusEffect(
@@ -81,15 +151,25 @@ export default function ScoreHistory() {
     return `${h}h ${m}m`;
   };
 
-  // Prepare chart data
+  const pointsCount = sessionsForMonth.length;
+  const chartWidth = Math.max(width, pointsCount * 60);
+  // e.g. ~60px per point, tweak as you like
+  // Prepare chart data for selected month
+
   const chartData = {
-    labels: sessions.slice(0, 7).reverse().map((s) => formatDateLabel(s.date)),
+    labels: sessionsForMonth
+      .slice()               // copy
+      .reverse()             // keep oldest → newest or as you like
+      .map((s) => formatDateLabel(s.date)),
     datasets: [
       {
-        data: sessions.slice(0, 7).reverse().map(s => parseFloat(s.palletsRate) || 0),
+        data: sessionsForMonth
+          .slice()
+          .reverse()
+          .map((s) => parseFloat(s.palletsRate) || 0),
         color: (opacity = 1) => colors.iconColor,
-        strokeWidth: 2
-      }
+        strokeWidth: 2,
+      },
     ],
   };
 
@@ -130,15 +210,72 @@ export default function ScoreHistory() {
         </View>
       </View>
 
+      {/* Month selector */}
+      <View style={[styles.monthSelector, { backgroundColor: colors.cardBackground }]}>
+        <Pressable
+          onPress={() => {
+            if (!currentMonth || months.length === 0) return;
+            const idx = months.findIndex(
+              (m) => m.month === currentMonth.month && m.year === currentMonth.year
+            );
+            if (idx === -1 || idx === months.length - 1) return; // already oldest
+            const next = months[idx + 1];
+            setCurrentMonth({ month: next.month, year: next.year });
+          }}
+          style={styles.monthButton}
+          disabled={
+            !currentMonth ||
+            months.findIndex(
+              (m) => m.month === currentMonth.month && m.year === currentMonth.year
+            ) === months.length - 1
+          }
+        >
+          <MaterialCommunityIcons
+            name="chevron-left"
+            size={24}
+            color={colors.text}
+          />
+        </Pressable>
+
+        <Text style={[styles.monthLabel, { color: colors.text }]}>
+          {currentMonth ? formatMonthLabel(currentMonth) : 'Brak danych'}
+        </Text>
+
+        <Pressable
+          onPress={() => {
+            if (!currentMonth || months.length === 0) return;
+            const idx = months.findIndex(
+              (m) => m.month === currentMonth.month && m.year === currentMonth.year
+            );
+            if (idx <= 0) return; // already newest
+            const next = months[idx - 1];
+            setCurrentMonth({ month: next.month, year: next.year });
+          }}
+          style={styles.monthButton}
+          disabled={
+            !currentMonth ||
+            months.findIndex(
+              (m) => m.month === currentMonth.month && m.year === currentMonth.year
+            ) === 0
+          }
+        >
+          <MaterialCommunityIcons
+            name="chevron-right"
+            size={24}
+            color={colors.text}
+          />
+        </Pressable>
+      </View>
+
       {/* Summary Table - Always visible when sessions exist */}
-      {sessions.length > 0 && summary && (
+      {sessionsForMonth.length > 0 && summary && (
         <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <Text style={[styles.summaryTitle, { color: colors.text }]}>Ogólne</Text>
 
           <View style={styles.summaryGrid}>
             {/* Total Time */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Całkowity Czas</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
                 {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
               </Text>
@@ -146,19 +283,19 @@ export default function ScoreHistory() {
 
             {/* Total Pallets */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Całkowita Ilość Palet</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Palety</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalPallets}</Text>
             </View>
 
             {/* Total Trucks */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Wszystkie Naczepy</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Naczepy</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalTrucks}</Text>
             </View>
 
             {/* Average Rate */}
             <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Średnia Ogólna</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Średnia Miesięczna</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.averageRate}</Text>
             </View>
           </View>
@@ -186,32 +323,41 @@ export default function ScoreHistory() {
           {viewMode === 'graph' && sessions.length > 0 && (
             <View style={styles.chartContainer}>
               <Text style={[styles.chartTitle, { color: colors.text }]}>
-                Ostatnie 7 Sesji - Średnia Ilość Palet
+                Sesje w miesiącu {currentMonth ? formatMonthLabel(currentMonth) : ''}
               </Text>
-              <LineChart
-                data={chartData}
-                width={width - 40}
-                height={220}
-                chartConfig={{
-                  backgroundColor: colors.cardBackground,
-                  backgroundGradientFrom: colors.cardBackground,
-                  backgroundGradientTo: colors.cardBackground,
-                  decimalPlaces: 1,
-                  color: (opacity = 1) => colors.iconColor,
-                  labelColor: (opacity = 1) => colors.text,
-                  style: {
-                    borderRadius: 16
-                  },
-                  propsForDots: {
-                    r: "6",
-                    strokeWidth: "2",
-                    stroke: colors.iconColor,
-                    fill: colors.iconColor
-                  }
-                }}
-                bezier
-                style={styles.chart}
-              />
+
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={{ paddingRight: 16 }}
+              >
+                <LineChart
+                  data={chartData}
+                  width={chartWidth}
+                  height={220}
+                  yAxisSuffix=" pal/h"
+                  yLabelsOffset={8}
+                  chartConfig={{
+                    backgroundColor: colors.cardBackground,
+                    backgroundGradientFrom: colors.cardBackground,
+                    backgroundGradientTo: colors.cardBackground,
+                    decimalPlaces: 1,
+                    color: (opacity = 1) => colors.iconColor,
+                    labelColor: (opacity = 1) => colors.text,
+                    style: {
+                      borderRadius: 16,
+                    },
+                    propsForDots: {
+                      r: '6',
+                      strokeWidth: '2',
+                      stroke: colors.iconColor,
+                      fill: colors.iconColor,
+                    },
+                  }}
+                  bezier
+                  style={styles.chart}
+                />
+              </ScrollView>
             </View>
           )}
 
@@ -273,13 +419,19 @@ export default function ScoreHistory() {
                             text: 'Usuń',
                             onPress: async () => {
                               try {
-                                const updatedSessions = sessions.filter(s => s.id !== session.id);
-                                await AsyncStorage.setItem('scoreHistory', JSON.stringify(updatedSessions));
+                                if (!userId) return;
+
+                                // Delete from Firestore
+                                await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
+
+                                // Then update local state
+                                const updatedSessions = sessions.filter((s) => s.id !== session.id);
                                 setSessions(updatedSessions);
                               } catch (error) {
                                 Alert.alert('Error', 'Failed to delete session');
                               }
                             },
+
                             style: 'destructive'
                           }
                         ]
@@ -299,14 +451,19 @@ export default function ScoreHistory() {
   );
 }
 
-export const calculateSummary = (sessions) => {
-  if (sessions.length === 0) return null;
-  const totalTime = sessions.reduce((sum, s) => sum + s.loadingTime, 0);
-  const totalPallets = sessions.reduce((sum, s) => sum + s.palletsLoaded, 0);
-  const totalTrucks = sessions.reduce((sum, s) => sum + s.trucksCount, 0);
-  const averageRate = totalTime > 0 ? (totalPallets / (totalTime / 3600)).toFixed(2) : '0.00';
+// Outside the component, near the bottom (or top) of the file
+export const calculateSummary = (sessionsArray) => {
+  if (!sessionsArray || sessionsArray.length === 0) return null;
+
+  const totalTime = sessionsArray.reduce((sum, s) => sum + s.loadingTime, 0);
+  const totalPallets = sessionsArray.reduce((sum, s) => sum + s.palletsLoaded, 0);
+  const totalTrucks = sessionsArray.reduce((sum, s) => sum + s.trucksCount, 0);
+  const averageRate =
+    totalTime > 0 ? (totalPallets / (totalTime / 3600)).toFixed(2) : '0.00';
+
   return { totalTime, totalPallets, totalTrucks, averageRate };
 };
+
 
 const styles = StyleSheet.create({
   container: {
@@ -429,5 +586,23 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     gap: 8,
+  },
+  monthSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+  monthButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  monthLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginHorizontal: 12,
   },
 });

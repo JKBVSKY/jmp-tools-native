@@ -88,6 +88,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-03-07
+
+### Added
+- Enhanced score history: monthly view with previous/next month controls and a horizontally scrollable chart.
+- Improved UX on session save by showing a loading spinner overlay and temporarily disabling the save button.
+- Added safety flow when finishing a truck: if pallets are marked as “in progress”, user must enter final pallets count before the truck can be completed.
+- Automatically focus pallets input in NewTransportModal, EditTruckModal, and the pallets confirmation modal so the keyboard opens and user can type immediately.
+
+### Changed
+- Score history is now stored per user in Cloud Firestore instead of local storage, syncing sessions across devices and keeping history tied to the logged-in account.
+- Updated launcher icon with more refined design.
+- Adjusted layout in NewTransportModal and EditTruckModal by swapping the positions of two form elements for a more intuitive input order.
+- Score history summary now reflects only sessions from the selected month, enabling month‑to‑month performance comparison.
+- Enhanced the design of the time converter component.
+
 ## Unreleased
 
 ### Added

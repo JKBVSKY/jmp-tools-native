@@ -42,7 +42,7 @@ function DrawerScreens() {
           drawerStyle: { backgroundColor: colors.draBackground },
           swipeEnabled: true,
           gestureEnabled: true,
-          swipeEdgeWidth: 200,
+          swipeEdgeWidth: 100,
           drawerHideStatusBarOnOpen: false,
           swipeVelocityThreshold: 1000,  // Must swipe this fast to trigger snap
           swipeMinDistance: 10,
