@@ -1,0 +1,9 @@
+# Set all text files to use LF on check-in
+* text=auto
+
+# Force specific file types to LF
+*.js text eol=lf
+*.jsx text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.html text eol=lf
