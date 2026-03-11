@@ -7,30 +7,6 @@ The app allows users to calculate and save work sessions, monitor efficiency, an
 
 It also includes helpful tools for common warehouse tasks and a gamified motivation system with levels and achievements. Leaderboards are planned in upcoming versions.
 
-## Screenshots
-
-### Session tracker (truck loading section)
-<p align="left">
-  <img src="screenshots/session_light.png" width="250"/>
-  <img src="screenshots/session_dark.png" width="250"/>
-</p>
-
-### Statistics
-<p align="left">
-  <img src="screenshots/statistics_1.png" width="250"/>
-  <img src="screenshots/statistics_2.png" width="250"/>
-</p>
-
-### Tools
-<p align="left">
-  <img src="screenshots/tools_1.png" width="250"/>
-</p>
-
-### Profile
-<p align="left">
-  <img src="screenshots/profile_1.png" width="250"/>
-</p>
-
 ## Features
 
 - 📊 Track and save daily work sessions
@@ -55,6 +31,34 @@ Planned features:
 - AsyncStorage
 - Expo Router
 
+## Screenshots
+
+<p align="left">
+  <img src="screenshots/mockup.png" width="500"/>
+</p>
+
+### Session tracker (truck loading section)
+<p align="left">
+  <img src="screenshots/session_light.png" width="250"/>
+  <img src="screenshots/session_dark.png" width="250"/>
+</p>
+
+### Statistics
+<p align="left">
+  <img src="screenshots/statistics_1.png" width="250"/>
+  <img src="screenshots/statistics_2.png" width="250"/>
+</p>
+
+### Tools
+<p align="left">
+  <img src="screenshots/tools_1.png" width="250"/>
+</p>
+
+### Profile
+<p align="left">
+  <img src="screenshots/profile_1.png" width="250"/>
+</p>
+
 ## Project Status
 
 🚧 The project is currently under active development.
@@ -72,3 +76,4 @@ Planned improvements:
 - Additional warehouse calculation tools
 - UI improvements
 - Exportable performance reports
+
