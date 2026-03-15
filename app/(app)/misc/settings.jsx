@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useColors } from '../../_hooks/useColors';
-import ThemedView from '../../components/ThemedView';
+import { useColors } from '@/_hooks/useColors';
+import ThemedView from '@/components/ThemedView';
 
 export default function Settings() {
   const colors = useColors();

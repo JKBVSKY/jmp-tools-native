@@ -10,10 +10,10 @@ import {
   Platform,
   Alert,
 } from "react-native";
-import { useColors } from '../../_hooks/useColors';
+import { useColors } from '@/_hooks/useColors';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import CustomTimePicker from './CustomTimePicker';
-import { getFinishTimeRange, isFinishTimeValid } from '../../_utils/timeUtils';
+import { getFinishTimeRange, isFinishTimeValid } from '@/_utils/timeUtils';
 
 export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTime, type = 'start', startTime = null }) {
   const colors = useColors();

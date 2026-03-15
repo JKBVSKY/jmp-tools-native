@@ -10,7 +10,7 @@ import {
   Platform,
   Alert
 } from "react-native";
-import { useColors } from '../../_hooks/useColors';
+import { useColors } from '@/_hooks/useColors';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import CustomTimePicker from './CustomTimePicker';
 

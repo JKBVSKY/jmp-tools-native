@@ -11,7 +11,7 @@ import {
   ScrollView,
   Switch,
 } from "react-native";
-import { useColors } from "../../_hooks/useColors";
+import { useColors } from "@/_hooks/useColors";
 
 export default function NewTransportModal({ visible, onClose, onAdd }) {
   const colors = useColors();

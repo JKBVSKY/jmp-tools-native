@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import Init from "./Init";
-import Working from "./Working";
-import Results from "./Results";
-import { useCalculator } from "../../_context/CalculatorContext";
-import { getAutoStartTime } from "./utils";
+import Init from "../calculator_content/Init";
+import Working from "../calculator_content/Working";
+import Results from "../calculator_content/Results";
+import { useCalculator } from "@/_context/CalculatorContext";
+import { getAutoStartTime } from "../calculator_content/utils";
 
 export default function Calculator() {
   const [mode, setMode] = useState("init"); // State to manage current mode

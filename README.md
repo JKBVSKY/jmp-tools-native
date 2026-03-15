@@ -7,6 +7,8 @@ The app allows users to calculate and save work sessions, monitor efficiency, an
 
 It also includes helpful tools for common warehouse tasks and a gamified motivation system with levels and achievements. Leaderboards are planned in upcoming versions.
 
+The app uses Firebase for authentication and Firestore for storing user sessions and statistics.
+
 ## Features
 
 - 📊 Track and save daily work sessions
@@ -24,10 +26,17 @@ Planned features:
 
 ## Tech Stack
 
+Frontend
 - React Native
 - Expo
 - JavaScript
-- Node.js
+
+Backend / Services
+- Firebase
+- Firestore
+- Firebase Authentication
+
+Other Tools
 - AsyncStorage
 - Expo Router
 

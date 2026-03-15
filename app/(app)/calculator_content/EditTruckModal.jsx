@@ -11,7 +11,7 @@ import {
   ScrollView,
   Switch,
 } from "react-native";
-import { useColors } from '../../_hooks/useColors';
+import { useColors } from '@/_hooks/useColors';
 
 export default function EditTruckModal({ visible, truck, onClose, onSave }) {
   const colors = useColors();

@@ -1,17 +1,17 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useColors } from '../../_hooks/useColors';
-import { useCalculator } from '../../_context/CalculatorContext';
+import { useColors } from '@/_hooks/useColors';
+import { useCalculator } from '@/_context/CalculatorContext';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
-import { useUserProfile } from '../../_context/UserProfileContext';
-import { calculateXPFromScore, calculateLevelFromXP, checkAchievements, ACHIEVEMENTS } from '../../constants/LevelSystem';
-import { PendingXPService } from '../../services/PendingXPService';
-import { useBackgroundXP } from '../../_hooks/useBackgroundXP';
-import { db } from '../../firebase/config';
+import { useUserProfile } from '@/_context/UserProfileContext';
+import { calculateXPFromScore, calculateLevelFromXP, checkAchievements, ACHIEVEMENTS } from '@/constants/LevelSystem';
+import { PendingXPService } from '@/services/PendingXPService';
+import { useBackgroundXP } from '@/_hooks/useBackgroundXP';
+import { db } from '@/firebase/config';
 import { collection, addDoc } from 'firebase/firestore';
-import { useAuth } from '../../_context/AuthContext';
+import { useAuth } from '@/_context/AuthContext';
 
 export default function Results({
   loadingTime,

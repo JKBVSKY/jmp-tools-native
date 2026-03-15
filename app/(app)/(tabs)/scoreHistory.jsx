@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, Pressable, RefreshControl } from 'react-native';
-import { useColors } from '../../_hooks/useColors';
-import ThemedView from '../../components/ThemedView';
+import { useColors } from '@/_hooks/useColors';
+import ThemedView from '@/components/ThemedView';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
 import { Alert } from 'react-native';
-import { useAuth } from '../../_context/AuthContext';
-import { db } from '../../firebase/config';
+import { useAuth } from '@/_context/AuthContext';
+import { db } from '@/firebase/config';
 import {
   collection,
   query,

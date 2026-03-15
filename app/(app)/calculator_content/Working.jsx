@@ -18,20 +18,20 @@ import EditTruckModal from "./EditTruckModal";
 import PauseModal from "./PauseModal";
 import AdjustTimeModal from "./AdjustTimeModal";
 import PagerView from "react-native-pager-view";
-import { useColors } from '../../_hooks/useColors';
+import { useColors } from '@/_hooks/useColors';
 import { getAutoStartTime } from "./utils";
-import { useCalculator } from "../../_context/CalculatorContext";
-import { useUserProfile } from "../../_context/UserProfileContext";
-import { calculateXPFromScore, calculateLevelFromXP } from "../../constants/LevelSystem";
+import { useCalculator } from "@/_context/CalculatorContext";
+import { useUserProfile } from "@/_context/UserProfileContext";
+import { calculateXPFromScore, calculateLevelFromXP } from "@/constants/LevelSystem";
 import { Alert } from 'react-native';
-import { PendingXPService } from '../../services/PendingXPService';
-import { useBackgroundXP } from '../../_hooks/useBackgroundXP';
+import { PendingXPService } from '@/services/PendingXPService';
+import { useBackgroundXP } from '@/_hooks/useBackgroundXP';
 import { doc, updateDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
+import { db } from '@/firebase/config';
 import NetInfo from '@react-native-community/netinfo';
-import { useAppState } from '../../_hooks/useAppState';
+import { useAppState } from '@/_hooks/useAppState';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // To save state
-import { XPEarnedNotification } from '../../components/XPEarnedNotification'; // Adjust path if needed
+import { XPEarnedNotification } from '@/components/XPEarnedNotification'; // Adjust path if needed
 
 const { width } = Dimensions.get('window');
 

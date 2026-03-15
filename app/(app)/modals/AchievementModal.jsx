@@ -3,7 +3,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useColors } from '../../../_hooks/useColors';
+import { useColors } from '@/_hooks/useColors';
 
 export const AchievementModal = ({ visible, achievement, onClose, userStats, isUnlocked }) => {
   const colors = useColors();

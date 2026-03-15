@@ -1,12 +1,12 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TouchableOpacity } from 'react-native';
-import { useAuth } from '../../../_context/AuthContext';
-import { useUserProfile } from '../../../_context/UserProfileContext';
-import { useColors } from '../../../_hooks/useColors';
+import { useAuth } from '@/_context/AuthContext';
+import { useUserProfile } from '@/_context/UserProfileContext';
+import { useColors } from '@/_hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
-import { ACHIEVEMENTS, calculateLevelFromXP } from '../../../constants/LevelSystem';
+import { ACHIEVEMENTS, calculateLevelFromXP } from '@/constants/LevelSystem';
 import { useRouter } from 'expo-router';
-import { AchievementModal } from './AchievementModal';
+import { AchievementModal } from '@/app/(app)/modals/AchievementModal';
 
 export default function Profile() {
   const { user, isGuest, signOut } = useAuth();

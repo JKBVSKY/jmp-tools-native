@@ -1,10 +1,10 @@
 import React from 'react';
 import { StyleSheet, Text, View, Pressable } from 'react-native';
-import { useThemeContext } from '../../_context/ThemeContext';
-import { useColors } from '../../_hooks/useColors';
+import { useThemeContext } from '@/_context/ThemeContext';
+import { useColors } from '@/_hooks/useColors';
 import { StatusBar } from 'expo-status-bar';
-import ThemedView from '../../components/ThemedView';
-import { useAuth } from '../../_context/AuthContext';
+import ThemedView from '@/components/ThemedView';
+import { useAuth } from '@/_context/AuthContext';
 import { useRouter } from 'expo-router';
 
 export default function Dashboard() {

@@ -8,7 +8,7 @@ import {
   Dimensions
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useColors } from '../../_hooks/useColors';
+import { useColors } from '@/_hooks/useColors';
 
 const { height } = Dimensions.get('window');
 

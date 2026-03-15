@@ -6,12 +6,12 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import AdjustTimeModal from "./AdjustTimeModal";
 import Clock from "./Clock";
-import { useColors } from '../../_hooks/useColors';
-import Spacer from "../../components/Spacer";
-import { calculateSummary } from "../(app)/scoreHistory";
+import { useColors } from '@/_hooks/useColors';
+import Spacer from "@/components/Spacer";
+import { calculateSummary } from "@/app/(app)/(tabs)/scoreHistory";
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useAuth } from '../../_context/AuthContext';
-import { getAutoForcedFinishTime } from '../../_utils/timeUtils';
+import { useAuth } from '@/_context/AuthContext';
+import { getAutoForcedFinishTime } from '@/_utils/timeUtils';
 
 
 function getCurrentShift(date = new Date()) {

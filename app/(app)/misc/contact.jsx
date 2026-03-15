@@ -1,15 +1,15 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
-import { useColors } from '../../_hooks/useColors';
-import ThemedView from '../../components/ThemedView';
+import { useColors } from '@/_hooks/useColors';
+import ThemedView from '@/components/ThemedView';
 
-export default function Changelog() {
+export default function Contact() {
   const colors = useColors();
 
   return (
     <ThemedView style={[styles.container, { backgroundColor: colors.background }]}>
       <View>
-        <Text style={[styles.text, { color: colors.text }]}>Changelog screen</Text>
+        <Text style={[styles.text, { color: colors.text }]}>Contact screen</Text>
       </View>
     </ThemedView>
   );

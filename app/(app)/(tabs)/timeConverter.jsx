@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { useColors } from '../../_hooks/useColors';
-import Spacer from '../../components/Spacer';
+import { useColors } from '@/_hooks/useColors';
+import Spacer from '@/components/Spacer';
 
 export default function TimeConverter() {
   const colors = useColors();
