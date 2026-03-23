@@ -75,6 +75,7 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <Text style={[styles.headerText, { color: colors.text }]}>Załadunek</Text>
       {/* Stats Cards Section */}
       <View style={styles.statsSection}>
         <View style={styles.statsGrid}>
@@ -143,8 +144,8 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
           style={[styles.adjustButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
           onPress={() => setShowAdjustStartTimeModal(true)}
         >
-          <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
           <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
+          <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -191,8 +192,19 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingHorizontal: 8,
+    paddingHorizontal: 20,
     paddingVertical: 32,
+  },
+  headerText: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  statsSection: {
+    marginBottom: 16,
+  },
+  statsSection: {
+    marginBottom: 16,
   },
   statsSection: {
     marginBottom: 16,
@@ -252,7 +264,7 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 18,
     justifyContent: 'space-between',
     flexWrap: 'wrap',
   },
@@ -280,7 +292,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   startButtonText: {
-    fontSize: 18,
+    fontSize: 14,
     fontWeight: '600',
   },
   playIcon: {

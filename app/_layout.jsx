@@ -1,6 +1,6 @@
 import 'react-native-gesture-handler';
 
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, usePathname } from 'expo-router';
 import { AuthProvider, useAuth } from '../_context/AuthContext';
 import { ThemeProvider } from '../_context/ThemeContext';
 import { UserProfileProvider } from '../_context/UserProfileContext';
@@ -25,6 +25,7 @@ function RootLayoutNav() {
   const { user, isLoading, authLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const pathname = usePathname();
   const { theme } = useThemeContext();
   const { awardXP, isLoading: profileLoading, profile } = useUserProfile(); // ✅ Get profileLoading
   const appStateRef = useRef(AppState.currentState);
@@ -149,7 +150,11 @@ const syncOfflineXP = async () => {
   useEffect(() => {
     const setNavBar = async () => {
       try {
-        const navBarColor = Colors[theme].background;
+        // console.log('Pathname:', pathname);
+        const isInMisc = pathname.includes('/misc');
+        // console.log('isInMisc:', isInMisc);
+        const navBarColor = isInMisc ? Colors[theme].background : Colors[theme].botBarBackground;
+        // console.log('navBarColor:', navBarColor);
         await NavigationBar.setBackgroundColorAsync(navBarColor);
         await NavigationBar.setButtonStyleAsync(theme === 'dark' ? 'light' : 'dark');
       } catch (error) {
@@ -157,7 +162,7 @@ const syncOfflineXP = async () => {
       }
     };
     setNavBar();
-  }, [theme]);
+  }, [theme, pathname]);
 
   useEffect(() => {
     if (isLoading) return;

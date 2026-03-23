@@ -38,14 +38,34 @@ export function UserProfileProvider({ children }) {
 
       if (userSnap.exists()) {
         // User profile exists
-        console.log('✅ Profile found:', userSnap.data());
-        setProfile(userSnap.data());
+        const existingProfile = userSnap.data();
+        const identityFallbacks = {
+          displayName: existingProfile.displayName || user?.name || '',
+          name: existingProfile.name || user?.name || '',
+          email: existingProfile.email || user?.email || '',
+        };
+        const needsIdentityBackfill = !existingProfile.displayName || !existingProfile.name || !existingProfile.email;
+
+        if (needsIdentityBackfill && user) {
+          await updateDoc(userRef, identityFallbacks);
+        }
+
+        const hydratedProfile = {
+          ...existingProfile,
+          ...identityFallbacks,
+        };
+
+        console.log('✅ Profile found:', hydratedProfile);
+        setProfile(hydratedProfile);
         setError(null);
       } else {
         // First time user - create profile
         console.log('🆕 First time user, creating profile...');
         const newProfile = {
           userId,
+          displayName: user?.name || '',
+          name: user?.name || '',
+          email: user?.email || '',
           level: 1,
           totalXP: 0,
           achievements: [],

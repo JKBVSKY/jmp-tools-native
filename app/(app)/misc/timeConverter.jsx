@@ -3,9 +3,11 @@ import { View, Text, TouchableOpacity, StyleSheet, TextInput, ScrollView } from 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from '@/_hooks/useColors';
 import Spacer from '@/components/Spacer';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TimeConverter() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [mode, setMode] = useState('toDecimal'); // 'toDecimal' or 'toStandard'
   const [standardTime, setStandardTime] = useState('');
   const [decimalTime, setDecimalTime] = useState('');
@@ -88,9 +90,19 @@ export default function TimeConverter() {
 
   return (
     <View
-      style={[styles.container, { backgroundColor: colors.background }]}
+      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}
       showsVerticalScrollIndicator={false}
     >
+      {/* Header */}
+      <View style={styles.header}>
+        <MaterialCommunityIcons
+          name="calendar-clock"
+          size={32}
+          color={colors.text}
+        />
+        <Text style={[styles.title, { color: colors.title }]}>Przelicznik Czasu</Text>
+      </View>
+
       <View
         style={[
           styles.mainCard,
@@ -101,16 +113,6 @@ export default function TimeConverter() {
           },
         ]}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <MaterialCommunityIcons
-            name="calendar-clock"
-            size={32}
-            color={colors.text}
-          />
-          <Text style={[styles.title, { color: colors.title }]}>Przelicznik Czasu</Text>
-        </View>
-
         <Spacer height={24} />
 
         {/* Mode Selector */}

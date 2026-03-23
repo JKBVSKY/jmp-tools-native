@@ -3,7 +3,7 @@
     "scheme": "jmp-tools-native",
     "name": "JMP-Tools-Native",
     "slug": "JMP-Tools-Native",
-    "version": "0.4.1",
+    "version": "0.6.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -14,7 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.jmp.tools.app"
+      "bundleIdentifier": "com.jmp.tools.app",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
