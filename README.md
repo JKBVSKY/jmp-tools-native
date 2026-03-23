@@ -1,5 +1,5 @@
 # JMP-Tools-Native - Warehouse Performance Tracker
-![version](https://img.shields.io/badge/version-0.5.0-blue)
+![version](https://img.shields.io/badge/version-0.6.0-blue)
 
 A mobile app designed to help warehouse workers track, analyze, and improve their daily performance.
 

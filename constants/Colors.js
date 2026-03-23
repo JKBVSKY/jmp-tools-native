@@ -16,13 +16,11 @@ export const Colors = {
     cardBackground: '#292A2D',  // Cards/elevated surfaces (slightly lighter gray)
     navBackground: '#1A1B1E',   // Navbar/header (darkest gray)
     tListBackground: '#202124', // Transparent list background (slightly lighter gray)
+    botBarBackground: '#1A1B1E',   // Bottom bar (darkest gray)
 
     // Navigation
-    navText: '#FFFFFF',
-    draBackground: '#292A2D',
-    draActiveBackground: '#D32F2F', // Changed from navy blue to red!
-    draText: '#E8EAED',
-    draActiveText: '#FFFFFF',
+    navText: '#E8EAED',
+    navBackground: '#292A2D',
 
     // Buttons - Modern red accent
     butBackground: '#D32F2F',    // Red button
@@ -67,13 +65,12 @@ export const Colors = {
     background: '#EEEFF2',
     cardBackground: '#FFFFFF',
     navBackground: '#FFFFFF',
+    tListBackground: 'transparent',
+    botBarBackground: '#FFFFFF',
 
     // Navigation
     navText: '#202124',
-    draBackground: '#F8F9FA',
-    draActiveBackground: '#D32F2F',
-    draText: '#202124',
-    draActiveText: '#FFFFFF',
+    navBackground: '#F8F9FA',
 
     // Buttons - Modern red
     butBackground: '#D32F2F',    // Red button

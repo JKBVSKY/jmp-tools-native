@@ -103,6 +103,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Score history summary now reflects only sessions from the selected month, enabling month‑to‑month performance comparison.
 - Enhanced the design of the time converter component.
 
+## [0.6.0] - 2026-03-23
+
+### Added
+- Improved UX in the statistics component by showing a loading spinner overlay until all the data is fetched from the database.
+- Bottom navigation (replaced side nav) for better UX and faster tab switching.
+- Dashboard monthly stats view: current month performance, level and key metrics.
+- Leaderboard feature showing users, rank positions, and pallets/hour score.
+
+### Fixed
+- (in progress) Achievements behavior tracked as known issue for 0.6.1/0.6.2.
+- (in progress) `Init.jsx` needs logic improvements (target 0.6.1).
+- (in progress) XP caching issue still exists, planned fix in 0.6.1.
+
+### Changed
+- The old side navigation bar got removed and replaced with the new bottom bar navigation.
+- UI padding updates in multiple components for cleaner spacing and layout consistency.
+
 ## Unreleased
 
 ### Added

@@ -6,6 +6,8 @@ import Working from "../calculator_content/Working";
 import Results from "../calculator_content/Results";
 import { useCalculator } from "@/_context/CalculatorContext";
 import { getAutoStartTime } from "../calculator_content/utils";
+import { useColors } from '@/_hooks/useColors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Calculator() {
   const [mode, setMode] = useState("init"); // State to manage current mode
@@ -13,6 +15,8 @@ export default function Calculator() {
   const changeMode = (newMode) => setMode(newMode);
   const forcedFinishTime = calc.forcedFinishTime;
   const setForcedFinishTime = (time) => calc.updateState({ forcedFinishTime: time });
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
 
   // Helper function to check if startTime is from today
   const isStartTimeFromToday = (startTime) => {
@@ -27,34 +31,40 @@ export default function Calculator() {
   };
 
   // This runs when the screen comes into focus
-useFocusEffect(
-  React.useCallback(() => {
-    if (!calc.isRestored || calc.mode !== 'init') {
-      return;
-    }
+  useFocusEffect(
+    React.useCallback(() => {
+      if (!calc.isRestored || calc.mode !== 'init') {
+        return;
+      }
 
-    // 1. Reset old startTime (existing logic)
-    if (!isStartTimeFromToday(calc.startTime)) {
-      const newStartTime = getAutoStartTime();
-      calc.updateState({
-        startTime: newStartTime,
-        mode: 'init'
-      });
-    }
+      // 1. Reset old startTime (existing logic)
+      if (!isStartTimeFromToday(calc.startTime)) {
+        const newStartTime = getAutoStartTime();
+        calc.updateState({
+          startTime: newStartTime,
+          mode: 'init'
+        });
+      }
 
-    // 2. NEW: Clear finalized sessions (only if old date)
-    if (calc.sessionStatus === 'finalized' && !isStartTimeFromToday(calc.startTime)) {
-      calc.clearState();  // Full reset OR targeted: { startTime: null, sessionStatus: 'cleared', mode: 'init' }
-    }
-  }, [calc.isRestored, calc.mode, calc.startTime, calc.sessionStatus])  // ← ADD sessionStatus to deps
-);
+      // 2. NEW: Clear finalized sessions (only if old date)
+      if (calc.sessionStatus === 'finalized' && !isStartTimeFromToday(calc.startTime)) {
+        calc.clearState();  // Full reset OR targeted: { startTime: null, sessionStatus: 'cleared', mode: 'init' }
+      }
+    }, [calc.isRestored, calc.mode, calc.startTime, calc.sessionStatus])  // ← ADD sessionStatus to deps
+  );
 
   if (!calc.isRestored) {
     return null;
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[
+      styles.container,
+      {
+        paddingTop: insets.top + 8,      // add some spacing from status bar
+        backgroundColor: colors.background,
+      },
+    ]}>
       {calc.mode === "init" && (
         <Init
           changeMode={(newMode) => calc.updateState({ mode: newMode })}

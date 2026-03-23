@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { ACHIEVEMENTS, calculateLevelFromXP } from '@/constants/LevelSystem';
 import { useRouter } from 'expo-router';
 import { AchievementModal } from '@/app/(app)/modals/AchievementModal';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function Profile() {
   const { user, isGuest, signOut } = useAuth();
@@ -15,6 +16,7 @@ export default function Profile() {
   const router = useRouter();
   const [selectedAchievement, setSelectedAchievement] = React.useState(null);
   const [modalVisible, setModalVisible] = React.useState(false);
+  const insets = useSafeAreaInsets();
 
   // ✅ HANDLE GUEST USERS
   if (isGuest) {
@@ -109,11 +111,11 @@ export default function Profile() {
     );
   }
 
-// ✅ HANDLE ACHIEVEMENTS
-const handleAchievementPress = (achievement) => {
-  setSelectedAchievement(achievement);
-  setModalVisible(true);
-};
+  // ✅ HANDLE ACHIEVEMENTS
+  const handleAchievementPress = (achievement) => {
+    setSelectedAchievement(achievement);
+    setModalVisible(true);
+  };
 
   // ✅ CALCULATE LEVEL PROGRESS CORRECTLY
   const levelData = calculateLevelFromXP(profile.totalXP);
@@ -147,21 +149,21 @@ const handleAchievementPress = (achievement) => {
     unlocked: profile.achievements.includes(achievement.id),
   }));
 
-    const renderIcon = (icon) => {
-      if (typeof icon === 'string') {
-        return <Text style={styles.achievementIcon}>{icon}</Text>;
-      }
+  const renderIcon = (icon) => {
+    if (typeof icon === 'string') {
+      return <Text style={styles.achievementIcon}>{icon}</Text>;
+    }
 
-      if (typeof icon === 'function' || (typeof icon === 'object' && icon?.render)) {
-        const IconComponent = icon;
-        return <IconComponent size={48} />;
-      }
+    if (typeof icon === 'function' || (typeof icon === 'object' && icon?.render)) {
+      const IconComponent = icon;
+      return <IconComponent size={48} />;
+    }
 
-      return null;
-    };
+    return null;
+  };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.background }]}>
       {/* Profile Header */}
       <View style={[styles.header, { backgroundColor: colors.cardBackground }]}>
         <View style={styles.profileImageContainer}>
@@ -259,75 +261,75 @@ const handleAchievementPress = (achievement) => {
       </View>
 
       {/* Achievements Card */}
-        {/* Achievements Card */}
-        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.borderColor, borderWidth: 1 }]}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="trophy" size={24} color={colors.iconColor} />
-            <Text style={[styles.cardTitle, { color: colors.text }]}>
-              Osiągnięcia
-            </Text>
-          </View>
-
-          <View style={styles.achievementsGrid}>
-            {allAchievements.map((achievement) => (
-              <Pressable
-                key={achievement.id}
-                style={({ pressed }) => [
-                        styles.achievementItem,
-                        {
-                          backgroundColor: achievement.unlocked
-                            ? 'rgba(34, 197, 94, 0.12)' // Lighter green background
-                            : 'rgba(107, 114, 128, 0.08)', // Subtle gray background
-                          borderColor: achievement.unlocked
-                            ? colors.primary // Green border for unlocked
-                            : colors.borderColor, // Gray border for locked
-                          opacity: pressed ? 0.7 : 1,
-                        }
-                      ]}
-                onPress={() => handleAchievementPress(achievement)}
-              >
-
-                {/* Lock Icon in Corner */}
-                {!achievement.unlocked && (
-                  <View style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                  }}>
-                    <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
-                  </View>
-                )}
-
-                {/* Unlocked Check Badge */}
-                {achievement.unlocked && (
-                  <View style={{
-                    position: 'absolute',
-                    top: 8,
-                    right: 8,
-                  }}>
-                    <Ionicons name="checkmark-circle" size={18} color={'rgba(34, 197, 94, 1)'} />
-                  </View>
-                )}
-
-                <Text style={styles.achievementIcon}>{renderIcon(achievement.icon)}</Text>
-                  <Text
-                    style={[
-                      styles.achievementName,
-                      {
-                        color: achievement.unlocked ? colors.text : colors.textSecondary,
-                      }
-                    ]}
-                  >
-                    {achievement.name}
-                  </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
-            {profile.achievements.length} z {allAchievements.length} odblokowano
+      {/* Achievements Card */}
+      <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.borderColor, borderWidth: 1 }]}>
+        <View style={styles.cardHeader}>
+          <Ionicons name="trophy" size={24} color={colors.iconColor} />
+          <Text style={[styles.cardTitle, { color: colors.text }]}>
+            Osiągnięcia
           </Text>
         </View>
+
+        <View style={styles.achievementsGrid}>
+          {allAchievements.map((achievement) => (
+            <Pressable
+              key={achievement.id}
+              style={({ pressed }) => [
+                styles.achievementItem,
+                {
+                  backgroundColor: achievement.unlocked
+                    ? 'rgba(34, 197, 94, 0.12)' // Lighter green background
+                    : 'rgba(107, 114, 128, 0.08)', // Subtle gray background
+                  borderColor: achievement.unlocked
+                    ? colors.primary // Green border for unlocked
+                    : colors.borderColor, // Gray border for locked
+                  opacity: pressed ? 0.7 : 1,
+                }
+              ]}
+              onPress={() => handleAchievementPress(achievement)}
+            >
+
+              {/* Lock Icon in Corner */}
+              {!achievement.unlocked && (
+                <View style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                }}>
+                  <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
+                </View>
+              )}
+
+              {/* Unlocked Check Badge */}
+              {achievement.unlocked && (
+                <View style={{
+                  position: 'absolute',
+                  top: 8,
+                  right: 8,
+                }}>
+                  <Ionicons name="checkmark-circle" size={18} color={'rgba(34, 197, 94, 1)'} />
+                </View>
+              )}
+
+              <Text style={styles.achievementIcon}>{renderIcon(achievement.icon)}</Text>
+              <Text
+                style={[
+                  styles.achievementName,
+                  {
+                    color: achievement.unlocked ? colors.text : colors.textSecondary,
+                  }
+                ]}
+              >
+                {achievement.name}
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+
+        <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
+          {profile.achievements.length} z {allAchievements.length} odblokowano
+        </Text>
+      </View>
 
       {/* Sessions Info */}
       <View style={[styles.infoCard, { backgroundColor: colors.inputBackground, borderColor: colors.primary, borderWidth: 1 }]}>
@@ -338,17 +340,17 @@ const handleAchievementPress = (achievement) => {
       </View>
 
       <View style={{ height: 30 }} />
-    <AchievementModal
-      visible={modalVisible}
-      achievement={selectedAchievement}
-      onClose={() => setModalVisible(false)}
-      userStats={{
+      <AchievementModal
+        visible={modalVisible}
+        achievement={selectedAchievement}
+        onClose={() => setModalVisible(false)}
+        userStats={{
           ...profile.stats,
           level: profile.level,
           totalXP: profile.totalXP
-      }}
-      isUnlocked={selectedAchievement ? profile.achievements.includes(selectedAchievement.id) : false}
-    />
+        }}
+        isUnlocked={selectedAchievement ? profile.achievements.includes(selectedAchievement.id) : false}
+      />
     </ScrollView>
   );
 }

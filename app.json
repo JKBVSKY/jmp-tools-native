@@ -3,7 +3,7 @@
     "scheme": "jmp-tools-native",
     "name": "JMP-Tools-Native",
     "slug": "JMP-Tools-Native",
-    "version": "0.4.1",
+    "version": "0.6.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -19,7 +19,8 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#ffffff",
+        "color": "#D32F2F"
       },
       "package": "com.jmp.tools.app"
     },
