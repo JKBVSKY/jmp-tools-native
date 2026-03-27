@@ -151,7 +151,7 @@ const syncOfflineXP = async () => {
     const setNavBar = async () => {
       try {
         // console.log('Pathname:', pathname);
-        const isInMisc = pathname.includes('/misc');
+        const isInMisc = pathname.includes('/misc') || pathname.includes('/calculator_content');
         // console.log('isInMisc:', isInMisc);
         const navBarColor = isInMisc ? Colors[theme].background : Colors[theme].botBarBackground;
         // console.log('navBarColor:', navBarColor);

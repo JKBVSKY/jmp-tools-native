@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, Pressable } from 'react-native';
+import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
 import { useColors } from '@/_hooks/useColors';
 import ThemedView from '@/components/ThemedView';
 import { useAuth } from '@/_context/AuthContext';
@@ -11,6 +11,10 @@ import { collection, query, orderBy, getDocs } from 'firebase/firestore';
 import { db } from '@/firebase/config';
 import ThemedCard from '@/components/ThemedCard';
 import { ACHIEVEMENTS, calculateLevelFromXP } from '@/constants/LevelSystem';
+import { TouchableOpacity } from 'react-native-gesture-handler';
+import SessionModal from '../modals/SessionModal';
+import { useCalculator } from '@/_context/CalculatorContext';
+
 
 const calculateSummary = (sessionsArray) => {
   const totalPallets = sessionsArray.reduce((sum, s) => sum + (parseFloat(s.palletsLoaded) || 0), 0);
@@ -28,7 +32,19 @@ export default function Dashboard() {
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isSessionModalVisible, setSessionModalVisible] = useState(false);
   const userId = user?.id;
+
+  const calc = useCalculator();
+
+  const isSessionActive =
+    calc.mode === 'working' ||
+    calc.mode === 'paused' ||
+    calc.mode === 'results';
+
+  const sessionButtonLabel = isSessionActive
+    ? 'Kontynuuj Sesję'
+    : 'Rozpocznij Sesję';
 
   const now = new Date();
   const currentMonth = { month: now.getMonth(), year: now.getFullYear() };
@@ -76,6 +92,22 @@ export default function Dashboard() {
     router.push('/(auth)/register');
   };
 
+  const handleSessionOptionSelect = (route) => {
+    setSessionModalVisible(false);
+    if (route) {
+      router.push(route);
+    }
+  };
+
+  const handleSessionButtonPress = () => {
+    if (isSessionActive) {
+      router.push('/(app)/calculator_content/calculator');
+      return;
+    }
+
+    setSessionModalVisible(true);
+  };
+
   const levelData = calculateLevelFromXP(profile?.totalXP || 0);
   const level = levelData.level;
   const currentXP = levelData.currentXP;
@@ -116,44 +148,74 @@ export default function Dashboard() {
       )}
 
       <View style={styles.content}>
-        <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
-        <Text style={{ color: colors.text }}>Produktywność na wyciągnięcie ręki.</Text>
+        {/* Top content */}
+        <View>
+          <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
+          <Text style={{ color: colors.text }}>Produktywność na wyciągnięcie ręki.</Text>
 
-        <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>
-          <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
-          <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { backgroundColor: colors.iconColor, width: `${Math.min(xpProgress, 100)}%` },
-                ]}
-              />
+          <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>
+            <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
+            <View style={styles.progressContainer}>
+              <View style={[styles.progressBar, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { backgroundColor: colors.iconColor, width: `${Math.min(xpProgress, 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressText, { color: colors.text }]}>{currentXP} / {nextXP} XP</Text>
             </View>
-            <Text style={[styles.progressText, { color: colors.text }]}>{currentXP} / {nextXP} XP</Text>
-          </View>
-          <Text style={[styles.achievements, { color: colors.text }]}>Osiągnięcia: {achievementsUnlocked} / {achievementsTotal}</Text>
-        </ThemedCard>
+            <Text style={[styles.achievements, { color: colors.text }]}>Osiągnięcia: {achievementsUnlocked} / {achievementsTotal}</Text>
+          </ThemedCard>
 
-        <Text style={[styles.welcome, { color: colors.text, fontSize: 16 }]}>Podsumowanie Miesięczne - Załadunek</Text>
-        <View style={styles.statsGrid}>
-          <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.statTitle, { color: colors.text }]}>Średnia miesięczna</Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>{summary.averageRate.toFixed(2)} pal/h</Text>
-          </ThemedCard>
-          <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.statTitle, { color: colors.text }]}>Palety w miesiącu</Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>{summary.totalPallets}</Text>
-          </ThemedCard>
-          <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.statTitle, { color: colors.text }]}>Miejsce w rankingu</Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>{rank}</Text>
-          </ThemedCard>
-          <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.statTitle, { color: colors.text }]}>Czas ładowania</Text>
-            <Text style={[styles.statValue, { color: colors.text }]}>{formatTime(summary.totalTime)}</Text>
-          </ThemedCard>
+          <Text style={[styles.welcome, { color: colors.text, fontSize: 16 }]}>Podsumowanie Miesięczne - Załadunek</Text>
+          <View style={styles.statsGrid}>
+            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+              <Text style={[styles.statTitle, { color: colors.text }]}>Średnia miesięczna</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{summary.averageRate.toFixed(2)} pal/h</Text>
+            </ThemedCard>
+            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+              <Text style={[styles.statTitle, { color: colors.text }]}>Palety w miesiącu</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{summary.totalPallets}</Text>
+            </ThemedCard>
+            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+              <Text style={[styles.statTitle, { color: colors.text }]}>Miejsce w rankingu</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{rank}</Text>
+            </ThemedCard>
+            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+              <Text style={[styles.statTitle, { color: colors.text }]}>Czas ładowania</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{formatTime(summary.totalTime)}</Text>
+            </ThemedCard>
+          </View>
         </View>
+
+        {/* Bottom Content */}
+        <View>
+          {/* Start Button */}
+          <TouchableOpacity
+            onPress={handleSessionButtonPress}
+            disabled={isSessionModalVisible}
+            style={[
+              styles.startButton,
+              {
+                backgroundColor: colors.butBackground,
+                marginTop: 20,
+                opacity: isSessionModalVisible ? 0.85 : 1,
+              },
+            ]}
+          >
+            {isSessionModalVisible ? (
+              <ActivityIndicator size="small" color={colors.butText} />
+            ) : (
+              <Text style={[styles.startButtonText, { color: colors.butText }]}>
+                {sessionButtonLabel}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+        </View>
+
         {/* <Text style={[styles.welcome, { color: colors.text, fontSize: 16 }]}>Podsumowanie Miesięczne - Kompletacja</Text>
         <View style={styles.statsGrid}>
           <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
@@ -174,6 +236,17 @@ export default function Dashboard() {
           </ThemedCard>
         </View> */}
       </View>
+      <SessionModal
+        visible={isSessionModalVisible}
+        onClose={() => setSessionModalVisible(false)}
+        onOptionSelect={handleSessionOptionSelect}
+        options={[
+          { key: 'zaladunek', label: 'Załadunek', route: '/(app)/calculator_content/calculator', icon: 'flash' },
+          { key: 'kompletacja', label: 'Kompletacja', icon: 'layers' },
+          { key: 'wsparcie', label: 'Wsparcie', icon: 'help-circle' },
+          { key: 'owijarki', label: 'Owijarki', icon: 'settings' },
+        ]}
+      />
     </ThemedView>
   );
 }
@@ -186,6 +259,7 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     marginTop: 20,
+    justifyContent: 'space-between',
   },
   welcome: {
     fontSize: 26,
@@ -257,6 +331,17 @@ const styles = StyleSheet.create({
   },
   upgradeText: {
     color: '#fff',
+    fontWeight: '600',
+  },
+  startButton: {
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    gap: 6,
+  },
+  startButtonText: {
+    fontSize: 14,
     fontWeight: '600',
   },
   logoutButton: {

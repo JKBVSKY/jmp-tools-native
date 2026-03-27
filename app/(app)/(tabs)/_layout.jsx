@@ -37,6 +37,7 @@ export default function TabLayout() {
     <>
       <Tabs
         screenOptions={{
+          initialRouteName: 'index',
           headerShown: false,
           tabBarActiveTintColor: 'red',
           tabBarInactiveTintColor: colors.tabInactive || '#9ca3af',
@@ -45,15 +46,9 @@ export default function TabLayout() {
             backgroundColor: colors.botBarBackground,
             borderTopColor: colors.border,
           }, // larger for thumbs
+          unmountOnBlur: true,
         }}
       >
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Panel Główny',
-            tabBarIcon: ({ color }) => <Ionicons name="grid-outline" size={28} color={color} />,
-          }}
-        />
         <Tabs.Screen
           name="scoreHistory"
           options={{
@@ -62,17 +57,17 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="calculator"
-          options={{
-            title: 'Załadunek',
-            tabBarIcon: ({ color }) => <Ionicons name="calculator-outline" size={28} color={color} />,
-          }}
-        />
-        <Tabs.Screen
           name="leaderboards"
           options={{
             title: 'Ranking',
             tabBarIcon: ({ color }) => <Ionicons name="trophy-outline" size={28} color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="index"
+          options={{
+            title: 'Panel Główny',
+            tabBarIcon: ({ color }) => <Ionicons name="grid-outline" size={28} color={color} />,
           }}
         />
         <Tabs.Screen

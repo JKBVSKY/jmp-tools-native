@@ -8,6 +8,7 @@ export const Colors = {
 
     // Text colors - soft white/light gray
     text: '#E8EAED',
+    textRed: '#e3452d',
     textSecondary: '#9AA0A6',
     title: '#FFFFFF',
 
@@ -23,9 +24,9 @@ export const Colors = {
     navBackground: '#292A2D',
 
     // Buttons - Modern red accent
-    butBackground: '#D32F2F',    // Red button
+    butBackground: '#e3452d',    // Red button
     butText: '#FFFFFF',
-    butBorder: '#B71C1C',        // Darker red for border
+    butBorder: '#e3452d',        // Darker red for border
     outButBackground: 'transparent',
     outButBorder: '#5F6368',     // Gray border
     outButText: '#E8EAED',
@@ -37,14 +38,15 @@ export const Colors = {
     border: '#111',           // Gray border
     breakLine: '#3F4144',        // Gray break line
     iconColor: '#9AA0A6',        // Light gray icons
+    sIconColor: '#e3452d',        // Red icons
     inputBackground: '#292A2D',
     inputBorder: '#5F6368',
-    inputBorderActive: '#D32F2F', // Red border when active
+    inputBorderActive: '#e3452d', // Red border when active
     phText: '#5F6368',           // Placeholder text
-    selection: '#D32F2F',        // Red for selection
+    selection: '#e3452d',        // Red for selection
 
     // Other
-    tabDotActive: '#D32F2F',
+    tabDotActive: '#e3452d',
     tabDotInactive: '#3F4144',
     truckButtons: '#292A2D',
     editBut: '#E8EAED',
@@ -58,6 +60,7 @@ export const Colors = {
 
     // Text colors
     text: '#202124',
+    textRed: '#e3452d',
     textSecondary: '#5F6368',
     title: '#000000',
 
@@ -73,9 +76,9 @@ export const Colors = {
     navBackground: '#F8F9FA',
 
     // Buttons - Modern red
-    butBackground: '#D32F2F',    // Red button
+    butBackground: '#e3452d',    // Red button
     butText: '#FFFFFF',
-    butBorder: '#B71C1C',        // Darker red
+    butBorder: '#e3452d',        // Darker red
     outButBackground: '#FFFFFF',
     outButBorder: '#DADCE0',     // Light gray border
     outButText: '#202124',
@@ -86,15 +89,16 @@ export const Colors = {
     // UI Elements
     border: '#DADCE0',           // Light gray border
     breakLine: '#DADCE0',        // Light gray line
-    iconColor: '#D32F2F',        // Red icons
+    iconColor: '#e3452d',        // Red icons
+    sIconColor: '#e3452d',        // Red icons
     inputBackground: '#FFFFFF',
     inputBorder: '#DADCE0',
-    inputBorderActive: '#D32F2F', // Red border when active
+    inputBorderActive: '#e3452d', // Red border when active
     phText: '#9AA0A6',           // Placeholder text
-    selection: '#D32F2F',        // Red for selection
+    selection: '#e3452d',        // Red for selection
 
     // Other
-    tabDotActive: '#D32F2F',
+    tabDotActive: '#e3452d',
     tabDotInactive: '#DADCE0',
     truckButtons: '#F8F9FA',
     editBut: '#202124',

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { View, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import Init from "../calculator_content/Init";
-import Working from "../calculator_content/Working";
-import Results from "../calculator_content/Results";
+import Init from "./Init";
+import Working from "./Working";
+import Results from "./Results";
 import { useCalculator } from "@/_context/CalculatorContext";
-import { getAutoStartTime } from "../calculator_content/utils";
+import { getAutoStartTime } from "./utils";
 import { useColors } from '@/_hooks/useColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -61,7 +61,6 @@ export default function Calculator() {
     <View style={[
       styles.container,
       {
-        paddingTop: insets.top + 8,      // add some spacing from status bar
         backgroundColor: colors.background,
       },
     ]}>
