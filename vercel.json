@@ -1,0 +1,6 @@
+{
+  "buildCommand": "npm run web:prod",
+  "outputDirectory": "dist",
+  "framework": "expo",
+  "public": false
+}

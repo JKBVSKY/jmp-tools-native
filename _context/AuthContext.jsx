@@ -1,6 +1,4 @@
 import { createContext, useContext, useState, useEffect } from 'react';
-import { Platform } from 'react-native';
-import * as SecureStore from 'expo-secure-store';
 import { initializeApp } from 'firebase/app';
 import {
   initializeAuth,
@@ -13,6 +11,7 @@ import {
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore } from 'firebase/firestore';
+import { StorageManager } from '@/_utils/StorageManager';
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -138,21 +137,17 @@ export function AuthProvider({ children }) {
           setUser(userData);
           setIsGuest(false);
 
-          // Also store in SecureStore for extra safety
-          await SecureStore.setItemAsync('user', JSON.stringify(userData));
+          // Also store in StorageManager for extra safety
+          await StorageManager.setItem('user', JSON.stringify(userData));
 
           console.log('✅ User auto-logged in:', userData.email); // DEBUG
         } else {
           // Check if guest mode was saved
-          const guestMode = Platform.OS === 'web'
-            ? localStorage.getItem('isGuest')
-            : await SecureStore.getItemAsync('isGuest');
+          const guestMode = await StorageManager.getItem('isGuest');
 
           if (guestMode === 'true') {
             const guestUser = {
-              id: Platform.OS === 'web'
-                ? localStorage.getItem('guestId')
-                : await SecureStore.getItemAsync('guestId'),
+              id: await StorageManager.getItem('guestId'),
               name: 'Guest User',
               isGuest: true,
             };
@@ -187,13 +182,8 @@ export function AuthProvider({ children }) {
     setIsGuest(true);
 
     // Save guest mode
-    if (Platform.OS === 'web') {
-      localStorage.setItem('guestId', guestId);
-      localStorage.setItem('isGuest', 'true');
-    } else {
-      await SecureStore.setItemAsync('guestId', guestId);
-      await SecureStore.setItemAsync('isGuest', 'true');
-    }
+    await StorageManager.setItem('guestId', guestId);
+    await StorageManager.setItem('isGuest', 'true');
     console.log('✅ Continuing as guest');
   };
 
@@ -204,15 +194,9 @@ export function AuthProvider({ children }) {
       setIsGuest(false);
 
       // Clear stored data
-      if (Platform.OS === 'web') {
-        localStorage.removeItem('guestId');
-        localStorage.removeItem('isGuest');
-        localStorage.removeItem('user');
-      } else {
-        await SecureStore.deleteItemAsync('guestId');
-        await SecureStore.deleteItemAsync('isGuest');
-        await SecureStore.deleteItemAsync('user');
-      }
+      await StorageManager.removeItem('guestId');
+      await StorageManager.removeItem('isGuest');
+      await StorageManager.removeItem('user');
 
       console.log('✅ Signed out');
       

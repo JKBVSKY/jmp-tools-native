@@ -2,9 +2,15 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { useColors } from '@/_hooks/useColors';
+import { Platform } from 'react-native';
 
 export default function AppLayout() {
   const colors = useColors();
+  const webContainer = Platform.OS === 'web' ? {
+    maxWidth: 1200,
+    marginHorizontal: 'auto',
+    width: '100%',
+  } : {};
   return (
     <Stack
       screenOptions={{

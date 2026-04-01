@@ -17,7 +17,7 @@ import NewTransportModal from "./NewTransportModal";
 import EditTruckModal from "./EditTruckModal";
 import PauseModal from "./PauseModal";
 import AdjustTimeModal from "./AdjustTimeModal";
-import PagerView from "react-native-pager-view";
+import { TabView } from 'react-native-tab-view';
 import { useColors } from '@/_hooks/useColors';
 import { getAutoStartTime } from "./utils";
 import { useCalculator } from "@/_context/CalculatorContext";
@@ -697,7 +697,49 @@ export default function Working({
   // SECTION 5: RENDER FUNCTIONS (AFTER ALL HOOKS & HELPER FUNCTIONS)
   // ============================================================================
 
-  // Render truck item
+  // Define routes for TabView
+  const routes = [
+    { key: 'monitoring', title: 'Aktualne transporty' },
+    { key: 'history', title: 'Zakończone transporty' },
+  ];
+
+  const navigationState = {
+    index: activeTab,
+    routes,
+  };
+
+  const renderScene = ({ route }) => {
+    switch (route.key) {
+      case 'monitoring':
+        return (
+          <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
+            {trucks.length === 0 ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={[styles.emptyText, { color: colors.text }]}>Rozpocznij nowy transport.</Text>
+              </View>
+            ) : (
+              trucks.map(truck => renderTruckItem(truck, false))
+            )}
+          </ScrollView>
+        );
+      case 'history':
+        return (
+          <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
+            {trucksHistory.length === 0 ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={[styles.emptyText, { color: colors.text }]}>Brak historii transportów.</Text>
+              </View>
+            ) : (
+              [...trucksHistory]
+                .sort((a, b) => b.displayId - a.displayId)
+                .map(truck => renderTruckItem(truck, true))
+            )}
+          </ScrollView>
+        );
+      default:
+        return null;
+    }
+  };
   // ✅ NEW: Render truck item with collapsible design
   const renderTruckItem = (truck, isHistory = false) => {
     const isExpanded = expandedTruckId === truck.id;
@@ -988,38 +1030,13 @@ export default function Working({
           </View>
         </View>
 
-        <PagerView
+        <TabView
+          navigationState={navigationState}
+          renderScene={renderScene}
+          onIndexChange={setActiveTab}
+          renderTabBar={() => null} // Hide default tab bar since using custom dots
           style={{ flex: 1 }}
-          initialPage={0}
-          onPageSelected={e => setActiveTab(e.nativeEvent.position)}
-          pageMargin={16}
-        >
-          <View key="1" style={{ flex: 1 }}>
-            <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
-              {trucks.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={[styles.emptyText, { color: colors.text }]}>Rozpocznij nowy transport.</Text>
-                </View>
-              ) : (
-                trucks.map(truck => renderTruckItem(truck, false))
-              )}
-            </ScrollView>
-          </View>
-
-          <View key="2" style={{ flex: 1 }}>
-            <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
-              {trucksHistory.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={[styles.emptyText, { color: colors.text }]}>Brak historii transportów.</Text>
-                </View>
-              ) : (
-                [...trucksHistory]
-                  .sort((a, b) => b.displayId - a.displayId)
-                  .map(truck => renderTruckItem(truck, true))
-              )}
-            </ScrollView>
-          </View>
-        </PagerView>
+        />
 
 
       </View>
