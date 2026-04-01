@@ -11,10 +11,13 @@ export const Colors = {
     textRed: '#e3452d',
     textSecondary: '#9AA0A6',
     title: '#FFFFFF',
+    cardValue: '#ede8e8',
+    cardTitle: '#a6a6b1',
 
     // Backgrounds - dark gray with navy accent
     background: '#202124',      // Main background (dark gray)
     cardBackground: '#292A2D',  // Cards/elevated surfaces (slightly lighter gray)
+    cardInCardBackground: '#202124', // Card background when inside another card
     navBackground: '#1A1B1E',   // Navbar/header (darkest gray)
     tListBackground: '#202124', // Transparent list background (slightly lighter gray)
     botBarBackground: '#1A1B1E',   // Bottom bar (darkest gray)
@@ -37,6 +40,7 @@ export const Colors = {
     // UI Elements
     border: '#111',           // Gray border
     breakLine: '#3F4144',        // Gray break line
+    grayIconColor: '#a6a6b1',        // Gray icons
     iconColor: '#9AA0A6',        // Light gray icons
     sIconColor: '#e3452d',        // Red icons
     inputBackground: '#292A2D',
@@ -63,10 +67,13 @@ export const Colors = {
     textRed: '#e3452d',
     textSecondary: '#5F6368',
     title: '#000000',
+    cardValue: '#242020',
+    cardTitle: '#968c8c',
 
     // Backgrounds - clean white with light gray accents
     background: '#EEEFF2',
     cardBackground: '#FFFFFF',
+    cardInCardBackground: '#f5f4f4',
     navBackground: '#FFFFFF',
     tListBackground: 'transparent',
     botBarBackground: '#FFFFFF',
@@ -89,6 +96,7 @@ export const Colors = {
     // UI Elements
     border: '#DADCE0',           // Light gray border
     breakLine: '#DADCE0',        // Light gray line
+    grayIconColor: '#968c8c',        // Gray icons
     iconColor: '#e3452d',        // Red icons
     sIconColor: '#e3452d',        // Red icons
     inputBackground: '#FFFFFF',

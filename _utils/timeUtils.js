@@ -2,8 +2,8 @@
  * Calculates the automatic forced finish time based on current time
  * Handles night shift scenarios where finish time might be next day
  */
-export const getAutoForcedFinishTime = () => {
-  const now = new Date();
+export const getAutoForcedFinishTime = (startTime = new Date()) => {
+  const now = new Date(startTime);
   const currentHours = now.getHours();
   const currentMinutes = now.getMinutes();
   const currentTimeInMinutes = currentHours * 60 + currentMinutes;

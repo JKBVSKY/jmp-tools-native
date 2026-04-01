@@ -14,6 +14,7 @@ import { ACHIEVEMENTS, calculateLevelFromXP } from '@/constants/LevelSystem';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import SessionModal from '../modals/SessionModal';
 import { useCalculator } from '@/_context/CalculatorContext';
+import { Ionicons } from "@expo/vector-icons";
 
 
 const calculateSummary = (sessionsArray) => {
@@ -151,7 +152,7 @@ export default function Dashboard() {
         {/* Top content */}
         <View>
           <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
-          <Text style={{ color: colors.text }}>Produktywność na wyciągnięcie ręki.</Text>
+          <Text style={{ color: colors.text, fontSize: 15 }}>Produktywność na wyciągnięcie ręki.</Text>
 
           <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>
             <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
@@ -169,22 +170,26 @@ export default function Dashboard() {
             <Text style={[styles.achievements, { color: colors.text }]}>Osiągnięcia: {achievementsUnlocked} / {achievementsTotal}</Text>
           </ThemedCard>
 
-          <Text style={[styles.welcome, { color: colors.text, fontSize: 16 }]}>Podsumowanie Miesięczne - Załadunek</Text>
+          <Text style={[styles.welcome, { color: colors.text, fontSize: 24 }]}>Podsumowanie Miesięczne - Załadunek</Text>
           <View style={styles.statsGrid}>
             <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Text style={[styles.statTitle, { color: colors.text }]}>Średnia miesięczna</Text>
+              <Ionicons name="flash-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
+              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Średnia miesięczna</Text>
               <Text style={[styles.statValue, { color: colors.text }]}>{summary.averageRate.toFixed(2)} pal/h</Text>
             </ThemedCard>
             <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Text style={[styles.statTitle, { color: colors.text }]}>Palety w miesiącu</Text>
+              <Ionicons name="layers-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
+              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Palety w miesiącu</Text>
               <Text style={[styles.statValue, { color: colors.text }]}>{summary.totalPallets}</Text>
             </ThemedCard>
             <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Text style={[styles.statTitle, { color: colors.text }]}>Miejsce w rankingu</Text>
+              <Ionicons name="trophy-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
+              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Miejsce w rankingu</Text>
               <Text style={[styles.statValue, { color: colors.text }]}>{rank}</Text>
             </ThemedCard>
             <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Text style={[styles.statTitle, { color: colors.text }]}>Czas ładowania</Text>
+              <Ionicons name="time-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4 }]} />
+              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Czas ładowania</Text>
               <Text style={[styles.statValue, { color: colors.text }]}>{formatTime(summary.totalTime)}</Text>
             </ThemedCard>
           </View>
@@ -262,7 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   welcome: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 10,
   },
@@ -293,7 +298,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
   },
   achievements: {
-    fontSize: 16,
+    fontSize: 15,
   },
   statsGrid: {
     flexDirection: 'row',
@@ -306,11 +311,14 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   statTitle: {
-    fontSize: 14,
+    fontSize: 17,
     fontWeight: '600',
+    minHeight: 50,
+    marginBottom: 2,
+    marginTop: 2,
   },
   statValue: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
   },
   guestBanner: {

@@ -187,7 +187,7 @@ const ScoreSimulator = () => {
 
         {/* Czas rozpoczęcia */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Czas rozpoczęcia</Text>
+          <Text style={styles.label}>Pierwszy strzał</Text>
           <TouchableOpacity
             style={styles.timeInputButton}
             onPress={() => setShowStartPicker(true)}
@@ -214,7 +214,7 @@ const ScoreSimulator = () => {
 
         {/* Czas zakończenia */}
         <View style={styles.formGroup}>
-          <Text style={styles.label}>Czas zakończenia</Text>
+          <Text style={styles.label}>Ostatni strzał</Text>
           <TouchableOpacity
             style={styles.timeInputButton}
             onPress={() => {

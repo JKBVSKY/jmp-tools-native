@@ -17,6 +17,6 @@ export default function Clock({ style }) {
 
 const styles = StyleSheet.create({
   clock: {
-    fontSize: 24,
+    fontSize: 22,
   },
 });

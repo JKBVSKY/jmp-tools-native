@@ -13,58 +13,31 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/_context/AuthContext';
 import { getAutoForcedFinishTime } from '@/_utils/timeUtils';
 
-
-function getCurrentShift(date = new Date()) {
-  const h = date.getHours();
-  const m = date.getMinutes();
-
-  // Morning: 06:00 - 12:00
-  if ((h > 6 && h < 12) || (h === 6 && m >= 0) || (h === 12 && m === 0)) {
-    return "Rano";
-  }
-
-  // Afternoon: 12:01 - 21:44
-  if ((h > 12 && h < 21) || (h === 12 && m > 0) || (h === 21 && m < 45)) {
-    return "Popołudnie";
-  }
-
-  // Night: 21:45 - 05:59
-  return "Noc";
-}
-
 export default function Init({ changeMode, setStartTime, startTime, forcedFinishTime, setForcedFinishTime, calcUpdateState }) {
   const [showAdjustStartTimeModal, setShowAdjustStartTimeModal] = useState(false);
   const [showAdjustFinishTimeModal, setShowAdjustFinishTimeModal] = useState(false);
-  const shift = getCurrentShift();
   const colors = useColors();
   const [averageRate, setAverageRate] = useState('0.00');
   const { user } = useAuth();
 
-  // Auto-set forcedFinishTime when component mounts or when modal closes
-  useEffect(() => {
-    if (!forcedFinishTime) {
-      setForcedFinishTime(getAutoForcedFinishTime());
-    }
-  }, []);
-
+useEffect(() => {
   // Calculate average rate when component mounts
-  useEffect(() => {
-    const loadAverageRate = async () => {
-      try {
-        const savedSessions = await AsyncStorage.getItem('scoreHistory');
-        if (savedSessions) {
-          const sessions = JSON.parse(savedSessions);
-          const summary = calculateSummary(sessions);
-          if (summary) {
-            setAverageRate(summary.averageRate);
-          }
+  const loadAverageRate = async () => {
+    try {
+      const savedSessions = await AsyncStorage.getItem('scoreHistory');
+      if (savedSessions) {
+        const sessions = JSON.parse(savedSessions);
+        const summary = calculateSummary(sessions);
+        if (summary) {
+          setAverageRate(summary.averageRate);
         }
-      } catch (error) {
-        console.error('Failed to load average rate:', error);
       }
-    };
-    loadAverageRate();
-  }, []);
+    } catch (error) {
+      console.error('Failed to load average rate:', error);
+    }
+  };
+  loadAverageRate();
+}, []);
 
   const handleStart = () => {
     calcUpdateState({  // ✅ Use the prop passed from Calculator
@@ -75,79 +48,58 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <Text style={[styles.headerText, { color: colors.text }]}>Załadunek</Text>
       {/* Stats Cards Section */}
       <View style={styles.statsSection}>
-        <View style={styles.statsGrid}>
-          {/* Card 1: Actual time */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Aktualny czas</Text>
-            </View>
-            <Text style={[styles.cardValue, styles.clock, { color: colors.text }]}>
-              <Clock />
-            </Text>
+        <View style={[styles.statsGridModern, { backgroundColor: colors.cardBackground }]}> 
+          <View style={styles.headerRow}>
+            <Ionicons name="settings-outline" size={24} style={{ color: colors.grayIconColor }} />
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Ustawienia czasu</Text>
           </View>
-
-          {/* Card 2: Choosen time */}
-          <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustStartTimeModal(true)}>
-            <View style={styles.cardHeader}>
-              <MaterialCommunityIcons name="timer-sand" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Wybrany czas</Text>
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{new Date(startTime).toLocaleTimeString()}</Text>
-          </TouchableOpacity>
-
-          {/* Card 3: Shift */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.cardHeader}>
-              <MaterialIcons name="work-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Zmniana</Text>
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{shift}</Text>
+          {/* Row 1: Two cards side by side */}
+          <View style={styles.row}>
+            {/* Card 1: Start time */}
+            <TouchableOpacity style={[styles.statCardModern, { backgroundColor: colors.cardInCardBackground }]} onPress={() => setShowAdjustStartTimeModal(true)}>
+              <MaterialCommunityIcons name="timer-sand" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+              <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Czas rozpoczęcia</Text>
+              <Text style={[styles.cardValueModern, { color: colors.cardValue }]}>{new Date(startTime).toLocaleTimeString()}</Text>
+            </TouchableOpacity>
+            {/* Card 2: Finish time */}
+            <TouchableOpacity style={[styles.statCardModern, { backgroundColor: colors.cardInCardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
+              <MaterialCommunityIcons name="timer-off-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+              <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Czas zakończenia</Text>
+              <Text style={[styles.cardValueModern, { color: colors.cardValue }]}>{forcedFinishTime ? new Date(forcedFinishTime).toLocaleTimeString() : 'Brak'}</Text>
+            </TouchableOpacity>
           </View>
-
-          {/* Card 4: Monthly score */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="stats-chart-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Średnia ogólna</Text>
+          {/* Row 2: One card full width */}
+          <View style={styles.row}>
+            <View style={[styles.statCardModern, styles.statCardWide, { backgroundColor: colors.cardInCardBackground }]}> 
+              <Ionicons name="time-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+              <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Aktualny czas</Text>
+              <Text style={[styles.cardValueModern, { color: colors.cardValue }]}><Clock /></Text>
             </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{averageRate}</Text>
           </View>
-
-          {/* Card 5: Forced finish time */}
-          <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
-            <View style={styles.cardHeader}>
-              <MaterialCommunityIcons name="timer-off-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.text }]}>Czas zakończenia</Text>
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{forcedFinishTime ? new Date(forcedFinishTime).toLocaleTimeString() : 'Brak'}</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.middleContent}>
-        <Text style={[styles.shiftText, { color: colors.text }]}>Witaj ponownie, {user?.name || 'User'}</Text>
-        <Text style={[styles.infoText, { color: colors.text }]}>Aby zmienić czas rozpoczęcia, kliknij przycisk "Dostosuj czas".</Text>
-        <Text style={[styles.infoText, { color: colors.text }]}>
-          Aby rozpocząć pracę, kliknij przycisk "Rozpocznij pracę".
-        </Text>
+        <View style={[styles.middleCard, { backgroundColor: colors.cardBackground }]}>
+          <Ionicons name="information-circle-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+          <Text style={[styles.middleCardTitle, { color: colors.text }]}>Zanim rozpoczniesz</Text>
+          <Text style={[styles.middleCardDescription, { color: colors.text }]}>Upewnij się, że czas rozpoczęcia i zakończenia jest poprawny!</Text>
+          <TouchableOpacity
+            style={[styles.adjustButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
+            onPress={() => setShowAdjustStartTimeModal(true)}
+          >
+            <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
+            <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       < Spacer height={128} />
 
       {/* Buttons */}
       <View style={styles.buttonsContainer}>
-        <TouchableOpacity
-          style={[styles.adjustButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
-          onPress={() => setShowAdjustStartTimeModal(true)}
-        >
-          <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
-          <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity
           style={[styles.startButton, { backgroundColor: colors.butBackground, opacity: forcedFinishTime ? 1 : 0.5 }]}
           onPress={handleStart}
@@ -164,8 +116,6 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
         onClose={() => setShowAdjustStartTimeModal(false)}
         onConfirm={(newStartTime) => {
           setStartTime(newStartTime);
-          // Auto-update forcedFinishTime when startTime changes
-          setForcedFinishTime(getAutoForcedFinishTime());
           setShowAdjustStartTimeModal(false);
         }}
         initialTime={startTime}
@@ -192,72 +142,108 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 32,
-  },
-  headerText: {
-    fontSize: 26,
-    fontWeight: 'bold',
-    marginBottom: 16,
+    padding: 32,
   },
   statsSection: {
     marginBottom: 16,
   },
-  statsSection: {
-    marginBottom: 16,
-  },
-  statsSection: {
-    marginBottom: 16,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+  statsGridModern: {
+    borderRadius: 16,
+    padding: 12,
     gap: 12,
+    backgroundColor: '#fff', // fallback, will be overridden
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2, // Added shadow properties to match other cards
   },
-  statCard: {
-    width: '48%',
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  cardHeader: {
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 12,
     gap: 8,
+    marginVertical: 2,
   },
-  cardLabel: {
-    fontSize: 12,
+  headerTitle: {
+    fontSize: 22,
     fontWeight: '600',
-    flex: 1,
+    color: '#222',
   },
-  cardValue: {
-    fontSize: 24,
+  row: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 0,
+  },
+  statCardModern: {
+    flex: 1,
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: '#fff', // fallback, will be overridden
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+    alignItems: 'flex-start',
+    minHeight: 90,
+    justifyContent: 'center',
+  },
+  statCardWide: {
+    flex: 1,
+    minWidth: 0,
+    marginTop: 12,
+  },
+  cardIcon: {
+    marginBottom: 4,
+    color: '#e3452d', // fallback, will be overridden
+  },
+  cardTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    marginBottom: 2,
+    marginTop: 2,
+    textAlign: 'left',
+  },
+  cardValueModern: {
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#333',
+    textAlign: 'left',
   },
   topDiv: {
     alignItems: 'center',
-  },
-  clock: {
-    fontSize: 48,
   },
   middleContent: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  shiftText: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 16,
+  middleCard: {
+    borderRadius: 16,
+    padding: 16,
+    backgroundColor: '#fff', // fallback, will be overridden
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
+    alignItems: 'center',
+    justifyContent: 'center', // Center content vertically and horizontally
+    width: '100%',
+    alignSelf: 'stretch', // Ensure it stretches to fit content
+    flexGrow: 1, // Allow the card to grow with its content
   },
-  infoText: {
-    fontSize: 16,
+  middleCardTitle: {
+    fontSize: 17,
+    fontWeight: '600',
+    marginTop: 8,
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  middleCardDescription: {
+    fontSize: 15,
     color: '#666',
     textAlign: 'center',
+    marginBottom: 16,
   },
   bottomDiv: {
     alignItems: 'center',
@@ -269,30 +255,34 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   adjustButton: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center', // Ensure content is centered
     borderWidth: 1,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 24,
     gap: 6,
+    height: 48, // Set a fixed height for a normal button appearance
+    flexGrow: 0, // Prevent the button from growing excessively
   },
   adjustButtonText: {
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '500',
   },
   startButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 24,
     gap: 6,
+    height: 48, // Set a fixed height for a normal button appearance
   },
   startButtonText: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
   },
   playIcon: {

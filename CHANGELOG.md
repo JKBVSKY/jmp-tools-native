@@ -1,41 +1,95 @@
-# Changelog
+﻿# Changelog
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2025-12-08
+## Unreleased
 
 ### Added
-- Redesigned truck item with collapsible UI and real-time time tracking
-- TimeConverter component with decimal/standard time conversion
-- XP rewards system with animated notification
-- Robust XP reward system with online and offline caching
-- Profiles, level system, and achievements system
-- ...and more!
+- (New features in development will be listed here)
 
 ### Fixed
-- Corrected master_loader level progress and speed_hunter per-session tracking
-- Resolved dependency issues and removed invalid edgeToEdgeEnabled property
-- Fixed dependency issues and stabilized app on Expo SDK 51
-- ...and more!
+- (Bug fixes in development will be listed here)
 
-### Technical
-- Initial project setup with Expo SDK 51
-- Core architecture and navigation structure established
+### Changed
+- (Changes to existing functionality will be listed here)
 
 ---
 
-## [0.2.0] - 2025-12-10
+## [0.6.1] - 2026-xx-xx
 
 ### Added
-- Added "Pallets in progress" toggle to New Transport form, allowing creation of transports without known pallet count.
+- (New features in development will be listed here)
+
+### Fixed
+- startTime and forcedFinishTime logic fixed
 
 ### Changed
-- Reduced padding of containers to increase visible workspace in the app.
-- Improved the design of the Results component.
-- Improved the design of the TimeConverter component.
+- Redesigned Init.jsx
+
+---
+
+## [0.6.0] - 2026-03-23
+
+### Added
+- Improved UX in the statistics component by showing a loading spinner overlay until all the data is fetched from the database.
+- Bottom navigation (replaced side nav) for better UX and faster tab switching.
+- Dashboard monthly stats view: current month performance, level and key metrics.
+- Leaderboard feature showing users, rank positions, and pallets/hour score.
+
+### Fixed
+- (in progress) Achievements behavior tracked as known issue for 0.6.1/0.6.2.
+- (in progress) `Init.jsx` needs logic improvements (target 0.6.1).
+- (in progress) XP caching issue still exists, planned fix in 0.6.1.
+
+### Changed
+- The old side navigation bar got removed and replaced with the new bottom bar navigation.
+- UI padding updates in multiple components for cleaner spacing and layout consistency.
+
+---
+
+## [0.5.0] - 2026-03-07
+
+### Added
+- Enhanced score history: monthly view with previous/next month controls and a horizontally scrollable chart.
+- Improved UX on session save by showing a loading spinner overlay and temporarily disabling the save button.
+- Added safety flow when finishing a truck: if pallets are marked as “in progress”, user must enter final pallets count before the truck can be completed.
+- Automatically focus pallets input in NewTransportModal, EditTruckModal, and the pallets confirmation modal so the keyboard opens and user can type immediately.
+
+### Changed
+- Score history is now stored per user in Cloud Firestore instead of local storage, syncing sessions across devices and keeping history tied to the logged-in account.
+- Updated launcher icon with more refined design.
+- Adjusted layout in NewTransportModal and EditTruckModal by swapping the positions of two form elements for a more intuitive input order.
+- Score history summary now reflects only sessions from the selected month, enabling month‑to‑month performance comparison.
+- Enhanced the design of the time converter component.
+
+---
+
+## [0.4.1] - 2026-02-16
+
+### Fixed
+- `forcedFinishTime` no longer resets to `null` on app restart
+- Android launcher icon cropping issue resolved
+- XP accrual after forced finish (caching phantom time) eliminated
+
+### Changed
+- Updated launcher icon with refined design
+
+---
+
+## [0.4.0] - 2026-02-11
+
+### Added
+- 6 new achievements to unlock.
+
+### Changed
+- App fully translated to Polish (English will be added in a later release).
+- New transport and edit transport modals slightly redesigned.
+
+### Removed
+- Dropdown menu from new transport and edit transport (removed due to bugs).
 
 ---
 
@@ -62,71 +116,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
-## [0.4.0] - 2026-02-11
+## [0.2.0] - 2025-12-10
 
 ### Added
-- 6 new achievements to unlock.
+- Added "Pallets in progress" toggle to New Transport form, allowing creation of transports without known pallet count.
 
 ### Changed
-- App fully translated to Polish (English will be added in a later release).
-- New transport and edit transport modals slightly redesigned.
-
-### Removed
-- Dropdown menu from new transport and edit transport (removed due to bugs).
+- Reduced padding of containers to increase visible workspace in the app.
+- Improved the design of the Results component.
+- Improved the design of the TimeConverter component.
 
 ---
 
-## [0.4.1] - 2026-02-16
-
-### Fixed
-- `forcedFinishTime` no longer resets to `null` on app restart
-- Android launcher icon cropping issue resolved
-- XP accrual after forced finish (caching phantom time) eliminated
-
-### Changed
-- Updated launcher icon with refined design
-
----
-
-## [0.5.0] - 2026-03-07
+## [0.1.0] - 2025-12-08
 
 ### Added
-- Enhanced score history: monthly view with previous/next month controls and a horizontally scrollable chart.
-- Improved UX on session save by showing a loading spinner overlay and temporarily disabling the save button.
-- Added safety flow when finishing a truck: if pallets are marked as “in progress”, user must enter final pallets count before the truck can be completed.
-- Automatically focus pallets input in NewTransportModal, EditTruckModal, and the pallets confirmation modal so the keyboard opens and user can type immediately.
-
-### Changed
-- Score history is now stored per user in Cloud Firestore instead of local storage, syncing sessions across devices and keeping history tied to the logged-in account.
-- Updated launcher icon with more refined design.
-- Adjusted layout in NewTransportModal and EditTruckModal by swapping the positions of two form elements for a more intuitive input order.
-- Score history summary now reflects only sessions from the selected month, enabling month‑to‑month performance comparison.
-- Enhanced the design of the time converter component.
-
-## [0.6.0] - 2026-03-23
-
-### Added
-- Improved UX in the statistics component by showing a loading spinner overlay until all the data is fetched from the database.
-- Bottom navigation (replaced side nav) for better UX and faster tab switching.
-- Dashboard monthly stats view: current month performance, level and key metrics.
-- Leaderboard feature showing users, rank positions, and pallets/hour score.
+- Redesigned truck item with collapsible UI and real-time time tracking
+- TimeConverter component with decimal/standard time conversion
+- XP rewards system with animated notification
+- Robust XP reward system with online and offline caching
+- Profiles, level system, and achievements system
+- ...and more!
 
 ### Fixed
-- (in progress) Achievements behavior tracked as known issue for 0.6.1/0.6.2.
-- (in progress) `Init.jsx` needs logic improvements (target 0.6.1).
-- (in progress) XP caching issue still exists, planned fix in 0.6.1.
+- Corrected master_loader level progress and speed_hunter per-session tracking
+- Resolved dependency issues and removed invalid edgeToEdgeEnabled property
+- Fixed dependency issues and stabilized app on Expo SDK 51
+- ...and more!
 
-### Changed
-- The old side navigation bar got removed and replaced with the new bottom bar navigation.
-- UI padding updates in multiple components for cleaner spacing and layout consistency.
-
-## Unreleased
-
-### Added
-- (New features in development will be listed here)
-
-### Fixed
-- (Bug fixes in development will be listed here)
-
-### Changed
-- (Changes to existing functionality will be listed here)
+### Technical
+- Initial project setup with Expo SDK 51
+- Core architecture and navigation structure established

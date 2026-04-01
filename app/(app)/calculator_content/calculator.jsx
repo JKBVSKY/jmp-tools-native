@@ -8,6 +8,7 @@ import { useCalculator } from "@/_context/CalculatorContext";
 import { getAutoStartTime } from "./utils";
 import { useColors } from '@/_hooks/useColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { getAutoForcedFinishTime } from '@/_utils/timeUtils';
 
 export default function Calculator() {
   const [mode, setMode] = useState("init"); // State to manage current mode
@@ -37,20 +38,20 @@ export default function Calculator() {
         return;
       }
 
-      // 1. Reset old startTime (existing logic)
-      if (!isStartTimeFromToday(calc.startTime)) {
-        const newStartTime = getAutoStartTime();
-        calc.updateState({
-          startTime: newStartTime,
-          mode: 'init'
-        });
-      }
+      // Always reset startTime and forcedFinishTime for init mode to refresh based on current time
+      const newStartTime = getAutoStartTime();
+      const newForcedFinishTime = getAutoForcedFinishTime(newStartTime);
+      calc.updateState({
+        startTime: newStartTime,
+        forcedFinishTime: newForcedFinishTime,
+        mode: 'init'
+      });
 
-      // 2. NEW: Clear finalized sessions (only if old date)
-      if (calc.sessionStatus === 'finalized' && !isStartTimeFromToday(calc.startTime)) {
-        calc.clearState();  // Full reset OR targeted: { startTime: null, sessionStatus: 'cleared', mode: 'init' }
+      // Clear finalized sessions
+      if (calc.sessionStatus === 'finalized') {
+        calc.clearState();
       }
-    }, [calc.isRestored, calc.mode, calc.startTime, calc.sessionStatus])  // ← ADD sessionStatus to deps
+    }, [calc.isRestored, calc.mode, calc.sessionStatus])
   );
 
   if (!calc.isRestored) {
