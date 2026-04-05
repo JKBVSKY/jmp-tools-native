@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Alert, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../_context/AuthContext';
-import { useColors } from '../../_hooks/useColors';
+import { useAuth } from '@/_context/AuthContext';
+import { useColors } from '@/_hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
+import DismissKeyboardView from '@/components/DismissKeyboardView';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -32,7 +33,7 @@ export default function Login() {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <DismissKeyboardView style={{ flex: 1 }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.title }]}>Zaloguj Się</Text>
         <Text style={[styles.desc, { color: colors.textSecondary }]}>
@@ -106,7 +107,7 @@ export default function Login() {
           </Text>
         </Pressable>
       </View>
-    </TouchableWithoutFeedback>
+    </DismissKeyboardView>
   );
 }
 

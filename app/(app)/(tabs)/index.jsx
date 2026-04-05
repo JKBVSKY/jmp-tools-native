@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, Text, View, Pressable, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View, Pressable, ActivityIndicator, ScrollView } from 'react-native';
 import { useColors } from '@/_hooks/useColors';
 import ThemedView from '@/components/ThemedView';
 import { useAuth } from '@/_context/AuthContext';
@@ -135,93 +135,106 @@ export default function Dashboard() {
       ]}
     >
       {isGuest && (
-        <View style={[styles.guestBanner, { backgroundColor: colors.guestBackground }]}>
-          <Text style={[styles.guestText, { color: colors.guestText }]}>
-            Korzystasz z aplikacji w trybie gościa. Zarejestruj się, aby zapisać swoje dane!
-          </Text>
-          <Pressable
-            style={[styles.upgradeButton, { backgroundColor: colors.butBackground }]}
-            onPress={handleCreateAccount}
-          >
-            <Text style={[styles.upgradeText, { color: colors.butText }]}>Utwórz Konto</Text>
-          </Pressable>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'left' }}>
+          <View style={{ marginBottom: 20 }}>
+            <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
+            <Text style={{ color: colors.text, fontSize: 15 }}>Produktywność na wyciągnięcie ręki.</Text>
+          </View>
+          <View style={[styles.guestBanner, { backgroundColor: colors.guestBackground }]}>
+            <Text style={[styles.guestText, { color: colors.guestText }]}>
+              Korzystasz z aplikacji w trybie gościa. Zarejestruj się, aby móc w pełni korzystać z funkcji!
+            </Text>
+            <Pressable
+              style={[styles.upgradeButton, { backgroundColor: colors.butBackground }]}
+              onPress={handleCreateAccount}
+            >
+              <Text style={[styles.upgradeText, { color: colors.butText }]}>Utwórz Konto</Text>
+            </Pressable>
+          </View>
         </View>
       )}
 
-      <View style={styles.content}>
-        {/* Top content */}
-        <View>
-          <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
-          <Text style={{ color: colors.text, fontSize: 15 }}>Produktywność na wyciągnięcie ręki.</Text>
-
-          <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>
-            <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressBar, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
-                <View
-                  style={[
-                    styles.progressFill,
-                    { backgroundColor: colors.iconColor, width: `${Math.min(xpProgress, 100)}%` },
-                  ]}
-                />
-              </View>
-              <Text style={[styles.progressText, { color: colors.text }]}>{currentXP} / {nextXP} XP</Text>
-            </View>
-            <Text style={[styles.achievements, { color: colors.text }]}>Osiągnięcia: {achievementsUnlocked} / {achievementsTotal}</Text>
-          </ThemedCard>
-
-          <Text style={[styles.welcome, { color: colors.text, fontSize: 24 }]}>Podsumowanie Miesięczne - Załadunek</Text>
-          <View style={styles.statsGrid}>
-            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Ionicons name="flash-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
-              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Średnia miesięczna</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{summary.averageRate.toFixed(2)} pal/h</Text>
-            </ThemedCard>
-            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Ionicons name="layers-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
-              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Palety w miesiącu</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{summary.totalPallets}</Text>
-            </ThemedCard>
-            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Ionicons name="trophy-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
-              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Miejsce w rankingu</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{rank}</Text>
-            </ThemedCard>
-            <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-              <Ionicons name="time-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4 }]} />
-              <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Czas ładowania</Text>
-              <Text style={[styles.statValue, { color: colors.text }]}>{formatTime(summary.totalTime)}</Text>
-            </ThemedCard>
-          </View>
-        </View>
-
-        {/* Bottom Content */}
-        <View>
-          {/* Start Button */}
-          <TouchableOpacity
-            onPress={handleSessionButtonPress}
-            disabled={isSessionModalVisible}
-            style={[
-              styles.startButton,
-              {
-                backgroundColor: colors.butBackground,
-                marginTop: 20,
-                opacity: isSessionModalVisible ? 0.85 : 1,
-              },
-            ]}
+      {!isGuest && (
+        <View style={styles.content}>
+          <ScrollView
+            style={{ flex: 1 }}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
           >
-            {isSessionModalVisible ? (
-              <ActivityIndicator size="small" color={colors.butText} />
-            ) : (
-              <Text style={[styles.startButtonText, { color: colors.butText }]}>
-                {sessionButtonLabel}
-              </Text>
-            )}
-          </TouchableOpacity>
+            {/* Top content */}
+            <View>
+              <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
+              <Text style={{ color: colors.text, fontSize: 15 }}>Produktywność na wyciągnięcie ręki.</Text>
 
-        </View>
+              <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>
+                <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
+                <View style={styles.progressContainer}>
+                  <View style={[styles.progressBar, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
+                    <View
+                      style={[
+                        styles.progressFill,
+                        { backgroundColor: colors.iconColor, width: `${Math.min(xpProgress, 100)}%` },
+                      ]}
+                    />
+                  </View>
+                  <Text style={[styles.progressText, { color: colors.text }]}>{currentXP} / {nextXP} XP</Text>
+                </View>
+                <Text style={[styles.achievements, { color: colors.text }]}>Osiągnięcia: {achievementsUnlocked} / {achievementsTotal}</Text>
+              </ThemedCard>
 
-        {/* <Text style={[styles.welcome, { color: colors.text, fontSize: 16 }]}>Podsumowanie Miesięczne - Kompletacja</Text>
+              <Text style={[styles.welcome, { color: colors.text, fontSize: 24 }]}>Podsumowanie Miesięczne - Załadunek</Text>
+              <View style={styles.statsGrid}>
+                <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                  <Ionicons name="flash-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
+                  <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Średnia miesięczna</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{summary.averageRate.toFixed(2)} pal/h</Text>
+                </ThemedCard>
+                <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                  <Ionicons name="layers-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
+                  <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Palety w miesiącu</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{summary.totalPallets}</Text>
+                </ThemedCard>
+                <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                  <Ionicons name="trophy-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]} />
+                  <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Miejsce w rankingu</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{rank}</Text>
+                </ThemedCard>
+                <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                  <Ionicons name="time-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4 }]} />
+                  <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Czas ładowania</Text>
+                  <Text style={[styles.statValue, { color: colors.text }]}>{formatTime(summary.totalTime)}</Text>
+                </ThemedCard>
+              </View>
+            </View>
+          </ScrollView>
+          {/* Bottom Content */}
+          <View style={styles.buttonContainer}>
+            {/* Start Button */}
+            <TouchableOpacity
+              onPress={handleSessionButtonPress}
+              disabled={isSessionModalVisible}
+              style={[
+                styles.startButton,
+                {
+                  backgroundColor: colors.butBackground,
+                  marginTop: 20,
+                  opacity: isSessionModalVisible ? 0.85 : 1,
+                },
+              ]}
+            >
+              {isSessionModalVisible ? (
+                <ActivityIndicator size="small" color={colors.butText} />
+              ) : (
+                <Text style={[styles.startButtonText, { color: colors.butText }]}>
+                  {sessionButtonLabel}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+          </View>
+
+          {/* <Text style={[styles.welcome, { color: colors.text, fontSize: 16 }]}>Podsumowanie Miesięczne - Kompletacja</Text>
         <View style={styles.statsGrid}>
           <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
             <Text style={[styles.statTitle, { color: colors.text }]}>Średnia miesięczna</Text>
@@ -240,7 +253,8 @@ export default function Dashboard() {
             <Text style={[styles.statValue, { color: colors.text }]}>8h 30m</Text>
           </ThemedCard>
         </View> */}
-      </View>
+        </View>
+      )}
       <SessionModal
         visible={isSessionModalVisible}
         onClose={() => setSessionModalVisible(false)}
@@ -252,7 +266,7 @@ export default function Dashboard() {
           { key: 'owijarki', label: 'Owijarki', icon: 'settings' },
         ]}
       />
-    </ThemedView>
+    </ThemedView >
   );
 }
 
@@ -260,11 +274,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 32,
+    paddingBottom: 0,
   },
   content: {
     flex: 1,
     marginTop: 20,
     justifyContent: 'space-between',
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
   },
   welcome: {
     fontSize: 28,
@@ -340,6 +359,9 @@ const styles = StyleSheet.create({
   upgradeText: {
     color: '#fff',
     fontWeight: '600',
+  },
+  buttonContainer: {
+    paddingBottom: 16,
   },
   startButton: {
     alignItems: 'center',

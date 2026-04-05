@@ -12,6 +12,8 @@ import { useBackgroundXP } from '@/_hooks/useBackgroundXP';
 import { db } from '@/firebase/config';
 import { collection, addDoc } from 'firebase/firestore';
 import { useAuth } from '@/_context/AuthContext';
+import { appConfirm, appAlert } from '@/_utils/crossPlatformAlert';
+
 
 export default function Results({
   loadingTime,
@@ -71,7 +73,7 @@ export default function Results({
       }
 
       const sessionData = {
-        date: new Date().toISOString(),
+        date: new Date(startTime).toISOString(),  // ✅ Safe conversion
         loadingTime,
         startTime,
         endTime,
@@ -83,7 +85,7 @@ export default function Results({
       };
 
       if (!userId) {
-        Alert.alert('Błąd', 'Brak zalogowanego użytkownika – nie można zapisać historii.');
+        appAlert('Błąd', 'Brak zalogowanego użytkownika – nie można zapisać historii.');
         return;
       }
 
@@ -95,7 +97,7 @@ export default function Results({
       const xpResult = await awardXP(xpEarned);
 
       if (!xpResult) {
-        Alert.alert('Error', 'Failed to award XP for session');
+        appAlert('Error', 'Failed to award XP for session');
         return;
       }
 
@@ -150,25 +152,25 @@ export default function Results({
       }
 
       if (xpResult.leveledUp) {
-        Alert.alert(
+        appAlert(
           '🎉 Level Up!',
           `Gratulacje! Zdobyłeś poziom ${xpResult.newLevel}!\n\n${message}`,
-          [{ text: 'Kontynuuj', onPress: finishSession }]
+          finishSession
         );
       } else {
         const levelData = calculateLevelFromXP(profile.totalXP + xpEarned);
         const progressText = `Postęp do Poziomu ${xpResult.newLevel + 1}: ${levelData.currentXP} / ${levelData.xpToNextLevel} XP`;
 
-        Alert.alert(
+        appAlert(
           '⭐ Sesja Zapisana!',
           `${message}\n\n${progressText}`,
-          [{ text: 'Kontynuuj', onPress: finishSession }]
+          finishSession
         );
       }
 
     } catch (error) {
       console.error('❌ Error saving session:', error);
-      Alert.alert('Błąd', 'Nie udało się zapisać sesji: ' + error.message);
+      appAlert('Błąd', 'Nie udało się zapisać sesji: ' + error.message);
     } finally {
       setIsSaving(false);
     }
@@ -184,17 +186,14 @@ export default function Results({
   };
 
   const handleDiscard = async () => {
-    Alert.alert('Odrzucanie sesji', 'Jesteś pewien? Stracisz punkty XP!', [
-      { text: 'Powrót' },
-      {
-        text: 'Odrzuć',
-        onPress: async () => {
-          await calc.clearState();
-          changeMode('init');
-        },
-        style: 'destructive',
-      },
-    ]);
+    appConfirm(
+      'Odrzucanie sesji',
+      'Jesteś pewien? Stracisz punkty XP!',
+      async () => {
+        await calc.clearState();
+        changeMode('init');
+      }
+    );
   };
 
   return (
@@ -205,98 +204,104 @@ export default function Results({
           <Text style={{ color: colors.text, marginTop: 8 }}>Zapisywanie...</Text>
         </View>
       )}
+
       <View style={styles.container}>
-        <Text style={[styles.title, { color: colors.title }]}>Sesja Zakończona! ✓</Text>
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <Text style={[styles.title, { color: colors.title }]}>Sesja Zakończona! ✓</Text>
 
-        {/* Score Display */}
-        <View style={[styles.scoreCard, { backgroundColor: colors.cardBackground }]}>
-          <View style={styles.scoreContent}>
-            <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Ocena Sesji</Text>
-            <Text style={[styles.scoreValue, { color: colors.text }]}>{sessionScore.toFixed(1)}/10.0</Text>
-            <Text style={[styles.scoreXP, { color: colors.textSecondary }]}>
-              +{calculateXPFromScore(sessionScore)} XP
-            </Text>
-          </View>
-          <View style={styles.scoreIcon}>
-            <Ionicons name="star" size={40} color={colors.iconColor} />
-          </View>
-        </View>
-
-        {/* Stats Cards Section */}
-        <View style={styles.statsSection}>
-          <View style={styles.statsGrid}>
-            {/* Card 1: Elapsed Time */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="clock" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Sesji</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
+          {/* Score Display */}
+          <View style={[styles.scoreCard, { backgroundColor: colors.cardBackground }]}>
+            <View style={styles.scoreContent}>
+              <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Ocena Sesji</Text>
+              <Text style={[styles.scoreValue, { color: colors.text }]}>{sessionScore.toFixed(1)}/10.0</Text>
+              <Text style={[styles.scoreXP, { color: colors.textSecondary }]}>
+                +{calculateXPFromScore(sessionScore)} XP
+              </Text>
             </View>
-
-            {/* Card 2: Pallets Loaded */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="cube-send" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Palety Załadowane</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
-            </View>
-          </View>
-          <View style={styles.statsGrid}>
-            {/* Card 3: Rate (per hour) */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="speedometer" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/h</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
-            </View>
-
-            {/* Card 4: Trucks Loaded */}
-            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <View style={styles.cardHeader}>
-                <MaterialCommunityIcons name="truck" size={20} color={colors.iconColor} />
-                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Naczepy Załadowane</Text>
-              </View>
-              <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
+            <View style={styles.scoreIcon}>
+              <Ionicons name="star" size={40} color={colors.iconColor} />
             </View>
           </View>
 
-        </View>
-
-
-        {/* Session Details */}
-        <View style={[styles.detailsBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-          <Text style={[styles.detailsTitle, { color: colors.title }]}>Szczegóły Sesji</Text>
-          <View style={[styles.detailRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Rozpoczęto o:</Text>
-            <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(startTime)}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Zakończono o:</Text>
-            <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(endTime)}</Text>
-          </View>
-        </View>
-
-        <ScrollView style={styles.scrollView}>
-          {/* Trucks Summary */}
-          <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-            <Text style={[styles.trucksTitle, { color: colors.title }]}>Szczegóły Dostaw</Text>
-            {trucksHistory.map((truck, idx) => (
-              <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
-                <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
-                <View style={styles.truckInfo}>
-                  <Text style={[styles.truckInfo, { color: colors.text }]}>
-                    {truck.pallets} palet • Sklep {truck.shop} • Brama {truck.gate} • Naczepa {truck.trailer}
-                  </Text>
+          {/* Stats Cards Section */}
+          <View style={styles.statsSection}>
+            <View style={styles.statsGrid}>
+              {/* Card 1: Elapsed Time */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <View style={styles.cardHeader}>
+                  <MaterialCommunityIcons name="clock" size={20} color={colors.iconColor} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Sesji</Text>
                 </View>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
               </View>
-            ))}
+
+              {/* Card 2: Pallets Loaded */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <View style={styles.cardHeader}>
+                  <MaterialCommunityIcons name="cube-send" size={20} color={colors.iconColor} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Palety Załadowane</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
+              </View>
+            </View>
+            <View style={styles.statsGrid}>
+              {/* Card 3: Rate (per hour) */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <View style={styles.cardHeader}>
+                  <MaterialCommunityIcons name="speedometer" size={20} color={colors.iconColor} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/h</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
+              </View>
+
+              {/* Card 4: Trucks Loaded */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <View style={styles.cardHeader}>
+                  <MaterialCommunityIcons name="truck" size={20} color={colors.iconColor} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Naczepy Załadowane</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
+              </View>
+            </View>
+
           </View>
+
+
+          {/* Session Details */}
+          <View style={[styles.detailsBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Text style={[styles.detailsTitle, { color: colors.title }]}>Szczegóły Sesji</Text>
+            <View style={[styles.detailRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Rozpoczęto o:</Text>
+              <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(startTime)}</Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Zakończono o:</Text>
+              <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(endTime)}</Text>
+            </View>
+          </View>
+
+          <ScrollView style={styles.scrollView}>
+            {/* Trucks Summary */}
+            <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <Text style={[styles.trucksTitle, { color: colors.title }]}>Szczegóły Dostaw</Text>
+              {trucksHistory.map((truck, idx) => (
+                <View key={idx} style={[styles.truckRow, { borderBottomColor: colors.border }]}>
+                  <Text style={[styles.truckNum, { color: colors.iconColor }]}>#{truck.displayId}</Text>
+                  <View style={styles.truckInfo}>
+                    <Text style={[styles.truckInfo, { color: colors.text }]}>
+                      {truck.pallets} palet • Sklep {truck.shop} • Brama {truck.gate} • Naczepa {truck.trailer}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
         </ScrollView>
-
-
         {/* Action Buttons */}
         <View style={styles.buttonsContainer}>
           <Pressable
@@ -334,7 +339,7 @@ export default function Results({
           </Pressable>
         </View>
       </View>
-    </View>
+    </View >
   );
 }
 
@@ -347,9 +352,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 8,
+    paddingHorizontal: 16,
     paddingVertical: 32,
     justifyContent: 'space-between',
+    paddingBottom: 0,
   },
   title: {
     fontSize: 28,
@@ -464,6 +470,7 @@ const styles = StyleSheet.create({
   buttonsContainer: {
     flexDirection: 'row',
     gap: 12,
+    paddingVertical: 16,
   },
   button: {
     flex: 1,

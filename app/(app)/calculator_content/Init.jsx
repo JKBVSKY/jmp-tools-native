@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
@@ -12,6 +12,7 @@ import { calculateSummary } from "@/app/(app)/(tabs)/scoreHistory";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/_context/AuthContext';
 import { getAutoForcedFinishTime } from '@/_utils/timeUtils';
+import { useWindowDimensions } from 'react-native';
 
 export default function Init({ changeMode, setStartTime, startTime, forcedFinishTime, setForcedFinishTime, calcUpdateState }) {
   const [showAdjustStartTimeModal, setShowAdjustStartTimeModal] = useState(false);
@@ -20,24 +21,36 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
   const [averageRate, setAverageRate] = useState('0.00');
   const { user } = useAuth();
 
-useEffect(() => {
-  // Calculate average rate when component mounts
-  const loadAverageRate = async () => {
-    try {
-      const savedSessions = await AsyncStorage.getItem('scoreHistory');
-      if (savedSessions) {
-        const sessions = JSON.parse(savedSessions);
-        const summary = calculateSummary(sessions);
-        if (summary) {
-          setAverageRate(summary.averageRate);
+  // Responsive design breakpoints
+  const { width } = useWindowDimensions();
+
+  const isSmallPhone = width <= 375;     // iPhone SE-like
+  const isPhone = width < 430;
+  const isTablet = width >= 768;
+  const horizontalPadding = isSmallPhone ? 16 : 24;
+  const cardGap = isSmallPhone ? 10 : 16;
+  const titleSize = isSmallPhone ? 18 : 22;
+  const valueSize = isSmallPhone ? 16 : 20;
+  const bodySize = isSmallPhone ? 14 : 16;
+
+  useEffect(() => {
+    // Calculate average rate when component mounts
+    const loadAverageRate = async () => {
+      try {
+        const savedSessions = await AsyncStorage.getItem('scoreHistory');
+        if (savedSessions) {
+          const sessions = JSON.parse(savedSessions);
+          const summary = calculateSummary(sessions);
+          if (summary) {
+            setAverageRate(summary.averageRate);
+          }
         }
+      } catch (error) {
+        console.error('Failed to load average rate:', error);
       }
-    } catch (error) {
-      console.error('Failed to load average rate:', error);
-    }
-  };
-  loadAverageRate();
-}, []);
+    };
+    loadAverageRate();
+  }, []);
 
   const handleStart = () => {
     calcUpdateState({  // ✅ Use the prop passed from Calculator
@@ -47,56 +60,63 @@ useEffect(() => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Stats Cards Section */}
-      <View style={styles.statsSection}>
-        <View style={[styles.statsGridModern, { backgroundColor: colors.cardBackground }]}> 
-          <View style={styles.headerRow}>
-            <Ionicons name="settings-outline" size={24} style={{ color: colors.grayIconColor }} />
-            <Text style={[styles.headerTitle, { color: colors.text }]}>Ustawienia czasu</Text>
-          </View>
-          {/* Row 1: Two cards side by side */}
-          <View style={styles.row}>
-            {/* Card 1: Start time */}
-            <TouchableOpacity style={[styles.statCardModern, { backgroundColor: colors.cardInCardBackground }]} onPress={() => setShowAdjustStartTimeModal(true)}>
-              <MaterialCommunityIcons name="timer-sand" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
-              <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Czas rozpoczęcia</Text>
-              <Text style={[styles.cardValueModern, { color: colors.cardValue }]}>{new Date(startTime).toLocaleTimeString()}</Text>
-            </TouchableOpacity>
-            {/* Card 2: Finish time */}
-            <TouchableOpacity style={[styles.statCardModern, { backgroundColor: colors.cardInCardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
-              <MaterialCommunityIcons name="timer-off-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
-              <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Czas zakończenia</Text>
-              <Text style={[styles.cardValueModern, { color: colors.cardValue }]}>{forcedFinishTime ? new Date(forcedFinishTime).toLocaleTimeString() : 'Brak'}</Text>
-            </TouchableOpacity>
-          </View>
-          {/* Row 2: One card full width */}
-          <View style={styles.row}>
-            <View style={[styles.statCardModern, styles.statCardWide, { backgroundColor: colors.cardInCardBackground }]}> 
-              <Ionicons name="time-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
-              <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Aktualny czas</Text>
-              <Text style={[styles.cardValueModern, { color: colors.cardValue }]}><Clock /></Text>
+    <View style={[styles.container, { backgroundColor: colors.background, paddingHorizontal: horizontalPadding }]}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* Stats Cards Section */}
+        <View style={styles.statsSection}>
+          <View style={[styles.statsGridModern, { backgroundColor: colors.cardBackground }, isSmallPhone && styles.statsGridSmall]}>
+            <View style={styles.headerRow}>
+              <Ionicons name="settings-outline" size={24} style={{ color: colors.grayIconColor }} />
+              <Text style={[styles.headerTitle, { color: colors.text }]}>Ustawienia czasu</Text>
+            </View>
+            {/* Row 1: Two cards side by side */}
+            <View style={[styles.row, isSmallPhone && styles.statsRowSmall]}>
+              {/* Card 1: Start time */}
+              <TouchableOpacity style={[styles.statCardModern, { backgroundColor: colors.cardInCardBackground }]} onPress={() => setShowAdjustStartTimeModal(true)}>
+                <MaterialCommunityIcons name="timer-sand" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+                <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Czas rozpoczęcia</Text>
+                <Text style={[styles.cardValueModern, { color: colors.cardValue }]}>{new Date(startTime).toLocaleTimeString()}</Text>
+              </TouchableOpacity>
+              {/* Card 2: Finish time */}
+              <TouchableOpacity style={[styles.statCardModern, { backgroundColor: colors.cardInCardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
+                <MaterialCommunityIcons name="timer-off-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+                <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Czas zakończenia</Text>
+                <Text style={[styles.cardValueModern, { color: colors.cardValue }]}>{forcedFinishTime ? new Date(forcedFinishTime).toLocaleTimeString() : 'Brak'}</Text>
+              </TouchableOpacity>
+            </View>
+            {/* Row 2: One card full width */}
+            <View style={styles.row}>
+              <View style={[styles.statCardModern, styles.statCardWide, { backgroundColor: colors.cardInCardBackground }]}>
+                <Ionicons name="time-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+                <Text style={[styles.cardTitle, { color: colors.cardTitle }]}>Aktualny czas</Text>
+                <Text style={[styles.cardValueModern, { color: colors.cardValue }]}><Clock /></Text>
+              </View>
             </View>
           </View>
         </View>
-      </View>
 
-      <View style={styles.middleContent}>
-        <View style={[styles.middleCard, { backgroundColor: colors.cardBackground }]}>
-          <Ionicons name="information-circle-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
-          <Text style={[styles.middleCardTitle, { color: colors.text }]}>Zanim rozpoczniesz</Text>
-          <Text style={[styles.middleCardDescription, { color: colors.text }]}>Upewnij się, że czas rozpoczęcia i zakończenia jest poprawny!</Text>
-          <TouchableOpacity
-            style={[styles.adjustButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
-            onPress={() => setShowAdjustStartTimeModal(true)}
-          >
-            <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
-            <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
-          </TouchableOpacity>
+        <View style={styles.middleContent}>
+          <View style={[styles.middleCard, { backgroundColor: colors.cardBackground }]}>
+            <Ionicons name="information-circle-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
+            <Text style={[styles.middleCardTitle, { color: colors.text }]}>Zanim rozpoczniesz</Text>
+            <Text style={[styles.middleCardDescription, { color: colors.text }]}>Upewnij się, że czas rozpoczęcia i zakończenia jest poprawny!</Text>
+            <TouchableOpacity
+              style={[styles.adjustButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
+              onPress={() => setShowAdjustStartTimeModal(true)}
+            >
+              <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
+              <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
 
-      < Spacer height={128} />
+        < Spacer height={128} />
+      </ScrollView>
 
       {/* Buttons */}
       <View style={styles.buttonsContainer}>
@@ -143,6 +163,11 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
     padding: 32,
+    paddingBottom: 0,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
   },
   statsSection: {
     marginBottom: 16,
@@ -150,13 +175,16 @@ const styles = StyleSheet.create({
   statsGridModern: {
     borderRadius: 16,
     padding: 12,
-    gap: 12,
+    gap: 16,
     backgroundColor: '#fff', // fallback, will be overridden
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
     elevation: 2, // Added shadow properties to match other cards
+  },
+  statsGridSmall: {
+    flexDirection: 'column',
   },
   headerRow: {
     flexDirection: 'row',
@@ -192,6 +220,9 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     marginTop: 12,
+  },
+  statsRowSmall: {
+    flexDirection: 'column',
   },
   cardIcon: {
     marginBottom: 4,
@@ -253,6 +284,7 @@ const styles = StyleSheet.create({
     gap: 18,
     justifyContent: 'space-between',
     flexWrap: 'wrap',
+    paddingVertical: 16,
   },
   adjustButton: {
     flexDirection: 'row',

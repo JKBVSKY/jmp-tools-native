@@ -1,6 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react';
+import { Platform } from 'react-native';
 import { initializeApp } from 'firebase/app';
 import {
+  getAuth,
   initializeAuth,
   getReactNativePersistence,
   createUserWithEmailAndPassword,
@@ -26,9 +28,18 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 
-const auth = initializeAuth(app, {
-  persistence: getReactNativePersistence(ReactNativeAsyncStorage),
-});
+// IMPORTANT: different init for web vs native
+let auth;
+
+if (Platform.OS === 'web') {
+  // Web bundle of firebase/auth has its own persistence implementation
+  auth = getAuth(app);
+} else {
+  // Native: use AsyncStorage persistence
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+  });
+}
 
 export const db = getFirestore(app);
 
@@ -148,7 +159,7 @@ export function AuthProvider({ children }) {
           if (guestMode === 'true') {
             const guestUser = {
               id: await StorageManager.getItem('guestId'),
-              name: 'Guest User',
+              name: 'Gość',
               isGuest: true,
             };
 
@@ -174,7 +185,7 @@ export function AuthProvider({ children }) {
     const guestId = `guest_${Date.now()}`;
     const guestUser = {
       id: guestId,
-      name: 'Guest User',
+      name: 'Gość',
       isGuest: true,
     };
 

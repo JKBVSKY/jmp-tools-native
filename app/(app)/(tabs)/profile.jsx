@@ -8,6 +8,7 @@ import { ACHIEVEMENTS, calculateLevelFromXP } from '@/constants/LevelSystem';
 import { useRouter } from 'expo-router';
 import { AchievementModal } from '@/app/(app)/modals/AchievementModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useResponsive } from '@/_hooks/useResponsive';
 
 export default function Profile() {
   const { user, isGuest, signOut } = useAuth();
@@ -17,11 +18,22 @@ export default function Profile() {
   const [selectedAchievement, setSelectedAchievement] = React.useState(null);
   const [modalVisible, setModalVisible] = React.useState(false);
   const insets = useSafeAreaInsets();
+  const { width, isSmallPhone } = useResponsive();
+
+  const [gridWidth, setGridWidth] = React.useState(0);
+
+  const columns = width < 340 ? 1 : width <= 375 ? 2 : 3;
+  const gap = isSmallPhone ? 12 : 14;
+
+  const itemWidth =
+    gridWidth > 0
+      ? (gridWidth - gap * (columns - 1)) / columns - 2
+      : 0;
 
   // ✅ HANDLE GUEST USERS
   if (isGuest) {
     return (
-      <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}>
         <View style={[styles.header, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1 }]}>
           <Ionicons name="person-outline" size={80} color={colors.iconColor} />
           <Text style={[styles.userName, { color: colors.title }]}>Gość</Text>
@@ -65,21 +77,8 @@ export default function Profile() {
           }}
         >
           <Ionicons name="pencil" size={20} color={colors.butText} />
-          <Text style={[styles.buttonText, { color: colors.butText }]}>Utwórz Konto Teraz..</Text>
+          <Text style={[styles.buttonText, { color: colors.butText }]}>Utwórz Konto Teraz</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.loginButton, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}
-          onPress={() => {
-            signOut();
-            router.replace('/(auth)/login');
-          }}
-        >
-          <Ionicons name="log-in" size={20} color={colors.iconColor} />
-          <Text style={[styles.buttonText, { color: colors.textSecondary }]}>..lub Zaloguj Się</Text>
-        </TouchableOpacity>
-
-        <View style={{ height: 30 }} />
       </ScrollView>
     );
   }
@@ -149,14 +148,20 @@ export default function Profile() {
     unlocked: profile.achievements.includes(achievement.id),
   }));
 
+  const iconSize = isSmallPhone ? 50 : 30;
+
   const renderIcon = (icon) => {
     if (typeof icon === 'string') {
-      return <Text style={styles.achievementIcon}>{icon}</Text>;
+      return (
+        <Text style={{ fontSize: iconSize }}>
+          {icon}
+        </Text>
+      );
     }
 
     if (typeof icon === 'function' || (typeof icon === 'object' && icon?.render)) {
       const IconComponent = icon;
-      return <IconComponent size={48} />;
+      return <IconComponent size={iconSize} />;
     }
 
     return null;
@@ -261,7 +266,6 @@ export default function Profile() {
       </View>
 
       {/* Achievements Card */}
-      {/* Achievements Card */}
       <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.borderColor, borderWidth: 1 }]}>
         <View style={styles.cardHeader}>
           <Ionicons name="trophy" size={24} color={colors.iconColor} />
@@ -270,13 +274,17 @@ export default function Profile() {
           </Text>
         </View>
 
-        <View style={styles.achievementsGrid}>
+        <View
+          style={[styles.achievementsGrid, { gap }]}
+          onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
+        >
           {allAchievements.map((achievement) => (
             <Pressable
               key={achievement.id}
               style={({ pressed }) => [
                 styles.achievementItem,
                 {
+                  width: itemWidth,
                   backgroundColor: achievement.unlocked
                     ? 'rgba(34, 197, 94, 0.12)' // Lighter green background
                     : 'rgba(107, 114, 128, 0.08)', // Subtle gray background
@@ -311,14 +319,17 @@ export default function Profile() {
                 </View>
               )}
 
-              <Text style={styles.achievementIcon}>{renderIcon(achievement.icon)}</Text>
+              <Text style={[styles.achievementIcon, isSmallPhone && styles.achievementIconSmall]}>{renderIcon(achievement.icon)}</Text>
               <Text
                 style={[
                   styles.achievementName,
+                  isSmallPhone && styles.achievementNameSmall,
                   {
                     color: achievement.unlocked ? colors.text : colors.textSecondary,
                   }
                 ]}
+                numberOfLines={2}
+                ellipsizeMode="tail"
               >
                 {achievement.name}
               </Text>
@@ -454,12 +465,9 @@ const styles = StyleSheet.create({
   achievementsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
-    justifyContent: 'space-between', // Better distribution
+    justifyContent: 'flex-start', // Better distribution
   },
   achievementItem: {
-    width: '31%', // 3 columns with small gaps
     aspectRatio: 1, // Square cards
     borderRadius: 12,
     justifyContent: 'center',
@@ -471,14 +479,20 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   achievementIcon: {
-    fontSize: 44,
+    marginBottom: 8,
+  },
+  achievementIconSmall: {
+    fontSize: 34,
     marginBottom: 8,
   },
   achievementName: {
-    fontSize: 12,
+    fontSize: 9,
     fontWeight: '600',
     textAlign: 'center',
-    lineHeight: 16,
+  },
+  achievementNameSmall: {
+    fontSize: 12,
+    lineHeight: 14,
   },
   achievementCounter: {
     fontSize: 12,

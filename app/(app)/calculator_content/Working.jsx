@@ -8,7 +8,8 @@ import {
   Dimensions,
   Animated,
   Modal,
-  TextInput
+  TextInput,
+  Platform
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
@@ -32,8 +33,10 @@ import NetInfo from '@react-native-community/netinfo';
 import { useAppState } from '@/_hooks/useAppState';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // To save state
 import { XPEarnedNotification } from '@/components/XPEarnedNotification'; // Adjust path if needed
+import { appConfirm } from '@/_utils/crossPlatformAlert';
 
 const { width } = Dimensions.get('window');
+const isWeb = Platform.OS === 'web';
 
 export default function Working({
   changeMode,
@@ -82,7 +85,10 @@ export default function Working({
   const floatingAnim = React.useRef(new Animated.Value(0)).current;
   const colors = useColors();
   const xpSaveInProgressRef = useRef(false);
-  const palletsRateRef = useRef(palletsRate);
+
+  // before: const palletsRateRef = useRef(palletsRate);
+  const palletsRateRef = useRef("0.00");  // or 0, depending on how you parse it
+
   const checkAndEnforceForcedFinishRef = useRef();
   const palletsInputRef = useRef(null);
 
@@ -93,7 +99,7 @@ export default function Working({
   const handleAppGoesToBackground = useCallback(() => {
     console.log('App is going to the background.');
     // Only save state if in a working session
-    if (calc.mode === 'working' && !isPaused) {
+    if (calc.mode === 'working' && !calc.isPaused) {
       const stateToSave = {
         lastXPTime: lastXPRewardTimeRef.current,
         lastPalletsRate: palletsRateRef.current
@@ -101,7 +107,104 @@ export default function Working({
       AsyncStorage.setItem('lastActiveSessionState', JSON.stringify(stateToSave));
       console.log('Active session state saved.');
     }
-  }, [calc.mode, isPaused]); // Dependencies ensure it always has fresh data
+  }, [calc.mode, calc.isPaused]); // Dependencies ensure it always has fresh data
+
+  // ============================================================================
+  // LOGIC FUNCTIONS FOR AUTOMATIC CALCULATION FINISHER
+  // ============================================================================
+  /**
+   * ✅ CHECK AND ENFORCE FORCED FINISH
+   * Called when app comes to foreground
+   * Handles 3 scenarios:
+   * 1. Not time yet → continue normally
+   * 2. Time has passed → force finish with capped time
+   * 3. Currently working past deadline → immediate finish
+   */
+
+  const checkAndEnforceForcedFinish = useCallback(async () => {
+    if (calc.mode !== 'working' || !forcedFinishTime) {
+      console.log("Not in working mode or no forced finish time set");
+      console.log("Mode:", calc.mode);
+      console.log("Forced Finish Time:", forcedFinishTime);
+      return false; // Not forced finish scenario
+    }
+
+    const now = Date.now();
+    const forcedFinishTimestamp = forcedFinishTime;
+
+    // ✅ STEP 1: Determine if we've passed the deadline
+    if (now < forcedFinishTimestamp) {
+      console.log("⏰ Not yet time for forced finish. Continuing...");
+      return false; // Continue normal working
+    }
+
+    console.warn("🚨 FORCED FINISH TIME HAS PASSED - Finalizing session...");
+
+    // ✅ STEP 2: Calculate time UP TO the deadline ONLY
+    const elapsedUntilDeadline =
+      forcedFinishTimestamp - startTime - (calc.totalPausedTime || 0);
+    const cappedLoadingTimeSeconds = Math.max(0, Math.floor(elapsedUntilDeadline / 1000));
+
+    console.log(`⏱️ Capped loading time: ${formatElapsed(cappedLoadingTimeSeconds)}`);
+
+    // ✅ STEP 3: Stop all active trucks (they don't count past deadline)
+    const finalTrucks = trucks.map(truck => ({
+      ...truck,
+      // Calculate elapsed time for this truck UP TO deadline
+      elapsedLoadingTime: Math.min(
+        truck.elapsedLoadingTime || 0,
+        Math.floor((forcedFinishTimestamp - truck.startLoadingTime) / 1000)
+      )
+    }));
+
+    // ✅ STEP 4: Move active trucks to history (mark as auto-finished)
+    const autoFinishedTrucks = finalTrucks.map(t => ({
+      ...t,
+      isAutoFinished: true, // Flag for UI
+      completedTime: forcedFinishTimestamp
+    }));
+
+    const updatedTrucksHistory = [
+      ...autoFinishedTrucks,
+      ...trucksHistory
+    ];
+
+    // ✅ STEP 5: Update calculator state
+    calc.updateState({
+      trucks: [], // Clear active trucks
+      trucksHistory: updatedTrucksHistory,
+      isPaused: false,
+      pauseStart: null,
+      mode: 'forced-finished', // NEW: Lock state to prevent resume
+      sessionStatus: 'finalized',
+    });
+
+    // ✅ STEP 6: Set end time and trigger results (NO XP awarded yet)
+    setLoadingTime(cappedLoadingTimeSeconds);
+    setEndTime(forcedFinishTimestamp);
+
+    return true; // Forced finish was applied
+  }, [calc.mode, calc.forcedFinishTime, startTime, calc.totalPausedTime, calc.trucks, calc.trucksHistory]);
+
+  // ✅ Check connection BEFORE trying Firestore
+  const tryAwardXP = async (xpAmount) => {
+    try {
+      // Check if online
+      const state = await NetInfo.fetch();
+
+      if (!state.isConnected) {
+        console.warn('📡 No internet connection - caching XP');
+        return null; // Trigger cache fallback
+      }
+      console.log('📡 Internet connection established - sending to firestore');
+      // Online, try Firestore
+      const result = await awardXP(xpAmount);
+      return result;
+    } catch (error) {
+      console.error('❌ Error:', error);
+      return null;
+    }
+  };
 
   // Function to calculate and award offline progress
   const handleAppComesToForeground = useCallback(async () => {
@@ -123,7 +226,7 @@ export default function Working({
       return;
     }
 
-    if (calc.mode !== 'working' || isPaused) {
+    if (calc.mode !== 'working' || calc.isPaused) {
       console.log("Not in a working session, skipping offline XP check.");
       return;
     }
@@ -199,7 +302,7 @@ export default function Working({
     } finally {
       await AsyncStorage.removeItem('lastActiveSessionState'); // Clean up
     }
-  }, [calc.mode, calc.timeOfForcedFinish, isPaused, checkAndEnforceForcedFinish, tryAwardXP, changeMode,]);
+  }, [calc.mode, calc.timeOfForcedFinish, calc.isPaused, checkAndEnforceForcedFinish, tryAwardXP, changeMode,]);
 
   // ✅ Call the new useAppState hook
   useAppState({
@@ -363,16 +466,16 @@ export default function Working({
 
   // Focus the pallets input when the modal opens
   useEffect(() => {
-  if (showPalletsModal) {
-    const timer = setTimeout(() => {
-      if (palletsInputRef.current) {
-        palletsInputRef.current.focus();
-      }
-    }, 300); // tweak delay if needed
+    if (showPalletsModal) {
+      const timer = setTimeout(() => {
+        if (palletsInputRef.current) {
+          palletsInputRef.current.focus();
+        }
+      }, 300); // tweak delay if needed
 
-    return () => clearTimeout(timer);
-  }
-}, [showPalletsModal]);
+      return () => clearTimeout(timer);
+    }
+  }, [showPalletsModal]);
 
   // ============================================================================
   // SECTION 4: HELPER FUNCTIONS & LOGIC
@@ -422,26 +525,6 @@ export default function Working({
   // ✅ Calculate XP per minute based on current pallet rate
   const calculateXPPerMin = (rate) => {
     return 10;
-  };
-
-  // ✅ Check connection BEFORE trying Firestore
-  const tryAwardXP = async (xpAmount) => {
-    try {
-      // Check if online
-      const state = await NetInfo.fetch();
-
-      if (!state.isConnected) {
-        console.warn('📡 No internet connection - caching XP');
-        return null; // Trigger cache fallback
-      }
-      console.log('📡 Internet connection established - sending to firestore');
-      // Online, try Firestore
-      const result = await awardXP(xpAmount);
-      return result;
-    } catch (error) {
-      console.error('❌ Error:', error);
-      return null;
-    }
   };
 
   const saveSessionToFirestore = async () => {
@@ -617,81 +700,6 @@ export default function Working({
     setPendingTruckId(null);
     setPalletsInput("");
   };
-  // ============================================================================
-  // LOGIC FUNCTIONS FOR AUTOMATIC CALCULATION FINISHER
-  // ============================================================================
-  /**
-   * ✅ CHECK AND ENFORCE FORCED FINISH
-   * Called when app comes to foreground
-   * Handles 3 scenarios:
-   * 1. Not time yet → continue normally
-   * 2. Time has passed → force finish with capped time
-   * 3. Currently working past deadline → immediate finish
-   */
-
-  const checkAndEnforceForcedFinish = useCallback(async () => {
-    if (calc.mode !== 'working' || !forcedFinishTime) {
-      console.log("Not in working mode or no forced finish time set");
-      console.log("Mode:", calc.mode);
-      console.log("Forced Finish Time:", forcedFinishTime);
-      return false; // Not forced finish scenario
-    }
-
-    const now = Date.now();
-    const forcedFinishTimestamp = forcedFinishTime;
-
-    // ✅ STEP 1: Determine if we've passed the deadline
-    if (now < forcedFinishTimestamp) {
-      console.log("⏰ Not yet time for forced finish. Continuing...");
-      return false; // Continue normal working
-    }
-
-    console.warn("🚨 FORCED FINISH TIME HAS PASSED - Finalizing session...");
-
-    // ✅ STEP 2: Calculate time UP TO the deadline ONLY
-    const elapsedUntilDeadline = forcedFinishTimestamp - startTime - totalPausedTime;
-    const cappedLoadingTimeSeconds = Math.max(0, Math.floor(elapsedUntilDeadline / 1000));
-
-    console.log(`⏱️ Capped loading time: ${formatElapsed(cappedLoadingTimeSeconds)}`);
-
-    // ✅ STEP 3: Stop all active trucks (they don't count past deadline)
-    const finalTrucks = trucks.map(truck => ({
-      ...truck,
-      // Calculate elapsed time for this truck UP TO deadline
-      elapsedLoadingTime: Math.min(
-        truck.elapsedLoadingTime || 0,
-        Math.floor((forcedFinishTimestamp - truck.startLoadingTime) / 1000)
-      )
-    }));
-
-    // ✅ STEP 4: Move active trucks to history (mark as auto-finished)
-    const autoFinishedTrucks = finalTrucks.map(t => ({
-      ...t,
-      isAutoFinished: true, // Flag for UI
-      completedTime: forcedFinishTimestamp
-    }));
-
-    const updatedTrucksHistory = [
-      ...autoFinishedTrucks,
-      ...trucksHistory
-    ];
-
-    // ✅ STEP 5: Update calculator state
-    calc.updateState({
-      trucks: [], // Clear active trucks
-      trucksHistory: updatedTrucksHistory,
-      isPaused: false,
-      pauseStart: null,
-      mode: 'forced-finished', // NEW: Lock state to prevent resume
-      sessionStatus: 'finalized',
-    });
-
-    // ✅ STEP 6: Set end time and trigger results (NO XP awarded yet)
-    setLoadingTime(cappedLoadingTimeSeconds);
-    setEndTime(forcedFinishTimestamp);
-
-    return true; // Forced finish was applied
-  }, [calc.mode, calc.forcedFinishTime, startTime, totalPausedTime, trucks, trucksHistory]);
 
   // ============================================================================
   // SECTION 5: RENDER FUNCTIONS (AFTER ALL HOOKS & HELPER FUNCTIONS)
@@ -861,186 +869,269 @@ export default function Working({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* ✅ XP PROGRESS BAR - TOP OF SCREEN */}
-      {profile && (
-        <View style={[styles.xpProgressCard, { backgroundColor: colors.cardBackground }]}>
-          <View style={styles.xpHeaderRow}>
-            <View>
-              <Text style={[styles.xpLevel, { color: colors.title }]}>Poziom {profile.level}</Text>
-              <Text style={[styles.xpProgressText, { color: colors.text }]}>
-                {levelData?.currentXP} / {xpForNextLevel} XP
-              </Text>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ✅ XP PROGRESS BAR - TOP OF SCREEN */}
+        {profile && (
+          <View style={[styles.xpProgressCard, { backgroundColor: colors.cardBackground }]}>
+            <View style={styles.xpHeaderRow}>
+              <View>
+                <Text style={[styles.xpLevel, { color: colors.title }]}>Poziom {profile.level}</Text>
+                <Text style={[styles.xpProgressText, { color: colors.text }]}>
+                  {levelData?.currentXP} / {xpForNextLevel} XP
+                </Text>
+              </View>
+              <View style={[styles.xpRewardBadge, { backgroundColor: colors.butBackground }]}>
+                <Ionicons name="star" size={16} color={colors.butText} />
+                <Text style={[styles.xpRewardText, { color: colors.butText }]}>+{currentXPPerMin}/min</Text>
+              </View>
             </View>
-            <View style={[styles.xpRewardBadge, { backgroundColor: colors.butBackground }]}>
-              <Ionicons name="star" size={16} color={colors.butText} />
-              <Text style={[styles.xpRewardText, { color: colors.butText }]}>+{currentXPPerMin}/min</Text>
+
+            {/* Progress Bar */}
+            <View style={[styles.progressBarBackground, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
+              <View
+                style={[
+                  styles.progressBar,
+                  {
+                    backgroundColor: colors.text,
+                    width: `${Math.min(levelProgress, 100)}%`,
+                  },
+                ]}
+              />
             </View>
-          </View>
 
-          {/* Progress Bar */}
-          <View style={[styles.progressBarBackground, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
-            <View
-              style={[
-                styles.progressBar,
-                {
-                  backgroundColor: colors.text,
-                  width: `${Math.min(levelProgress, 100)}%`,
-                },
-              ]}
-            />
-          </View>
-
-          <Text style={[styles.progressPercentText, { color: colors.textSecondary }]}>
-            XP zdobyte w tej sesji: +{sessionXPEarned}
-          </Text>
-        </View>
-      )}
-
-      {/* ADD THE NOTIFICATION COMPONENT HERE */}
-      <XPEarnedNotification
-        visible={notificationState.visible}
-        xpAmount={notificationState.xp}
-        onDismiss={() => setNotificationState({ visible: false, xp: 0 })}
-      />
-
-      {/* ✅ FLOATING XP TEXT ANIMATION */}
-      {showXPFloatingText && (
-        <Animated.View
-          style={[
-            styles.floatingXPText,
-            {
-              opacity: floatingAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [1, 0],
-              }),
-              transform: [
-                {
-                  translateY: floatingAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, -60],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <Text style={[styles.floatingXPValue, { color: colors.text }]}>+{floatingXPAmount} XP</Text>
-        </Animated.View>
-      )}
-
-      {/* ✅ LEVEL UP CELEBRATION */}
-      {leveledUpMessage && (
-        <View style={[styles.levelUpBanner, { backgroundColor: colors.cardBackground }]}>
-          <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
-          <Text style={[styles.levelUpText, { color: colors.text }]}>Level Up to {leveledUpMessage}! 🎉</Text>
-          <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
-        </View>
-      )}
-
-      {/* Stats Cards Section */}
-      <View style={styles.statsSection}>
-        <View style={styles.statsGrid}>
-          {/* Card 1: Elapsed Time */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>
-              {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
+            <Text style={[styles.progressPercentText, { color: colors.textSecondary }]}>
+              XP zdobyte w tej sesji: +{sessionXPEarned}
             </Text>
           </View>
+        )}
 
-          {/* Card 2: Pallets Loaded */}
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
-            onPress={() => Alert.alert('Palety Załadowane', `${palletsLoaded}`)}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Palety</Text>
-              <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
-          </TouchableOpacity>
-
-          {/* Card 3: Trucks Loaded */}
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
-            onPress={() => Alert.alert('Dostawy załadowane', `${trucksLoadedCount}`)}
-          >
-            <View style={styles.cardHeader}>
-              <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Dostawy</Text>
-              <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
-          </TouchableOpacity>
-
-          {/* Card 4: Rate (per hour) */}
-          <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/godz</Text>
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
-          </View>
-
-          {/* Card 5: Forced Finish Time */}
-          <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
-            <View style={styles.cardHeader}>
-              <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
-            </View>
-            <Text style={[styles.cardValue, { color: colors.text }]}>
-              {forcedFinishTime
-                ? `${new Date(forcedFinishTime).toLocaleTimeString()} (${new Date(forcedFinishTime).getDate()})`
-                : 'Brak'}
-            </Text>
-          </TouchableOpacity>
-
-          {calc.timeOfForcedFinish && (
-            <View style={{
-              backgroundColor: '#fff3cd',
-              borderRadius: 12,
-              padding: 12,
-              marginBottom: 16,
-              borderLeftWidth: 4,
-              borderLeftColor: '#ff6b6b'
-            }}>
-              <Text style={{ fontSize: 12, fontWeight: '600', color: '#cc5200' }}>
-                ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
-              </Text>
-            </View>
-          )}
-        </View>
-      </View>
-
-      {/* Trucks section */}
-      <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
-        <View style={styles.tabHeader}>
-          <Text style={[styles.infoTitle, { color: colors.text }]}>
-            {activeTab === 0 ? "Aktualne transporty" : "Zakończone transporty"}
-          </Text>
-          <View style={styles.tabDots}>
-            <TouchableOpacity
-              style={[styles.tabDot, activeTab === 0 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
-            />
-            <TouchableOpacity
-              style={[styles.tabDot, activeTab === 1 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
-            />
-          </View>
-        </View>
-
-        <TabView
-          navigationState={navigationState}
-          renderScene={renderScene}
-          onIndexChange={setActiveTab}
-          renderTabBar={() => null} // Hide default tab bar since using custom dots
-          style={{ flex: 1 }}
+        {/* ADD THE NOTIFICATION COMPONENT HERE */}
+        <XPEarnedNotification
+          visible={notificationState.visible}
+          xpAmount={notificationState.xp}
+          onDismiss={() => setNotificationState({ visible: false, xp: 0 })}
         />
 
+        {/* ✅ FLOATING XP TEXT ANIMATION */}
+        {showXPFloatingText && (
+          <Animated.View
+            style={[
+              styles.floatingXPText,
+              {
+                opacity: floatingAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [1, 0],
+                }),
+                transform: [
+                  {
+                    translateY: floatingAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, -60],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Text style={[styles.floatingXPValue, { color: colors.text }]}>+{floatingXPAmount} XP</Text>
+          </Animated.View>
+        )}
 
-      </View>
+        {/* ✅ LEVEL UP CELEBRATION */}
+        {leveledUpMessage && (
+          <View style={[styles.levelUpBanner, { backgroundColor: colors.cardBackground }]}>
+            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
+            <Text style={[styles.levelUpText, { color: colors.text }]}>Level Up to {leveledUpMessage}! 🎉</Text>
+            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
+          </View>
+        )}
 
+        {isWeb ? (
+          <View style={styles.statsSection}>
+            <View style={styles.statsGrid}>
+              {/* Card 1: Elapsed Time */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>
+                  {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
+                </Text>
+              </View>
+
+              {/* Card 2: Pallets Loaded */}
+              <TouchableOpacity
+                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22%' }]}
+                onPress={() => Alert.alert('Palety Załadowane', `${palletsLoaded}`)}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Palety</Text>
+                  <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
+              </TouchableOpacity>
+
+              {/* Card 3: Trucks Loaded */}
+              <TouchableOpacity
+                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22%' }]}
+                onPress={() => Alert.alert('Dostawy załadowane', `${trucksLoadedCount}`)}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Dostawy</Text>
+                  <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
+              </TouchableOpacity>
+
+              {/* Card 4: Rate (per hour) */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '48%' }]}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/godz</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
+              </View>
+
+              {/* Card 5: Forced Finish Time */}
+              <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '48%' }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>
+                  {forcedFinishTime
+                    ? `${new Date(forcedFinishTime).toLocaleTimeString()} (${new Date(forcedFinishTime).getDate()})`
+                    : 'Brak'}
+                </Text>
+              </TouchableOpacity>
+
+              {calc.timeOfForcedFinish && (
+                <View style={{
+                  backgroundColor: '#fff3cd',
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 16,
+                  borderLeftWidth: 4,
+                  borderLeftColor: '#ff6b6b'
+                }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#cc5200' }}>
+                    ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={styles.statsSection}>
+            <View style={styles.statsGrid}>
+              {/* Card 1: Elapsed Time */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>
+                  {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
+                </Text>
+              </View>
+
+              {/* Card 2: Pallets Loaded */}
+              <TouchableOpacity
+                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
+                onPress={() => Alert.alert('Palety Załadowane', `${palletsLoaded}`)}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Palety</Text>
+                  <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
+              </TouchableOpacity>
+
+              {/* Card 3: Trucks Loaded */}
+              <TouchableOpacity
+                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
+                onPress={() => Alert.alert('Dostawy załadowane', `${trucksLoadedCount}`)}
+              >
+                <View style={styles.cardHeader}>
+                  <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Dostawy</Text>
+                  <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
+              </TouchableOpacity>
+
+              {/* Card 4: Rate (per hour) */}
+              <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/godz</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
+              </View>
+
+              {/* Card 5: Forced Finish Time */}
+              <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
+                <View style={styles.cardHeader}>
+                  <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
+                </View>
+                <Text style={[styles.cardValue, { color: colors.text }]}>
+                  {forcedFinishTime
+                    ? `${new Date(forcedFinishTime).toLocaleTimeString()} (${new Date(forcedFinishTime).getDate()})`
+                    : 'Brak'}
+                </Text>
+              </TouchableOpacity>
+
+              {calc.timeOfForcedFinish && (
+                <View style={{
+                  backgroundColor: '#fff3cd',
+                  borderRadius: 12,
+                  padding: 12,
+                  marginBottom: 16,
+                  borderLeftWidth: 4,
+                  borderLeftColor: '#ff6b6b'
+                }}>
+                  <Text style={{ fontSize: 12, fontWeight: '600', color: '#cc5200' }}>
+                    ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* Trucks section */}
+        <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
+          <View style={styles.tabHeader}>
+            <Text style={[styles.infoTitle, { color: colors.text }]}>
+              {activeTab === 0 ? "Aktualne transporty" : "Zakończone transporty"}
+            </Text>
+            <View style={styles.tabDots}>
+              <TouchableOpacity
+                style={[styles.tabDot, activeTab === 0 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
+              />
+              <TouchableOpacity
+                style={[styles.tabDot, activeTab === 1 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
+              />
+            </View>
+          </View>
+
+          <TabView
+            navigationState={navigationState}
+            renderScene={renderScene}
+            onIndexChange={setActiveTab}
+            renderTabBar={() => null} // Hide default tab bar since using custom dots
+            style={{ flex: 1 }}
+          />
+
+
+        </View>
+      </ScrollView>
       {/* Buttons */}
       {isPaused ? (
         // Paused - Resume button ONLY
@@ -1074,23 +1165,13 @@ export default function Working({
 
           <TouchableOpacity
             onPress={() => {
-              Alert.alert(
+              appConfirm(
                 'Zakończ Sesję',
                 'Czy na pewno chcesz zakończyć tę sesję obliczeniową?',
-                [
-                  {
-                    text: 'Anuluj',
-                    style: 'cancel'
-                  },
-                  {
-                    text: 'Zakończ',
-                    onPress: () => {
-                      setEndTime(Date.now());
-                      changeMode('results'); // Show results screen
-                    },
-                    style: 'destructive'
-                  }
-                ]
+                () => {
+                  setEndTime(Date.now());
+                  changeMode('results');
+                }
               );
             }}
             style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
@@ -1205,8 +1286,11 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 8,
-    paddingVertical: 32,
+    paddingVertical: 16,
     justifyContent: 'space-between',
+  },
+    scrollContent: {
+    flexGrow: 1,
   },
   xpProgressCard: {
     borderRadius: 12,
@@ -1372,6 +1456,7 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'space-between',
     flexWrap: 'wrap',
+    marginTop: 16,
   },
   btnOutline: {
     flex: 1,
@@ -1415,6 +1500,7 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     borderRadius: 24,
     overflow: 'hidden',
+    marginTop: 34,
   },
   btnResume: {
     flexDirection: 'row',

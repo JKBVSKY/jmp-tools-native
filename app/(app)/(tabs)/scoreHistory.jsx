@@ -189,287 +189,293 @@ export default function ScoreHistory() {
         },
       ]}
     >
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.iconColor} />
-          <Text style={[styles.loadingText, { color: colors.text }]}>Ładowanie danych...</Text>
-        </View>
-      ) : (
-        <>
-          {/* Header with toggle */}
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>Statystyki</Text>
-
-            <View style={styles.toggleContainer}>
-              <Pressable
-                onPress={() => setViewMode('table')}
-                style={[
-                  styles.toggleButton,
-                  { backgroundColor: viewMode === 'table' ? colors.iconColor : colors.cardBackground, borderColor: colors.outButBorder }
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="table"
-                  size={20}
-                  color={viewMode === 'table' ? '#fff' : colors.text}
-                />
-              </Pressable>
-
-              <Pressable
-                onPress={() => setViewMode('graph')}
-                style={[
-                  styles.toggleButton,
-                  { backgroundColor: viewMode === 'graph' ? colors.iconColor : colors.cardBackground, borderColor: colors.outButBorder }
-                ]}
-              >
-                <MaterialCommunityIcons
-                  name="chart-line"
-                  size={20}
-                  color={viewMode === 'graph' ? '#fff' : colors.text}
-                />
-              </Pressable>
-            </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.iconColor} />
+            <Text style={[styles.loadingText, { color: colors.text }]}>Ładowanie danych...</Text>
           </View>
+        ) : (
+          <>
+            {/* Header with toggle */}
+            <View style={styles.header}>
+              <Text style={[styles.title, { color: colors.text }]}>Statystyki</Text>
 
-          {/* Month selector */}
-          <View style={[styles.monthSelector, { backgroundColor: colors.cardBackground }]}>
-            <Pressable
-              onPress={() => {
-                if (!currentMonth || months.length === 0) return;
-                const idx = months.findIndex(
-                  (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                );
-                if (idx === -1 || idx === months.length - 1) return; // already oldest
-                const next = months[idx + 1];
-                setCurrentMonth({ month: next.month, year: next.year });
-              }}
-              style={styles.monthButton}
-              disabled={
-                !currentMonth ||
-                months.findIndex(
-                  (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                ) === months.length - 1
-              }
-            >
-              <MaterialCommunityIcons
-                name="chevron-left"
-                size={24}
-                color={colors.text}
-              />
-            </Pressable>
-
-            <Text style={[styles.monthLabel, { color: colors.text }]}>
-              {currentMonth ? formatMonthLabel(currentMonth) : 'Brak danych'}
-            </Text>
-
-            <Pressable
-              onPress={() => {
-                if (!currentMonth || months.length === 0) return;
-                const idx = months.findIndex(
-                  (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                );
-                if (idx <= 0) return; // already newest
-                const next = months[idx - 1];
-                setCurrentMonth({ month: next.month, year: next.year });
-              }}
-              style={styles.monthButton}
-              disabled={
-                !currentMonth ||
-                months.findIndex(
-                  (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                ) === 0
-              }
-            >
-              <MaterialCommunityIcons
-                name="chevron-right"
-                size={24}
-                color={colors.text}
-              />
-            </Pressable>
-          </View>
-
-          {/* Summary Table - Always visible when sessions exist */}
-          {sessionsForMonth.length > 0 && summary && (
-            <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-              <Text style={[styles.summaryTitle, { color: colors.text }]}>Ogólne</Text>
-
-              <View style={styles.summaryGrid}>
-                {/* Total Time */}
-                <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
-                  <Text style={[styles.summaryValue, { color: colors.text }]}>
-                    {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
-                  </Text>
-                </View>
-
-                {/* Total Pallets */}
-                <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Palety</Text>
-                  <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalPallets}</Text>
-                </View>
-
-                {/* Total Trucks */}
-                <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Naczepy</Text>
-                  <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalTrucks}</Text>
-                </View>
-
-                {/* Average Rate */}
-                <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                  <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Średnia Miesięczna</Text>
-                  <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.averageRate}</Text>
-                </View>
-              </View>
-            </View>
-          )}
-
-          {sessions.length === 0 ? (
-            <ScrollView
-              refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
-              style={{ flex: 1 }}
-              contentContainerStyle={{ flex: 1 }}
-            >
-              <View style={styles.emptyContainer}>
-                <MaterialCommunityIcons name="history" size={64} color={colors.text} />
-                <Text style={[styles.emptyText, { color: colors.text }]}>
-                  Brak zapisanych sesji
-                </Text>
-                <Text style={[styles.emptySubtext, { color: colors.text }]}>
-                  Zakończ sesję, aby zobaczyć historię.
-                </Text>
-              </View>
-            </ScrollView>
-          ) : (
-            <View style={styles.graphGrid}>
-              {viewMode === 'graph' && sessions.length > 0 && (
-                <View style={styles.chartContainer}>
-                  <Text style={[styles.chartTitle, { color: colors.text }]}>
-                    Sesje w miesiącu {currentMonth ? formatMonthLabel(currentMonth) : ''}
-                  </Text>
-
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={{ paddingRight: 16 }}
-                  >
-                    <LineChart
-                      data={chartData}
-                      width={chartWidth}
-                      height={220}
-                      yAxisSuffix=" pal/h"
-                      yLabelsOffset={8}
-                      chartConfig={{
-                        backgroundColor: colors.cardBackground,
-                        backgroundGradientFrom: colors.cardBackground,
-                        backgroundGradientTo: colors.cardBackground,
-                        decimalPlaces: 1,
-                        color: (opacity = 1) => colors.iconColor,
-                        labelColor: (opacity = 1) => colors.text,
-                        style: {
-                          borderRadius: 16,
-                        },
-                        propsForDots: {
-                          r: '6',
-                          strokeWidth: '2',
-                          stroke: colors.iconColor,
-                          fill: colors.iconColor,
-                        },
-                      }}
-                      bezier
-                      style={styles.chart}
-                    />
-                  </ScrollView>
-                </View>
-              )}
-
-              {viewMode === 'table' && (
-                <ScrollView
-                  style={styles.tableContainer}
-                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+              <View style={styles.toggleContainer}>
+                <Pressable
+                  onPress={() => setViewMode('table')}
+                  style={[
+                    styles.toggleButton,
+                    { backgroundColor: viewMode === 'table' ? colors.iconColor : colors.cardBackground, borderColor: colors.outButBorder }
+                  ]}
                 >
-                  {/* Table Header */}
-                  <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
-                    <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
-                    <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
-                    <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Palety</Text>
-                    <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Naczepy</Text>
-                    <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
-                    <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
+                  <MaterialCommunityIcons
+                    name="table"
+                    size={20}
+                    color={viewMode === 'table' ? '#fff' : colors.text}
+                  />
+                </Pressable>
+
+                <Pressable
+                  onPress={() => setViewMode('graph')}
+                  style={[
+                    styles.toggleButton,
+                    { backgroundColor: viewMode === 'graph' ? colors.iconColor : colors.cardBackground, borderColor: colors.outButBorder }
+                  ]}
+                >
+                  <MaterialCommunityIcons
+                    name="chart-line"
+                    size={20}
+                    color={viewMode === 'graph' ? '#fff' : colors.text}
+                  />
+                </Pressable>
+              </View>
+            </View>
+
+            {/* Month selector */}
+            <View style={[styles.monthSelector, { backgroundColor: colors.cardBackground }]}>
+              <Pressable
+                onPress={() => {
+                  if (!currentMonth || months.length === 0) return;
+                  const idx = months.findIndex(
+                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                  );
+                  if (idx === -1 || idx === months.length - 1) return; // already oldest
+                  const next = months[idx + 1];
+                  setCurrentMonth({ month: next.month, year: next.year });
+                }}
+                style={styles.monthButton}
+                disabled={
+                  !currentMonth ||
+                  months.findIndex(
+                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                  ) === months.length - 1
+                }
+              >
+                <MaterialCommunityIcons
+                  name="chevron-left"
+                  size={24}
+                  color={colors.text}
+                />
+              </Pressable>
+
+              <Text style={[styles.monthLabel, { color: colors.text }]}>
+                {currentMonth ? formatMonthLabel(currentMonth) : 'Brak danych'}
+              </Text>
+
+              <Pressable
+                onPress={() => {
+                  if (!currentMonth || months.length === 0) return;
+                  const idx = months.findIndex(
+                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                  );
+                  if (idx <= 0) return; // already newest
+                  const next = months[idx - 1];
+                  setCurrentMonth({ month: next.month, year: next.year });
+                }}
+                style={styles.monthButton}
+                disabled={
+                  !currentMonth ||
+                  months.findIndex(
+                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                  ) === 0
+                }
+              >
+                <MaterialCommunityIcons
+                  name="chevron-right"
+                  size={24}
+                  color={colors.text}
+                />
+              </Pressable>
+            </View>
+
+            {/* Summary Table - Always visible when sessions exist */}
+            {sessionsForMonth.length > 0 && summary && (
+              <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                <Text style={[styles.summaryTitle, { color: colors.text }]}>Ogólne</Text>
+
+                <View style={styles.summaryGrid}>
+                  {/* Total Time */}
+                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
+                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
+                    <Text style={[styles.summaryValue, { color: colors.text }]}>
+                      {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
+                    </Text>
                   </View>
 
-                  {/* Table Rows */}
-                  {sessions.map((session, index) => (
-                    <View
-                      key={session.id}
-                      style={[
-                        styles.tableRow,
-                        {
-                          backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
-                          borderBottomColor: colors.border
-                        }
-                      ]}
+                  {/* Total Pallets */}
+                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
+                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Palety</Text>
+                    <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalPallets}</Text>
+                  </View>
+
+                  {/* Total Trucks */}
+                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
+                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Naczepy</Text>
+                    <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalTrucks}</Text>
+                  </View>
+
+                  {/* Average Rate */}
+                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
+                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Średnia Miesięczna</Text>
+                    <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.averageRate}</Text>
+                  </View>
+                </View>
+              </View>
+            )}
+
+            {sessions.length === 0 ? (
+              <ScrollView
+                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+                style={{ flex: 1 }}
+              >
+                <View style={styles.emptyContainer}>
+                  <MaterialCommunityIcons name="history" size={64} color={colors.text} />
+                  <Text style={[styles.emptyText, { color: colors.text }]}>
+                    Brak zapisanych sesji
+                  </Text>
+                  <Text style={[styles.emptySubtext, { color: colors.text }]}>
+                    Zakończ sesję, aby zobaczyć historię.
+                  </Text>
+                </View>
+              </ScrollView>
+            ) : (
+              <View style={[styles.graphGrid, { flex: 1 }]}>
+                {viewMode === 'graph' && sessions.length > 0 && (
+                  <View style={styles.chartContainer}>
+                    <Text style={[styles.chartTitle, { color: colors.text }]}>
+                      Sesje w miesiącu {currentMonth ? formatMonthLabel(currentMonth) : ''}
+                    </Text>
+
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={{ paddingRight: 16 }}
                     >
-                      <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
-                        {formatDate(session.date)}
-                      </Text>
-                      <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
-                        {formatTime(session.loadingTime)}
-                      </Text>
-                      <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                        {session.palletsLoaded}
-                      </Text>
-                      <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                        {session.trucksCount}
-                      </Text>
-                      <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
-                        {session.palletsRate.toFixed(1)}
-                      </Text>
-
-                      {/* Delete button */}
-                      <Pressable
-                        onPress={() => {
-                          Alert.alert(
-                            'Usuń Sesję',
-                            'Czy na pewno chcesz usunąć tę sesję?',
-                            [
-                              {
-                                text: 'Anuluj',
-                                style: 'cancel'
-                              },
-                              {
-                                text: 'Usuń',
-                                onPress: async () => {
-                                  try {
-                                    if (!userId) return;
-
-                                    // Delete from Firestore
-                                    await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
-
-                                    // Then update local state
-                                    const updatedSessions = sessions.filter((s) => s.id !== session.id);
-                                    setSessions(updatedSessions);
-                                  } catch (error) {
-                                    Alert.alert('Error', 'Failed to delete session');
-                                  }
-                                },
-
-                                style: 'destructive'
-                              }
-                            ]
-                          );
+                      <LineChart
+                        data={chartData}
+                        width={chartWidth}
+                        height={220}
+                        yAxisSuffix=" pal/h"
+                        yLabelsOffset={8}
+                        chartConfig={{
+                          backgroundColor: colors.cardBackground,
+                          backgroundGradientFrom: colors.cardBackground,
+                          backgroundGradientTo: colors.cardBackground,
+                          decimalPlaces: 1,
+                          color: (opacity = 1) => colors.iconColor,
+                          labelColor: (opacity = 1) => colors.text,
+                          style: {
+                            borderRadius: 16,
+                          },
+                          propsForDots: {
+                            r: '6',
+                            strokeWidth: '2',
+                            stroke: colors.iconColor,
+                            fill: colors.iconColor,
+                          },
                         }}
-                        style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
-                      >
-                        <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
-                      </Pressable>
+                        bezier
+                        style={styles.chart}
+                      />
+                    </ScrollView>
+                  </View>
+                )}
+
+                {viewMode === 'table' && (
+                  <ScrollView
+                    style={[styles.tableContainer, { flex: 1 }]}
+                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+                  >
+                    {/* Table Header */}
+                    <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
+                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
+                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
+                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Palety</Text>
+                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Naczepy</Text>
+                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
+                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
                     </View>
-                  ))}
-                </ScrollView>
-              )}
-            </View>
-          )}
-        </>
-      )}
+
+                    {/* Table Rows */}
+                    {sessionsForMonth.map((session, index) => (
+                      <View
+                        key={session.id}
+                        style={[
+                          styles.tableRow,
+                          {
+                            backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
+                            borderBottomColor: colors.border
+                          }
+                        ]}
+                      >
+                        <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
+                          {formatDate(session.date)}
+                        </Text>
+                        <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
+                          {formatTime(session.loadingTime)}
+                        </Text>
+                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                          {session.palletsLoaded}
+                        </Text>
+                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                          {session.trucksCount}
+                        </Text>
+                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
+                          {session.palletsRate.toFixed(1)}
+                        </Text>
+
+                        {/* Delete button */}
+                        <Pressable
+                          onPress={() => {
+                            Alert.alert(
+                              'Usuń Sesję',
+                              'Czy na pewno chcesz usunąć tę sesję?',
+                              [
+                                {
+                                  text: 'Anuluj',
+                                  style: 'cancel'
+                                },
+                                {
+                                  text: 'Usuń',
+                                  onPress: async () => {
+                                    try {
+                                      if (!userId) return;
+
+                                      // Delete from Firestore
+                                      await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
+
+                                      // Then update local state
+                                      const updatedSessions = sessions.filter((s) => s.id !== session.id);
+                                      setSessions(updatedSessions);
+                                    } catch (error) {
+                                      Alert.alert('Error', 'Failed to delete session');
+                                    }
+                                  },
+
+                                  style: 'destructive'
+                                }
+                              ]
+                            );
+                          }}
+                          style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
+                        >
+                          <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
+                        </Pressable>
+                      </View>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            )}
+          </>
+        )}
+      </ScrollView>
     </ThemedView>
   );
 }
@@ -492,6 +498,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 32,
+    paddingBottom: 0,
   },
   header: {
     flexDirection: 'row',
@@ -499,6 +506,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     marginTop: 20,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    paddingBottom: 24,
   },
   title: {
     fontSize: 26,

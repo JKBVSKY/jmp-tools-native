@@ -149,7 +149,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                   ]}
                   value={form.shop}
                   onChangeText={(value) => handleInputChange("shop", value)}
-                  placeholder="Shop"
+                  placeholder="Sklep"
                   placeholderTextColor={colors.phText}
                   keyboardType="numeric"
                 />
@@ -197,7 +197,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                   ]}
                   value={form.gate}
                   onChangeText={(value) => handleInputChange("gate", value)}
-                  placeholder="Gate"
+                  placeholder="Brama"
                   placeholderTextColor={colors.phText}
                   keyboardType="numeric"
                 />
@@ -217,7 +217,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                   ]}
                   value={form.trailer}
                   onChangeText={(value) => handleInputChange("trailer", value)}
-                  placeholder="Trailer"
+                  placeholder="Naczepa"
                   placeholderTextColor={colors.phText}
                   keyboardType="numeric"
                 />

@@ -93,177 +93,184 @@ export default function TimeConverter() {
       style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}
       showsVerticalScrollIndicator={false}
     >
-      {/* Header */}
-      <View style={styles.header}>
-        <MaterialCommunityIcons
-          name="calendar-clock"
-          size={32}
-          color={colors.text}
-        />
-        <Text style={[styles.title, { color: colors.title }]}>Przelicznik Czasu</Text>
-      </View>
-
-      <View
-        style={[
-          styles.mainCard,
-          {
-            backgroundColor: colors.cardBackground,
-            borderColor: colors.border,
-            shadowColor: colors.shadow ?? '#000',
-          },
-        ]}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
-        <Spacer height={24} />
-
-        {/* Mode Selector */}
-        <View style={styles.modeContainer}>
-          <TouchableOpacity
-            style={[
-              styles.modeButton,
-              mode === 'toDecimal' && [styles.modeButtonActive, { backgroundColor: colors.butBackground }],
-              { borderColor: colors.border }
-            ]}
-            onPress={() => {
-              setMode('toDecimal');
-              handleClear();
-            }}
-          >
-            <Text
-              style={[
-                styles.modeButtonText,
-                mode === 'toDecimal' ? { color: colors.butText } : { color: colors.text }
-              ]}
-            >
-              Na Dziesiętny
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            style={[
-              styles.modeButton,
-              mode === 'toStandard' && [styles.modeButtonActive, { backgroundColor: colors.butBackground }],
-              { borderColor: colors.border }
-            ]}
-            onPress={() => {
-              setMode('toStandard');
-              handleClear();
-            }}
-          >
-            <Text
-              style={[
-                styles.modeButtonText,
-                mode === 'toStandard' ? { color: colors.butText } : { color: colors.text }
-              ]}
-            >
-              Na Standardowy
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        <Spacer height={24} />
-
-        {/* Input Card */}
-        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 2 }]}>
-          <Text style={[styles.label, { color: colors.text }]}>
-            {mode === 'toDecimal' ? 'Wprowadź Czas (HH:MM:SS)' : 'Wprowadź Godziny (dziesiętne)'}
-          </Text>
-          <Spacer height={12} />
-
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.inputBackground,
-                borderColor: error ? colors.selection : colors.inputBorder,
-                color: colors.text
-              }
-            ]}
-            placeholder={mode === 'toDecimal' ? '14:30:45' : '14.5'}
-            placeholderTextColor={colors.phText}
-            value={mode === 'toDecimal' ? standardTime : decimalTime}
-            onChangeText={(text) => {
-              if (mode === 'toDecimal') {
-                setStandardTime(text);
-              } else {
-                setDecimalTime(text);
-              }
-              setError('');
-              setResult('');
-            }}
-            keyboardType={mode === 'toDecimal' ? 'default' : 'decimal-pad'}
+        {/* Header */}
+        <View style={styles.header}>
+          <MaterialCommunityIcons
+            name="calendar-clock"
+            size={32}
+            color={colors.text}
           />
+          <Text style={[styles.title, { color: colors.title }]}>Przelicznik Czasu</Text>
         </View>
 
-        <Spacer height={16} />
-
-        {/* Convert Button */}
-        <TouchableOpacity
-          style={[styles.convertButton, { backgroundColor: colors.primary }]}
-          onPress={handleConvert}
+        <View
+          style={[
+            styles.mainCard,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.border,
+              shadowColor: colors.shadow ?? '#000',
+            },
+          ]}
         >
-          <MaterialCommunityIcons name="arrow-right" size={20} color={colors.text} />
-          <Text style={[styles.convertButtonText, { color: colors.text }]}>Przelicz</Text>
-        </TouchableOpacity>
+          <Spacer height={24} />
 
-        <Spacer height={16} />
-
-        {/* Result Card */}
-        {result && (
-          <View style={[styles.resultCard, { backgroundColor: colors.cardBackground, borderColor: colors.selection }]}>
-            <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Wynik</Text>
-            <Spacer height={8} />
-            <Text style={[styles.resultValue, { color: colors.selection }]}>
-              {result}
-            </Text>
-            <Spacer height={12} />
+          {/* Mode Selector */}
+          <View style={styles.modeContainer}>
             <TouchableOpacity
-              style={[styles.copyButton, { backgroundColor: colors.selection + '20' }]}
+              style={[
+                styles.modeButton,
+                mode === 'toDecimal' && [styles.modeButtonActive, { backgroundColor: colors.butBackground }],
+                { borderColor: colors.border }
+              ]}
               onPress={() => {
-                // Implement copy to clipboard functionality
-                alert('Wynik: ' + result);
+                setMode('toDecimal');
+                handleClear();
               }}
             >
-              <MaterialCommunityIcons name="content-copy" size={16} color={colors.selection} />
-              <Text style={[styles.copyButtonText, { color: colors.selection }]}>Kopiuj Wynik</Text>
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  mode === 'toDecimal' ? { color: colors.butText } : { color: colors.text }
+                ]}
+              >
+                Na Dziesiętny
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[
+                styles.modeButton,
+                mode === 'toStandard' && [styles.modeButtonActive, { backgroundColor: colors.butBackground }],
+                { borderColor: colors.border }
+              ]}
+              onPress={() => {
+                setMode('toStandard');
+                handleClear();
+              }}
+            >
+              <Text
+                style={[
+                  styles.modeButtonText,
+                  mode === 'toStandard' ? { color: colors.butText } : { color: colors.text }
+                ]}
+              >
+                Na Standardowy
+              </Text>
             </TouchableOpacity>
           </View>
-        )}
 
-        {/* Error Message */}
-        {error && (
-          <View style={[styles.errorCard, { backgroundColor: colors.selection + '15', borderColor: colors.selection }]}>
-            <MaterialCommunityIcons name="alert-circle" size={20} color={colors.selection} />
-            <Text style={[styles.errorText, { color: colors.selection }]}>{error}</Text>
+          <Spacer height={24} />
+
+          {/* Input Card */}
+          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 2 }]}>
+            <Text style={[styles.label, { color: colors.text }]}>
+              {mode === 'toDecimal' ? 'Wprowadź Czas (HH:MM:SS)' : 'Wprowadź Godziny (dziesiętne)'}
+            </Text>
+            <Spacer height={12} />
+
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: colors.inputBackground,
+                  borderColor: error ? colors.selection : colors.inputBorder,
+                  color: colors.text
+                }
+              ]}
+              placeholder={mode === 'toDecimal' ? '14:30:45' : '14.5'}
+              placeholderTextColor={colors.phText}
+              value={mode === 'toDecimal' ? standardTime : decimalTime}
+              onChangeText={(text) => {
+                if (mode === 'toDecimal') {
+                  setStandardTime(text);
+                } else {
+                  setDecimalTime(text);
+                }
+                setError('');
+                setResult('');
+              }}
+              keyboardType={mode === 'toDecimal' ? 'default' : 'decimal-pad'}
+            />
           </View>
-        )}
 
-        <Spacer height={16} />
+          <Spacer height={16} />
 
-        {/* Info Cards */}
-        <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 2 }]}>
-          <MaterialCommunityIcons name="information" size={20} color={colors.text} />
-          <Text style={[styles.infoTitle, { color: colors.title }]}>Jak to działa</Text>
-          <Spacer height={8} />
-          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-            {mode === 'toDecimal'
-              ? '14:30:45 = 14 + (30/60) + (45/3600) = 14.5125 godzin'
-              : '14.5125 = 14 godzin, 30 minut, 45 sekund'}
-          </Text>
+          {/* Convert Button */}
+          <TouchableOpacity
+            style={[styles.convertButton, { backgroundColor: colors.primary }]}
+            onPress={handleConvert}
+          >
+            <MaterialCommunityIcons name="arrow-right" size={20} color={colors.text} />
+            <Text style={[styles.convertButtonText, { color: colors.text }]}>Przelicz</Text>
+          </TouchableOpacity>
+
+          <Spacer height={16} />
+
+          {/* Result Card */}
+          {result && (
+            <View style={[styles.resultCard, { backgroundColor: colors.cardBackground, borderColor: colors.selection }]}>
+              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Wynik</Text>
+              <Spacer height={8} />
+              <Text style={[styles.resultValue, { color: colors.selection }]}>
+                {result}
+              </Text>
+              <Spacer height={12} />
+              <TouchableOpacity
+                style={[styles.copyButton, { backgroundColor: colors.selection + '20' }]}
+                onPress={() => {
+                  // Implement copy to clipboard functionality
+                  alert('Wynik: ' + result);
+                }}
+              >
+                <MaterialCommunityIcons name="content-copy" size={16} color={colors.selection} />
+                <Text style={[styles.copyButtonText, { color: colors.selection }]}>Kopiuj Wynik</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Error Message */}
+          {error && (
+            <View style={[styles.errorCard, { backgroundColor: colors.selection + '15', borderColor: colors.selection }]}>
+              <MaterialCommunityIcons name="alert-circle" size={20} color={colors.selection} />
+              <Text style={[styles.errorText, { color: colors.selection }]}>{error}</Text>
+            </View>
+          )}
+
+          <Spacer height={16} />
+
+          {/* Info Cards */}
+          <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 2 }]}>
+            <MaterialCommunityIcons name="information" size={20} color={colors.text} />
+            <Text style={[styles.infoTitle, { color: colors.title }]}>Jak to działa</Text>
+            <Spacer height={8} />
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              {mode === 'toDecimal'
+                ? '14:30:45 = 14 + (30/60) + (45/3600) = 14.5125 godzin'
+                : '14.5125 = 14 godzin, 30 minut, 45 sekund'}
+            </Text>
+          </View>
+
+          <Spacer height={16} />
+
+          {/* Clear Button */}
+          <TouchableOpacity
+            style={[styles.clearButton, { borderColor: colors.border }]}
+            onPress={handleClear}
+          >
+            <MaterialCommunityIcons name="refresh" size={18} color={colors.text} />
+            <Text style={[styles.clearButtonText, { color: colors.text }]}>Wyczyść Wszystko</Text>
+          </TouchableOpacity>
+
+          <Spacer height={32} />
         </View>
-
-        <Spacer height={16} />
-
-        {/* Clear Button */}
-        <TouchableOpacity
-          style={[styles.clearButton, { borderColor: colors.border }]}
-          onPress={handleClear}
-        >
-          <MaterialCommunityIcons name="refresh" size={18} color={colors.text} />
-          <Text style={[styles.clearButtonText, { color: colors.text }]}>Wyczyść Wszystko</Text>
-        </TouchableOpacity>
-
-        <Spacer height={32} />
-      </View>
+      </ScrollView>
     </View>
   );
 }

@@ -30,7 +30,7 @@ export default function TabLayout() {
   const handleLogout = async () => {
     closeMenu();
     await signOut();
-    router.replace('/(auth)/login');
+    router.replace('/(auth)/welcome');
   };
 
   return (
@@ -144,7 +144,7 @@ export default function TabLayout() {
               onPress={() => goTo('/(app)/misc/timeConverter')}
               colors={colors}
             />
-            <MenuItem
+            {/* <MenuItem
               label="O aplikacji"
               icon="information-circle-outline"
               onPress={() => goTo('/(app)/misc/about')}
@@ -167,7 +167,7 @@ export default function TabLayout() {
               icon="settings-outline"
               onPress={() => goTo('/(app)/misc/settings')}
               colors={colors}
-            />
+            /> */}
             <View style={styles.divider} />
 
             <MenuItem

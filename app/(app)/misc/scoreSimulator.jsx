@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
+  Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Colors } from '@/constants/Colors.js'; // dostosuj ścieżkę
@@ -38,7 +39,40 @@ const ScoreSimulator = () => {
   const [durationLabel, setDurationLabel] = useState('');
   const [maxUntilLabel, setMaxUntilLabel] = useState('');
 
+  const [startTimeWebValue, setStartTimeWebValue] = useState('');
+  const [endTimeWebValue, setEndTimeWebValue] = useState('');
 
+  const parseWebTimeToDate = (value) => {
+    const match = /^(\d{2}):(\d{2})$/.exec(value);
+    if (!match) return null;
+
+    const hours = Number(match[1]);
+    const minutes = Number(match[2]);
+
+    if (hours > 23 || minutes > 59) return null;
+
+    const date = new Date();
+    date.setHours(hours, minutes, 0, 0);
+    return date;
+  };
+
+  const handleWebStartTimeChange = (value) => {
+    setStartTimeWebValue(value);
+
+    const parsed = parseWebTimeToDate(value);
+    if (parsed) {
+      setStartTime(parsed);
+    }
+  };
+
+  const handleWebEndTimeChange = (value) => {
+    setEndTimeWebValue(value);
+
+    const parsed = parseWebTimeToDate(value);
+    if (parsed) {
+      setEndTime(parsed);
+    }
+  };
   const secondsFromDate = (date) => {
     if (!date) return null;
     return (
@@ -154,6 +188,8 @@ const ScoreSimulator = () => {
   const handleClear = () => {
     setStartTime(null);
     setEndTime(null);
+    setStartTimeWebValue('');
+    setEndTimeWebValue('');
     setShowStartPicker(false);
     setShowEndPicker(false);
     setPallets('');
@@ -186,63 +222,86 @@ const ScoreSimulator = () => {
         </Text>
 
         {/* Czas rozpoczęcia */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Pierwszy strzał</Text>
-          <TouchableOpacity
-            style={styles.timeInputButton}
-            onPress={() => setShowStartPicker(true)}
-          >
-            <Text
-              style={[
-                styles.timeInputText,
-                !startTime && styles.timeInputPlaceholder,
-              ]}
+        {Platform.OS === 'web' ? (
+          <TextInput
+            style={[styles.input, { marginBottom: 12 }]}
+            value={startTimeWebValue}
+            placeholder="HH:MM"
+            placeholderTextColor={palette.phText}
+            onChangeText={handleWebStartTimeChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.timeInputButton, { marginBottom: 12 }]}
+              onPress={() => setShowStartPicker(true)}
             >
-              {formatTimeLabel(startTime)}
-            </Text>
-          </TouchableOpacity>
-          {showStartPicker && (
-            <DateTimePicker
-              value={startTime || new Date()}
-              mode="time"
-              is24Hour
-              display="default"
-              onChange={onChangeStartTime}
-            />
-          )}
-        </View>
+              <Text
+                style={[
+                  styles.timeInputText,
+                  !startTime && styles.timeInputPlaceholder,
+                ]}
+              >
+                {formatTimeLabel(startTime)}
+              </Text>
+            </TouchableOpacity>
+
+            {showStartPicker && (
+              <DateTimePicker
+                value={startTime || new Date()}
+                mode="time"
+                is24Hour={true}
+                display="default"
+                onChange={onChangeStartTime}
+              />
+            )}
+          </>
+        )}
 
         {/* Czas zakończenia */}
-        <View style={styles.formGroup}>
-          <Text style={styles.label}>Ostatni strzał</Text>
-          <TouchableOpacity
-            style={styles.timeInputButton}
-            onPress={() => {
-              // Ustaw aktualny czas urządzenia jako domyślny
-              const now = new Date();
-              setEndTime(now);
-              setShowEndPicker(true);
-            }}
-          >
-            <Text
-              style={[
-                styles.timeInputText,
-                !endTime && styles.timeInputPlaceholder,
-              ]}
+        {Platform.OS === 'web' ? (
+          <TextInput
+            style={[styles.input, { marginBottom: 12 }]}
+            value={endTimeWebValue}
+            placeholder="HH:MM"
+            placeholderTextColor={palette.phText}
+            onChangeText={handleWebEndTimeChange}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+        ) : (
+          <>
+            <TouchableOpacity
+              style={[styles.timeInputButton, { marginBottom: 12 }]}
+              onPress={() => {
+                const now = new Date();
+                setEndTime(endTime || now);
+                setShowEndPicker(true);
+              }}
             >
-              {formatTimeLabel(endTime)}
-            </Text>
-          </TouchableOpacity>
-          {showEndPicker && (
-            <DateTimePicker
-              value={endTime || new Date()}
-              mode="time"
-              is24Hour
-              display="default"
-              onChange={onChangeEndTime}
-            />
-          )}
-        </View>
+              <Text
+                style={[
+                  styles.timeInputText,
+                  !endTime && styles.timeInputPlaceholder,
+                ]}
+              >
+                {formatTimeLabel(endTime)}
+              </Text>
+            </TouchableOpacity>
+
+            {showEndPicker && (
+              <DateTimePicker
+                value={endTime || new Date()}
+                mode="time"
+                is24Hour={true}
+                display="default"
+                onChange={onChangeEndTime}
+              />
+            )}
+          </>
+        )}
 
         {/* Liczba palet */}
         <View style={styles.formGroup}>
