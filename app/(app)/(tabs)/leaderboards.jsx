@@ -21,6 +21,7 @@ import ThemedView from '@/components/ThemedView';
 import { useColors } from '@/_hooks/useColors';
 import { useAuth } from '@/_context/AuthContext';
 import { db } from '@/firebase/config';
+import { useUserProfile } from '@/_context/UserProfileContext';
 
 const PODIUM_STYLES = {
   1: {
@@ -60,9 +61,15 @@ const getMonthBounds = () => {
 
 const formatRate = (value) => `${value.toFixed(2)} pal/h`;
 
-const getDisplayName = (entry, currentUser) => {
-  if (entry.userId === currentUser?.id && currentUser?.name) {
-    return currentUser.name;
+const getDisplayName = (entry, currentUser, currentProfile) => {
+  if (entry.userId === currentUser?.id) {
+    return (
+      currentProfile?.name ||
+      currentProfile?.displayName ||
+      currentUser?.name ||
+      currentUser?.email ||
+      `Pracownik ${entry.userId.slice(0, 6)}`
+    );
   }
 
   return (
@@ -77,11 +84,13 @@ export default function Leaderboards() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
+  const { profile } = useUserProfile();
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const monthInfo = useMemo(() => getMonthBounds(), []);
+
 
   const loadLeaderboard = useCallback(async () => {
     try {
@@ -150,7 +159,7 @@ export default function Leaderboards() {
             return b.totalPallets - a.totalPallets;
           }
 
-          return getDisplayName(a, user).localeCompare(getDisplayName(b, user), 'pl');
+          return getDisplayName(a, user, profile).localeCompare(getDisplayName(b, user, profile), 'pl');
         })
         .map((entry, index) => ({
           ...entry,
@@ -279,7 +288,7 @@ export default function Leaderboards() {
                         style={styles.prefixIcon}
                       />
                       <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                        {getDisplayName(entry, user)}
+                        {getDisplayName(entry, user, profile)}
                       </Text>
                     </View>
 

@@ -171,11 +171,14 @@ export default function Profile() {
     <ScrollView style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.background }]}>
       {/* Profile Header */}
       <View style={[styles.header, { backgroundColor: colors.cardBackground }]}>
+        <TouchableOpacity style={{ position: 'absolute', top: 15, right: 15 }} onPress={() => router.push('/(app)/editProfile')}>
+          <Ionicons name="pencil" size={20} color={colors.butText} />
+        </TouchableOpacity>
         <View style={styles.profileImageContainer}>
           <Ionicons name="person-circle" size={100} color={colors.iconColor} />
         </View>
         <Text style={[styles.userName, { color: colors.title }]}>
-          {user?.name || user?.email || 'User'}
+          {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}
         </Text>
         <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
           {user?.email || 'email@example.com'}

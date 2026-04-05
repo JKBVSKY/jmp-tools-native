@@ -164,7 +164,7 @@ export default function Dashboard() {
           >
             {/* Top content */}
             <View>
-              <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {user?.name || 'User'}!</Text>
+              <Text style={[styles.welcome, { color: colors.text }]}>Witaj, {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}!</Text>
               <Text style={{ color: colors.text, fontSize: 15 }}>Produktywność na wyciągnięcie ręki.</Text>
 
               <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>

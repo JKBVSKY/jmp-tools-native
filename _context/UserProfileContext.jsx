@@ -108,75 +108,75 @@ export function UserProfileProvider({ children }) {
     }
   };
 
-// Award XP
-const awardXP = async (xpAmount) => {
-  try {
-    if (!user || !user.id) {
-      console.error('❌ User not authenticated');
-      return null;
-    }
-
-    // ✅ NEW: Add timeout to detect offline
-    const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Firestore timeout - likely offline')), 3000) // 3 second timeout
-    );
-
-    const awardPromise = (async () => {
-      const userRef = doc(db, 'users', user.id);
-      const freshSnap = await Promise.race([
-        getDoc(userRef),
-        timeoutPromise
-      ]);
-
-      if (!freshSnap.exists()) {
-        console.error('❌ Profile not found in Firestore');
+  // Award XP
+  const awardXP = async (xpAmount) => {
+    try {
+      if (!user || !user.id) {
+        console.error('❌ User not authenticated');
         return null;
       }
 
-      const freshProfile = freshSnap.data();
-      const currentTotalXP = freshProfile.totalXP || 0;
-      const newTotalXP = currentTotalXP + xpAmount;
+      // ✅ NEW: Add timeout to detect offline
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Firestore timeout - likely offline')), 3000) // 3 second timeout
+      );
 
-      // ✅ RECALCULATE LEVEL FROM NEW XP
-      const levelData = calculateLevelFromXP(newTotalXP);
-      const newLevel = levelData.level; // Extract the level
+      const awardPromise = (async () => {
+        const userRef = doc(db, 'users', user.id);
+        const freshSnap = await Promise.race([
+          getDoc(userRef),
+          timeoutPromise
+        ]);
 
-      // ✅ Update with timeout
-      await Promise.race([
-        updateDoc(userRef, {
+        if (!freshSnap.exists()) {
+          console.error('❌ Profile not found in Firestore');
+          return null;
+        }
+
+        const freshProfile = freshSnap.data();
+        const currentTotalXP = freshProfile.totalXP || 0;
+        const newTotalXP = currentTotalXP + xpAmount;
+
+        // ✅ RECALCULATE LEVEL FROM NEW XP
+        const levelData = calculateLevelFromXP(newTotalXP);
+        const newLevel = levelData.level; // Extract the level
+
+        // ✅ Update with timeout
+        await Promise.race([
+          updateDoc(userRef, {
+            totalXP: newTotalXP,
+            level: newLevel,
+          }),
+          timeoutPromise
+        ]);
+
+        const updated = {
+          ...freshProfile,
           totalXP: newTotalXP,
           level: newLevel,
-        }),
+        };
+
+        setProfile(updated);
+
+        console.log('✅ XP saved:', { xpAmount, newTotalXP, level: newLevel });
+
+        return {
+          xpEarned: xpAmount,
+          newLevel: newLevel,
+          leveledUp: newLevel > (freshProfile.level || 1),
+          newTotalXP,
+        };
+      })();
+
+      return await Promise.race([
+        awardPromise,
         timeoutPromise
       ]);
-
-      const updated = {
-        ...freshProfile,
-        totalXP: newTotalXP,
-        level: newLevel,
-      };
-
-      setProfile(updated);
-
-      console.log('✅ XP saved:', { xpAmount, newTotalXP, level: newLevel });
-
-      return {
-        xpEarned: xpAmount,
-        newLevel: newLevel,
-        leveledUp: newLevel > (freshProfile.level || 1),
-        newTotalXP,
-      };
-    })();
-
-    return await Promise.race([
-      awardPromise,
-      timeoutPromise
-    ]);
-  } catch (error) {
-    console.error('❌ Error awarding XP (will cache):', error.message);
-    return null; // ✅ Return null so fallback caching triggers
-  }
-};
+    } catch (error) {
+      console.error('❌ Error awarding XP (will cache):', error.message);
+      return null; // ✅ Return null so fallback caching triggers
+    }
+  };
 
   // Add new achievement
   const unlockAchievement = async (achievementId) => {
@@ -224,6 +224,18 @@ const awardXP = async (xpAmount) => {
     }
   };
 
+  const updateProfileNameLocally = (newName) => {
+    setProfile((prev) =>
+      prev
+        ? {
+          ...prev,
+          name: newName,
+          displayName: newName,
+        }
+        : prev
+    );
+  };
+
   const value = {
     profile,
     isLoading,
@@ -233,6 +245,7 @@ const awardXP = async (xpAmount) => {
     updateStats,
     loadUserProfile,
     getLocalCachedXP,
+    updateProfileNameLocally,
   };
 
   return (

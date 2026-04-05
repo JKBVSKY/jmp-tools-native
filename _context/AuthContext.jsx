@@ -210,12 +210,23 @@ export function AuthProvider({ children }) {
       await StorageManager.removeItem('user');
 
       console.log('✅ Signed out');
-      
+
       return { success: true };
     } catch (error) {
       console.error('Error signing out:', error);
       return { success: false, error: error.message };
     }
+  };
+
+  const updateUserName = (newName) => {
+    setUser((prev) =>
+      prev
+        ? {
+          ...prev,
+          name: newName,
+        }
+        : prev
+    );
   };
 
   const value = {
@@ -226,6 +237,7 @@ export function AuthProvider({ children }) {
     signUp,
     signOut,
     continueAsGuest,
+    updateUserName,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
