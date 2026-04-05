@@ -1,6 +1,9 @@
 {
-  "buildCommand": "npm run web:prod",
+  "framework": null,
+  "buildCommand": "npx expo export -p web",
   "outputDirectory": "dist",
-  "framework": "expo",
-  "public": false
+  "routes": [
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
 }
