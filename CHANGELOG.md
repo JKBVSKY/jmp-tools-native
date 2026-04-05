@@ -5,29 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
-
-### Added
-- (New features in development will be listed here)
+## [0.6.1] - 2026-04-05
 
 ### Fixed
-- (Bug fixes in development will be listed here)
+- Corrected logic for startTime and forcedFinishTime.
+- Resolved an issue with saving dates in scoreHistory.
+- Fixed a navigation bug on the login screen preventing users from returning to the previous page.
+- Applied minor translation corrections.
+- Restored proper functionality of input elements on the web platform.
 
 ### Changed
-- (Changes to existing functionality will be listed here)
-
----
-
-## [0.6.1] - 2026-xx-xx
-
-### Added
-- (New features in development will be listed here)
-
-### Fixed
-- startTime and forcedFinishTime logic fixed
-
-### Changed
-- Redesigned Init.jsx
+- Redesigned Init.jsx component for cleaner structure and improved maintainability.
+- Revamped the dashboard for a more intuitive experience.
+- Updated the guest interface with a new design.
+- Tweaked scoreHistory UI for better clarity and layout.
+- Overhauled the entire app layout for full responsiveness—content now scales correctly on small devices.
 
 ---
 
