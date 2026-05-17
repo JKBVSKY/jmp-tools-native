@@ -172,7 +172,7 @@ export default function Profile() {
       {/* Profile Header */}
       <View style={[styles.header, { backgroundColor: colors.cardBackground }]}>
         <TouchableOpacity style={{ position: 'absolute', top: 15, right: 15 }} onPress={() => router.push('/(app)/editProfile')}>
-          <Ionicons name="pencil" size={20} color={colors.butText} />
+          <Ionicons name="pencil" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
         <View style={styles.profileImageContainer}>
           <Ionicons name="person-circle" size={100} color={colors.iconColor} />
