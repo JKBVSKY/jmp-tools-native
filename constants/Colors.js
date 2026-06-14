@@ -28,9 +28,9 @@ export const Colors = {
     // Buttons - Modern red accent
     butBackground: '#e3452d',    // Red button
     butText: '#FFFFFF',
-    butBorder: '#e3452d',        // Darker red for border
-    outButBackground: 'transparent',
-    outButBorder: '#5F6368',     // Gray border
+    butBorder: '#b93622',        // Darker red for border
+    outButBackground: '#292A2D', // Gray background for outlined button
+    outButBorder: '#44484d',     // Gray border
     outButText: '#E8EAED',
     disabledButBackground: '#3A3C40', // or '#3F4144'
     disabledButText: '#9AA0A6',
@@ -38,6 +38,7 @@ export const Colors = {
 
     // UI Elements
     border: '#111',           // Gray border
+    headerBorder: '#3F4144',   // Gray border for header
     breakLine: '#3F4144',        // Gray break line
     grayIconColor: '#a6a6b1',        // Gray icons
     iconColor: '#9AA0A6',        // Light gray icons

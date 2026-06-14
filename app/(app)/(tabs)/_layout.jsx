@@ -172,11 +172,11 @@ export default function TabLayout() {
               tabBarIconStyle: Platform.OS === 'web' ? { marginBottom: 2 } : undefined,
               tabBarItemStyle: Platform.OS === 'web'
                 ? {
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    paddingVertical: 4,
-                  }
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  paddingVertical: 4,
+                }
                 : undefined,
               unmountOnBlur: true,
             }}
@@ -223,108 +223,14 @@ export default function TabLayout() {
               options={{
                 title: 'Więcej',
                 tabBarIcon: ({ color }) => (
-                  <Ionicons name="ellipsis-horizontal" size={28} color={color} />
-                ),
-                tabBarButton: (props) => (
-                  <Pressable
-                    {...props}
-                    onPress={openMenu}
-                    style={[props.style, styles.moreButton]}
-                  >
-                    <Ionicons
-                      name="ellipsis-horizontal"
-                      size={28}
-                      color={
-                        props.accessibilityState?.selected
-                          ? colors.tabActive || 'blue'
-                          : colors.tabInactive || '#9ca3af'
-                      }
-                    />
-                    <Text
-                      style={[styles.moreLabel, { color: colors.tabInactive || '#9ca3af' }]}
-                    >
-                      Więcej
-                    </Text>
-                  </Pressable>
+                  <Ionicons name="ellipsis-horizontal" size={22} color={color} />
                 ),
               }}
             />
           </Tabs>
         </View>
       </View>
-
-      {/* Slide-up menu – used on both mobile (from tab) and web (from sidebar) */}
-      <Modal
-        visible={menuVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={closeMenu}
-      >
-        <View style={styles.modalRoot}>
-          {/* Dark backdrop */}
-          <Pressable style={styles.backdrop} onPress={closeMenu} />
-
-          {/* Bottom sheet */}
-          <View
-            style={[styles.sheet, { backgroundColor: colors.cardBackground || '#111827' }]}
-          >
-            <View style={styles.handle} />
-
-            <MenuItem
-              label="Przeliczanie Średniej"
-              icon="calculator-outline"
-              onPress={() => goTo('/(app)/misc/scoreSimulator')}
-              colors={colors}
-            />
-            <MenuItem
-              label="Konwerter Czasu"
-              icon="time-outline"
-              onPress={() => goTo('/(app)/misc/timeConverter')}
-              colors={colors}
-            />
-            <View style={styles.divider} />
-            <MenuItem
-              label="Wyloguj się"
-              icon="log-out-outline"
-              onPress={handleLogout}
-              colors={colors}
-              danger
-            />
-          </View>
-        </View>
-      </Modal>
     </>
-  );
-}
-
-function MenuItem({ label, icon, onPress, colors, danger = false }) {
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [
-        styles.menuItem,
-        {
-          backgroundColor: pressed
-            ? colors.pressBackground || 'rgba(255,255,255,0.06)'
-            : 'transparent',
-        },
-      ]}
-    >
-      <Ionicons
-        name={icon}
-        size={22}
-        color={danger ? '#ef4444' : colors.iconColor || '#e5e7eb'}
-        style={{ marginRight: 12 }}
-      />
-      <Text
-        style={[
-          styles.menuLabel,
-          { color: danger ? '#ef4444' : colors.text || '#e5e7eb' },
-        ]}
-      >
-        {label}
-      </Text>
-    </Pressable>
   );
 }
 
@@ -332,15 +238,11 @@ const styles = StyleSheet.create({
   moreButton: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
-    flexDirection: 'column',
-    paddingVertical: Platform.OS === 'web' ? 6 : 0,
-    width: '100%',
   },
   moreLabel: {
     fontSize: 10,
-    marginTop: Platform.OS === 'web' ? 6 : 14,
-    lineHeight: 14,
+    lineHeight: 12,
+    marginTop: 2,
   },
   modalRoot: {
     flex: 1,
@@ -382,7 +284,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.1)',
     marginVertical: 8,
   },
-  
+
   // --- WEB SIDEBAR STYLES ---
   sidebar: {
     width: 240,

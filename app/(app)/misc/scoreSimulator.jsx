@@ -215,12 +215,13 @@ const ScoreSimulator = () => {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.card}>
-        <Text style={styles.title}>Przelicz średnią</Text>
+      <View style={styles.header}>
         <Text style={styles.description}>
           Uzupełnij dane i kliknij „Oblicz”, aby obliczyć średnią liczbę palet na godzinę.
         </Text>
+      </View>
 
+      <View style={styles.content}>
         {/* Czas rozpoczęcia */}
         {Platform.OS === 'web' ? (
           <TextInput
@@ -234,6 +235,7 @@ const ScoreSimulator = () => {
           />
         ) : (
           <>
+            <Text style={styles.label}>Czas rozpoczęcia</Text>
             <TouchableOpacity
               style={[styles.timeInputButton, { marginBottom: 12 }]}
               onPress={() => setShowStartPicker(true)}
@@ -273,6 +275,7 @@ const ScoreSimulator = () => {
           />
         ) : (
           <>
+            <Text style={styles.label}>Czas zakończenia</Text>
             <TouchableOpacity
               style={[styles.timeInputButton, { marginBottom: 12 }]}
               onPress={() => {
@@ -369,21 +372,17 @@ const createStyles = (palette) =>
   StyleSheet.create({
     screen: {
       flex: 1,
-      padding: 16,
       backgroundColor: palette.background,
-      justifyContent: 'center',
     },
-    card: {
-      borderRadius: 16,
-      padding: 20,
-      backgroundColor: palette.cardBackground,
-      borderWidth: 1,
-      borderColor: palette.border,
-      shadowColor: '#000',
-      shadowOpacity: 0.25,
-      shadowRadius: 12,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 6,
+    header: {
+      paddingHorizontal: 32,
+      paddingVertical: 8,
+      backgroundColor: palette.navBackground,
+      marginBottom: 32,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: 32,
     },
     title: {
       fontSize: 22,

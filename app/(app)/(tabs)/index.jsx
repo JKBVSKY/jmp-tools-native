@@ -483,7 +483,7 @@ export default function Dashboard() {
               </View>
 
               {/* Level Card */}
-              <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>
+              <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                 <View>
                   <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
                   <Text style={[styles.achievements, { color: colors.textSecondary }]}>
@@ -515,7 +515,7 @@ export default function Dashboard() {
               </ThemedCard>
 
               {/* Monthly Summary */}
-              <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground }]}>
+              <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                 <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}>
                   Załadunek
                 </Text>
@@ -524,7 +524,7 @@ export default function Dashboard() {
                 </Text>
                 <View style={styles.statsGrid}>
                   <ThemedCard
-                    style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground }]}
+                    style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
                   >
                     <Ionicons
                       name="flash-outline"
@@ -537,12 +537,12 @@ export default function Dashboard() {
                     <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
                       Średnia miesięczna
                     </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>
+                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}>
                       {summary.averageRate.toFixed(2)} pal/h
                     </Text>
                   </ThemedCard>
                   <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground }]}
+                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
                   >
                     <Ionicons
                       name="layers-outline"
@@ -555,12 +555,12 @@ export default function Dashboard() {
                     <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
                       Palety
                     </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>
+                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
                       {summary.totalPallets}
                     </Text>
                   </ThemedCard>
                   <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground }]}
+                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
                   >
                     <Ionicons
                       name="trophy-outline"
@@ -573,20 +573,20 @@ export default function Dashboard() {
                     <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
                       Ranking
                     </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>{rank}</Text>
+                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{rank}</Text>
                   </ThemedCard>
                   <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground }]}
+                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
                   >
                     <Ionicons
                       name="time-outline"
                       size={28}
-                      style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4 }]}
+                      style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
                     />
                     <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
                       Czas
                     </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>
+                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
                       {formatTime(summary.totalTime)}
                     </Text>
                   </ThemedCard>
@@ -669,17 +669,23 @@ const styles = StyleSheet.create({
   summaryContainer: {
     marginHorizontal: 16,
     borderRadius: 16,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    padding: 16,
   },
   gridTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginHorizontal: 16,
-    paddingTop: 16,
+    marginHorizontal: 8,
   },
   gridSubtitle: {
     fontSize: 15,
-    marginHorizontal: 16,
-    marginBottom: 16,
+    marginHorizontal: 8,
+    marginBottom: 12,
   },
   levelCard: {
     flexDirection: 'row',
@@ -688,6 +694,12 @@ const styles = StyleSheet.create({
     marginVertical: 16,
     borderRadius: 16,
     gap: 32,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
   levelTitle: {
     fontSize: 24,
@@ -739,17 +751,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginHorizontal: 16,
+    marginHorizontal: 8,
   },
   statCard: {
-    width: '32%',
-    marginBottom: 10,
+    width: '31%',
     borderRadius: 16,
+    borderWidth: 1,
   },
   statCardWide: {
     width: '100%',
-    marginBottom: 10,
+    marginBottom: 12,
     borderRadius: 16,
+    borderWidth: 1,
   },
   statTitle: {
     fontSize: 17,

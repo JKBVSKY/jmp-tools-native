@@ -7,9 +7,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
+import ThemedCard from '@/components/ThemedCard';
 import { Alert } from 'react-native';
 import { useAuth } from '@/_context/AuthContext';
 import { db } from '@/firebase/config';
+import { Ionicons } from "@expo/vector-icons";
 import {
   collection,
   query,
@@ -273,7 +275,10 @@ export default function ScoreHistory() {
                   onPress={() => setViewMode('table')}
                   style={[
                     styles.toggleButton,
-                    { backgroundColor: viewMode === 'table' ? colors.iconColor : colors.cardBackground, borderColor: colors.outButBorder }
+                    {
+                      backgroundColor: viewMode === 'table' ? colors.butBackground : colors.outButBackground,
+                      borderColor: viewMode === 'table' ? colors.butBorder : colors.outButBorder
+                    }
                   ]}
                 >
                   <MaterialCommunityIcons
@@ -287,7 +292,10 @@ export default function ScoreHistory() {
                   onPress={() => setViewMode('graph')}
                   style={[
                     styles.toggleButton,
-                    { backgroundColor: viewMode === 'graph' ? colors.iconColor : colors.cardBackground, borderColor: colors.outButBorder }
+                    {
+                      backgroundColor: viewMode === 'graph' ? colors.butBackground : colors.outButBackground,
+                      borderColor: viewMode === 'graph' ? colors.butBorder : colors.outButBorder
+                    }
                   ]}
                 >
                   <MaterialCommunityIcons
@@ -302,34 +310,59 @@ export default function ScoreHistory() {
             {/* Summary Table - Always visible when sessions exist */}
             {sessionsForMonth.length > 0 && summary && (
               <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                <Text style={[styles.summaryTitle, { color: colors.text }]}>Ogólne</Text>
+                <Text style={[styles.summaryTitle, { color: colors.text }]}>Podsumowanie miesiąca</Text>
+                <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
+                  Twoja wydajność w tym miesiącu
+                </Text>
 
                 <View style={styles.summaryGrid}>
+                  {/* Average Rate */}
+                  <ThemedCard style={[styles.summaryBoxWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, }]}>
+                    <Ionicons
+                      name="flash-outline"
+                      size={28}
+                      style={[
+                        styles.cardIcon,
+                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                      ]}
+                    />
+                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Średnia Miesięczna</Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>{summary.averageRate} pal/h</Text>
+                  </ThemedCard>
                   {/* Total Time */}
-                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
-                    <Text style={[styles.summaryValue, { color: colors.text }]}>
+                  <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                    <Ionicons
+                      name="time-outline"
+                      size={28}
+                      style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
+                    />
+                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Czas</Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>
                       {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
                     </Text>
-                  </View>
+                  </ThemedCard>
 
                   {/* Total Pallets */}
-                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Palety</Text>
-                    <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalPallets}</Text>
-                  </View>
+                  <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                    <Ionicons
+                      name="layers-outline"
+                      size={28}
+                      style={[
+                        styles.cardIcon,
+                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                      ]}
+                    />
+                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Palety</Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>{summary.totalPallets}</Text>
+                  </ThemedCard>
 
                   {/* Total Trucks */}
-                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Załadowane Naczepy</Text>
-                    <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.totalTrucks}</Text>
-                  </View>
+                  <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                    <MaterialCommunityIcons name="truck-check-outline" size={28} style={{ color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }} />
+                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Naczepy</Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>{summary.totalTrucks}</Text>
+                  </ThemedCard>
 
-                  {/* Average Rate */}
-                  <View style={[styles.summaryBox, { borderColor: colors.breakLine }]}>
-                    <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Średnia Miesięczna</Text>
-                    <Text style={[styles.summaryValue, { color: colors.text }]}>{summary.averageRate}</Text>
-                  </View>
                 </View>
               </View>
             )}
@@ -355,137 +388,148 @@ export default function ScoreHistory() {
 
                 {/* Graph components here */}
                 {viewMode === 'graph' && sessions.length > 0 && (
-                  <View style={styles.chartContainer}>
+                  <View style={[styles.chartContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                     <Text style={[styles.chartTitle, { color: colors.text }]}>
-                      Sesje w miesiącu {currentMonth ? formatMonthLabel(currentMonth) : ''}
+                      Wykres wydajności
+                    </Text>
+                    <Text style={[styles.chartSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
+                      Wydajność palet na godzinę dla każdej sesji w tym miesiącu
                     </Text>
 
-                    <ScrollView
-                      horizontal
-                      showsHorizontalScrollIndicator={false}
-                      contentContainerStyle={{ paddingRight: 16 }}
-                    >
-                      <LineChart
-                        data={chartData}
-                        width={chartWidth}
-                        height={220}
-                        yAxisSuffix=" pal/h"
-                        yLabelsOffset={8}
-                        chartConfig={{
-                          backgroundColor: colors.cardBackground,
-                          backgroundGradientFrom: colors.cardBackground,
-                          backgroundGradientTo: colors.cardBackground,
-                          decimalPlaces: 1,
-                          color: (opacity = 1) => colors.iconColor,
-                          labelColor: (opacity = 1) => colors.text,
-                          style: {
-                            borderRadius: 16,
-                          },
-                          propsForDots: {
-                            r: '6',
-                            strokeWidth: '2',
-                            stroke: colors.iconColor,
-                            fill: colors.iconColor,
-                          },
-                        }}
-                        bezier
-                        style={styles.chart}
-                      />
-                    </ScrollView>
+                    <View style={[styles.chartCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                      <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={{ margin: 16 }}
+                      >
+                        <LineChart
+                          data={chartData}
+                          width={chartWidth}
+                          height={160}
+                          yAxisSuffix=" pal/h"
+                          yLabelsOffset={8}
+                          chartConfig={{
+                            backgroundColor: colors.cardInCardBackground,
+                            backgroundGradientFrom: colors.cardInCardBackground,
+                            backgroundGradientTo: colors.cardInCardBackground,
+                            decimalPlaces: 1,
+                            color: (opacity = 1) => colors.iconColor,
+                            labelColor: (opacity = 1) => colors.text,
+                            style: {
+                              borderRadius: 16,
+                            },
+                            propsForDots: {
+                              r: '6',
+                              strokeWidth: '2',
+                              stroke: colors.iconColor,
+                              fill: colors.iconColor,
+                            },
+                          }}
+                          bezier
+                          style={styles.chart}
+                        />
+                      </ScrollView>
+                    </View>
                   </View>
                 )}
 
                 {/* Table components here */}
                 {viewMode === 'table' && (
-                  <View
-                    style={[styles.tableContainer, { flex: 1 }]}
-                    refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
-                  >
-                    {/* Table Header */}
-                    <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
-                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
-                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
-                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Palety</Text>
-                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Naczepy</Text>
-                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
-                      <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
-                    </View>
+                  <View style={[styles.tableContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                    <Text style={[styles.tableTitle, { color: colors.text }]}>
+                      Szczegóły Sesji
+                    </Text>
+                    <Text style={[styles.tableSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
+                      Lista wszystkich sesji w tym miesiącu
+                    </Text>
 
-                    {/* Table Rows */}
-                    <ScrollView style={{
-                      marginBottom: 16,
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                      borderBottomLeftRadius: 16,
-                      borderBottomRightRadius: 16,
-                    }}>
-                      {sessionsForMonth.map((session, index) => (
-                        <View
-                          key={session.id}
-                          style={[
-                            styles.tableRow,
-                            {
-                              backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
-                              borderBottomColor: colors.border
-                            }
-                          ]}
-                        >
-                          <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
-                            {formatDate(session.date)}
-                          </Text>
-                          <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
-                            {formatTime(session.loadingTime)}
-                          </Text>
-                          <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                            {session.palletsLoaded}
-                          </Text>
-                          <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                            {session.trucksCount}
-                          </Text>
-                          <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
-                            {session.palletsRate.toFixed(1)}
-                          </Text>
+                    <View
+                      style={[styles.tableCard, { flex: 1, borderColor: colors.border }]}
+                      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+                    >
+                      {/* Table Header */}
+                      <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Palety</Text>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Naczepy</Text>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
+                      </View>
 
-                          {/* Delete button */}
-                          <Pressable
-                            onPress={() => {
-                              Alert.alert(
-                                'Usuń Sesję',
-                                'Czy na pewno chcesz usunąć tę sesję?',
-                                [
-                                  {
-                                    text: 'Anuluj',
-                                    style: 'cancel'
-                                  },
-                                  {
-                                    text: 'Usuń',
-                                    onPress: async () => {
-                                      try {
-                                        if (!userId) return;
-
-                                        // Delete from Firestore
-                                        await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
-
-                                        // Then update local state
-                                        const updatedSessions = sessions.filter((s) => s.id !== session.id);
-                                        setSessions(updatedSessions);
-                                      } catch (error) {
-                                        Alert.alert('Error', 'Failed to delete session');
-                                      }
-                                    },
-
-                                    style: 'destructive'
-                                  }
-                                ]
-                              );
-                            }}
-                            style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
+                      {/* Table Rows */}
+                      <ScrollView style={{
+                        marginBottom: 16,
+                        borderBottomRadius: 16,
+                      }}>
+                        {sessionsForMonth.map((session, index) => (
+                          <View
+                            key={session.id}
+                            style={[
+                              styles.tableRow,
+                              {
+                                backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
+                                borderBottomColor: colors.border
+                              }
+                            ]}
                           >
-                            <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
-                          </Pressable>
-                        </View>
-                      ))}
-                    </ScrollView>
+                            <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
+                              {formatDate(session.date)}
+                            </Text>
+                            <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
+                              {formatTime(session.loadingTime)}
+                            </Text>
+                            <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                              {session.palletsLoaded}
+                            </Text>
+                            <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                              {session.trucksCount}
+                            </Text>
+                            <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
+                              {session.palletsRate.toFixed(1)}
+                            </Text>
+
+                            {/* Delete button */}
+                            <Pressable
+                              onPress={() => {
+                                Alert.alert(
+                                  'Usuń Sesję',
+                                  'Czy na pewno chcesz usunąć tę sesję?',
+                                  [
+                                    {
+                                      text: 'Anuluj',
+                                      style: 'cancel'
+                                    },
+                                    {
+                                      text: 'Usuń',
+                                      onPress: async () => {
+                                        try {
+                                          if (!userId) return;
+
+                                          // Delete from Firestore
+                                          await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
+
+                                          // Then update local state
+                                          const updatedSessions = sessions.filter((s) => s.id !== session.id);
+                                          setSessions(updatedSessions);
+                                        } catch (error) {
+                                          Alert.alert('Error', 'Failed to delete session');
+                                        }
+                                      },
+
+                                      style: 'destructive'
+                                    }
+                                  ]
+                                );
+                              }}
+                              style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
+                            >
+                              <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
+                            </Pressable>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    </View>
                   </View>
                 )}
               </View>
@@ -554,20 +598,57 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   chartContainer: {
-    marginBottom: 20,
+    borderRadius: 16,
+    padding: 16,
     marginHorizontal: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
   chartTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    marginHorizontal: 8,
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  chartSubtitle: {
+    marginHorizontal: 8,
     marginBottom: 12,
   },
-  chart: {
+  chartCard: {
     borderRadius: 16,
+    padding: 0,
+    borderWidth: 1,
   },
   tableContainer: {
     flex: 1,
     marginHorizontal: 16,
+    marginBottom: 20,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  tableCard: {
+    borderWidth: 1,
+    marginHorizontal: 8,
+    borderRadius: 16,
+  },
+  tableTitle: {
+    marginHorizontal: 8,
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  tableSubtitle: {
+    marginHorizontal: 8,
+    marginBottom: 12,
   },
   tableHeader: {
     flexDirection: 'row',
@@ -604,32 +685,44 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   summaryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    marginHorizontal: 8,
+    fontSize: 24,
+    fontWeight: 'bold',
+  },
+  summarySubtitle: {
+    marginHorizontal: 8,
     marginBottom: 12,
   },
   summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'flex-start',
-    gap: 16,
+    justifyContent: 'space-between',
+    marginHorizontal: 8,
   },
   summaryBox: {
-    width: '47%',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(0,0,0,0.05)',
+    width: '31%',
+    alignItems: 'flex-start',
+    padding: 16,
     borderRadius: 16,
     borderWidth: 1,
   },
+  summaryBoxWide: {
+    width: '100%',
+    alignItems: 'flex-start',
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
   summaryLabel: {
-    fontSize: 11,
-    marginBottom: 6,
-    fontWeight: '500',
+    fontSize: 17,
+    marginTop: 2,
+    marginBottom: 2,
+    fontWeight: '600',
   },
   summaryValue: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
   },
   graphGrid: {
     flexDirection: 'row',

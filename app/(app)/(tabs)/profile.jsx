@@ -187,8 +187,8 @@ export default function Profile() {
   };
 
   return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.background }]}> 
-      <View style={styles.profileShell}>
+    <View style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.background }]}>
+      <ScrollView style={styles.profileShell} showsVerticalScrollIndicator={false}>
 
         {/* Profile header + level (responsive) */}
         {isWideWeb ? (
@@ -268,7 +268,7 @@ export default function Profile() {
         ) : (
           <>
             {/* ORIGINAL MOBILE / NARROW WEB HEADER */}
-            <View style={[styles.header, { backgroundColor: colors.cardBackground }]}>
+            <View style={[styles.header, { backgroundColor: colors.cardBackground, borderColor: colors.border  }]}>
               <TouchableOpacity
                 style={{ position: 'absolute', top: 15, right: 15 }}
                 onPress={() => router.push('/(app)/editProfile')}
@@ -287,7 +287,7 @@ export default function Profile() {
             </View>
 
             {/* ORIGINAL MOBILE / NARROW WEB LEVEL CARD */}
-            <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
+            <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <View style={styles.cardHeader}>
                 <Ionicons name="medal" size={24} color={colors.iconColor} />
                 <Text style={[styles.cardTitle, { color: colors.title }]}>
@@ -336,7 +336,7 @@ export default function Profile() {
         )}
 
         {/* Statistics Card */}
-        <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
+        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
           <View style={styles.cardHeader}>
             <Ionicons name="bar-chart" size={24} color={colors.iconColor} />
             <Text style={[styles.cardTitle, { color: colors.title }]}>Statystyki</Text>
@@ -380,7 +380,7 @@ export default function Profile() {
         </View>
 
         {/* Achievements Card */}
-        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.borderColor, borderWidth: 1 }]}>
+        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1 }]}>
           <View style={styles.cardHeader}>
             <Ionicons name="trophy" size={24} color={colors.iconColor} />
             <Text style={[styles.cardTitle, { color: colors.text }]}>
@@ -457,7 +457,7 @@ export default function Profile() {
         </View>
 
         {/* Sessions Info */}
-        <View style={[styles.infoCard, { backgroundColor: colors.inputBackground, borderColor: colors.primary, borderWidth: 1 }]}>
+        <View style={[styles.infoCard, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
           <Ionicons name="information-circle" size={20} color={colors.iconColor} />
           <Text style={[styles.infoText, { color: colors.textSecondary }]}>
             {profile.stats.totalSessions} sesji ukończonych łącznie
@@ -476,15 +476,15 @@ export default function Profile() {
           }}
           isUnlocked={selectedAchievement ? profile.achievements.includes(selectedAchievement.id) : false}
         />
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 15,
+    paddingHorizontal: 15,
   },
   loadingText: {
     fontSize: 16,
@@ -501,6 +501,12 @@ const styles = StyleSheet.create({
     paddingVertical: 25,
     borderRadius: 12,
     marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    borderWidth: 1,
   },
   profileImageContainer: {
     marginBottom: 15,
@@ -517,6 +523,12 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     marginBottom: 15,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -619,7 +631,11 @@ const styles = StyleSheet.create({
     padding: 15,
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
   infoText: {
     marginLeft: 10,

@@ -4,6 +4,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from '@/_hooks/useColors';
 import Spacer from '@/components/Spacer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Clipboard from 'expo-clipboard';
+import { Alert } from 'react-native';
 
 export default function TimeConverter() {
   const colors = useColors();
@@ -88,46 +90,37 @@ export default function TimeConverter() {
     setError('');
   };
 
+  const handleCopyResult = async () => {
+    if (!result) {
+      Alert.alert('Brak wyniku', 'Najpierw wykonaj przeliczenie.');
+      return;
+    }
+
+    await Clipboard.setStringAsync(result);
+    Alert.alert('Skopiowano', 'Wynik został zapisany do schowka.');
+  };
+
   return (
     <View
-      style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top + 8 }]}
+      style={[styles.container, { backgroundColor: colors.background }]}
       showsVerticalScrollIndicator={false}
     >
-      <ScrollView
+      <View
         style={{ flex: 1 }}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+
       >
         {/* Header */}
-        <View style={styles.header}>
-          <MaterialCommunityIcons
-            name="calendar-clock"
-            size={32}
-            color={colors.text}
-          />
-          <Text style={[styles.title, { color: colors.title }]}>Przelicznik Czasu</Text>
-        </View>
-
-        <View
-          style={[
-            styles.mainCard,
-            {
-              backgroundColor: colors.cardBackground,
-              borderColor: colors.border,
-              shadowColor: colors.shadow ?? '#000',
-            },
-          ]}
-        >
-          <Spacer height={24} />
+        <View style={[styles.header, { backgroundColor: colors.navBackground }]}>
+          <Text style={[styles.description, { color: colors.textSecondary }]}>
+            Wybierz tryb konwersji, wprowadź czas i kliknij „Przelicz”, aby zobaczyć wynik. Możesz konwertować między formatem standardowym (HH:MM:SS) a dziesiętnym (godziny dziesiętne).
+          </Text>
 
           {/* Mode Selector */}
           <View style={styles.modeContainer}>
             <TouchableOpacity
               style={[
                 styles.modeButton,
-                mode === 'toDecimal' && [styles.modeButtonActive, { backgroundColor: colors.butBackground }],
-                { borderColor: colors.border }
+                mode === 'toDecimal' ? [styles.modeButtonActive, { backgroundColor: colors.butBackground, borderColor: colors.butBorder }] : { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder },
               ]}
               onPress={() => {
                 setMode('toDecimal');
@@ -147,8 +140,8 @@ export default function TimeConverter() {
             <TouchableOpacity
               style={[
                 styles.modeButton,
-                mode === 'toStandard' && [styles.modeButtonActive, { backgroundColor: colors.butBackground }],
-                { borderColor: colors.border }
+                mode === 'toStandard' ? [styles.modeButtonActive, { backgroundColor: colors.butBackground, borderColor: colors.butBorder }]
+                  : { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder },
               ]}
               onPress={() => {
                 setMode('toStandard');
@@ -165,112 +158,104 @@ export default function TimeConverter() {
               </Text>
             </TouchableOpacity>
           </View>
+        </View>
 
-          <Spacer height={24} />
-
-          {/* Input Card */}
-          <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 2 }]}>
-            <Text style={[styles.label, { color: colors.text }]}>
-              {mode === 'toDecimal' ? 'Wprowadź Czas (HH:MM:SS)' : 'Wprowadź Godziny (dziesiętne)'}
-            </Text>
-            <Spacer height={12} />
-
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  backgroundColor: colors.inputBackground,
-                  borderColor: error ? colors.selection : colors.inputBorder,
-                  color: colors.text
-                }
-              ]}
-              placeholder={mode === 'toDecimal' ? '14:30:45' : '14.5'}
-              placeholderTextColor={colors.phText}
-              value={mode === 'toDecimal' ? standardTime : decimalTime}
-              onChangeText={(text) => {
-                if (mode === 'toDecimal') {
-                  setStandardTime(text);
-                } else {
-                  setDecimalTime(text);
-                }
-                setError('');
-                setResult('');
-              }}
-              keyboardType={mode === 'toDecimal' ? 'default' : 'decimal-pad'}
-            />
-          </View>
-
-          <Spacer height={16} />
-
-          {/* Convert Button */}
-          <TouchableOpacity
-            style={[styles.convertButton, { backgroundColor: colors.primary }]}
-            onPress={handleConvert}
-          >
-            <MaterialCommunityIcons name="arrow-right" size={20} color={colors.text} />
-            <Text style={[styles.convertButtonText, { color: colors.text }]}>Przelicz</Text>
-          </TouchableOpacity>
-
-          <Spacer height={16} />
-
-          {/* Result Card */}
-          {result && (
-            <View style={[styles.resultCard, { backgroundColor: colors.cardBackground, borderColor: colors.selection }]}>
-              <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Wynik</Text>
-              <Spacer height={8} />
-              <Text style={[styles.resultValue, { color: colors.selection }]}>
-                {result}
+        <View style={styles.content}>
+          <View style={styles.contentTop}>
+            {/* Input Card */}
+            <View style={styles.card}>
+              <Text style={[styles.label, { color: colors.textSecondary }]}>
+                {mode === 'toDecimal' ? 'Wprowadź Czas (HH:MM:SS)' : 'Wprowadź Godziny (dziesiętne)'}
               </Text>
               <Spacer height={12} />
-              <TouchableOpacity
-                style={[styles.copyButton, { backgroundColor: colors.selection + '20' }]}
-                onPress={() => {
-                  // Implement copy to clipboard functionality
-                  alert('Wynik: ' + result);
+
+              <TextInput
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: colors.inputBackground,
+                    borderColor: error ? colors.selection : colors.inputBorder,
+                    color: colors.text
+                  }
+                ]}
+                placeholder={mode === 'toDecimal' ? '14:30:45' : '14.5'}
+                placeholderTextColor={colors.phText}
+                value={mode === 'toDecimal' ? standardTime : decimalTime}
+                onChangeText={(text) => {
+                  if (mode === 'toDecimal') {
+                    setStandardTime(text);
+                  } else {
+                    setDecimalTime(text);
+                  }
+                  setError('');
+                  setResult('');
                 }}
-              >
-                <MaterialCommunityIcons name="content-copy" size={16} color={colors.selection} />
-                <Text style={[styles.copyButtonText, { color: colors.selection }]}>Kopiuj Wynik</Text>
-              </TouchableOpacity>
+                keyboardType={mode === 'toDecimal' ? 'default' : 'decimal-pad'}
+              />
             </View>
-          )}
 
-          {/* Error Message */}
-          {error && (
-            <View style={[styles.errorCard, { backgroundColor: colors.selection + '15', borderColor: colors.selection }]}>
-              <MaterialCommunityIcons name="alert-circle" size={20} color={colors.selection} />
-              <Text style={[styles.errorText, { color: colors.selection }]}>{error}</Text>
-            </View>
-          )}
+            {/* Error Message */}
+            {error && (
+              <View style={[styles.errorCard, { backgroundColor: colors.selection + '15', borderColor: colors.selection }]}>
+                <MaterialCommunityIcons name="alert-circle" size={20} color={colors.selection} />
+                <Text style={[styles.errorText, { color: colors.selection }]}>{error}</Text>
+              </View>
+            )}
 
-          <Spacer height={16} />
-
-          {/* Info Cards */}
-          <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 2 }]}>
-            <MaterialCommunityIcons name="information" size={20} color={colors.text} />
-            <Text style={[styles.infoTitle, { color: colors.title }]}>Jak to działa</Text>
-            <Spacer height={8} />
-            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-              {mode === 'toDecimal'
-                ? '14:30:45 = 14 + (30/60) + (45/3600) = 14.5125 godzin'
-                : '14.5125 = 14 godzin, 30 minut, 45 sekund'}
-            </Text>
+            {/* Convert Button */}
+            <TouchableOpacity
+              style={[styles.convertButton, { backgroundColor: colors.butBackground, }]}
+              onPress={handleConvert}
+            >
+              <MaterialCommunityIcons name="arrow-right" size={20} color={colors.text} />
+              <Text style={[styles.convertButtonText, { color: colors.butText }]}>Przelicz</Text>
+            </TouchableOpacity>
           </View>
 
-          <Spacer height={16} />
+          <View style={styles.contentMid}>
+            {/* Result Card */}
+            {result && (
+              <View style={[styles.resultCard, { backgroundColor: colors.cardBackground, borderColor: colors.selection }]}>
+                <Text style={[styles.resultLabel, { color: colors.textSecondary }]}>Wynik</Text>
+                <Spacer height={8} />
+                <Text style={[styles.resultValue, { color: colors.selection }]}>
+                  {result}
+                </Text>
+                <Spacer height={12} />
+                <TouchableOpacity
+                  style={[styles.copyButton, { backgroundColor: colors.selection + '20' }]}
+                  onPress={handleCopyResult}
+                >
+                  <MaterialCommunityIcons name="content-copy" size={16} color={colors.selection} />
+                  <Text style={[styles.copyButtonText, { color: colors.selection }]}>Kopiuj Wynik</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
 
-          {/* Clear Button */}
-          <TouchableOpacity
-            style={[styles.clearButton, { borderColor: colors.border }]}
-            onPress={handleClear}
-          >
-            <MaterialCommunityIcons name="refresh" size={18} color={colors.text} />
-            <Text style={[styles.clearButtonText, { color: colors.text }]}>Wyczyść Wszystko</Text>
-          </TouchableOpacity>
-
-          <Spacer height={32} />
+          <View style={styles.contentBottom}>
+            {/* Info Cards */}
+            <View style={[styles.infoCard, { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 2 }]}>
+              <MaterialCommunityIcons name="information" size={20} color={colors.text} />
+              <Text style={[styles.infoTitle, { color: colors.title }]}>Jak to działa</Text>
+              <Spacer height={8} />
+              <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+                {mode === 'toDecimal'
+                  ? '14:30:45 = 14 + (30/60) + (45/3600) = 14.5125 godzin'
+                  : '14.5125 = 14 godzin, 30 minut, 45 sekund'}
+              </Text>
+            </View>
+            {/* Clear Button */}
+            <TouchableOpacity
+              style={[styles.clearButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
+              onPress={handleClear}
+            >
+              <MaterialCommunityIcons name="refresh" size={18} color={colors.text} />
+              <Text style={[styles.clearButtonText, { color: colors.text }]}>Wyczyść Wszystko</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </ScrollView>
+      </View>
     </View>
   );
 }
@@ -278,15 +263,21 @@ export default function TimeConverter() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 8,
-    justifyContent: 'center',
     gap: 5,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    marginBottom: 32,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 32,
+    justifyContent: 'space-between',
+  },
+  description: {
+    fontSize: 14,
+    marginBottom: 16,
   },
   title: {
     fontSize: 28,
@@ -300,22 +291,14 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderRadius: 20,
-    borderWidth: 2,
+    borderRadius: 16,
+    borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  modeButtonActive: {
-    borderWidth: 0,
   },
   modeButtonText: {
     fontSize: 14,
     fontWeight: '600',
-  },
-  card: {
-    borderRadius: 20,
-    padding: 16,
-    borderWidth: 1,
   },
   label: {
     fontSize: 14,
@@ -328,6 +311,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     fontWeight: '500',
+    marginBottom: 16,
   },
   convertButton: {
     flexDirection: 'row',
@@ -335,17 +319,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 20,
-    borderRadius: 20,
+    borderRadius: 16,
     gap: 8,
   },
   convertButtonText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '800',
   },
   resultCard: {
     borderRadius: 20,
     padding: 16,
     borderWidth: 2,
+    marginVertical: 16,
   },
   resultLabel: {
     fontSize: 12,
@@ -377,7 +362,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
     borderWidth: 1,
-    marginTop: 12,
+    marginBottom: 12,
   },
   errorText: {
     fontSize: 14,
@@ -388,6 +373,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
+    marginVertical: 16,
   },
   infoTitle: {
     fontSize: 14,
@@ -404,28 +390,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     paddingHorizontal: 20,
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 2,
     gap: 6,
   },
   clearButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-  },
-  // NEW: outer card that holds everything
-  mainCard: {
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    alignSelf: 'stretch',
-    // to keep it nice on larger screens, you can limit width:
-    maxWidth: 600,
-    alignItems: 'stretch',
-
-    // basic shadow (iOS) + elevation (Android)
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 4,
+    fontWeight: '800',
   },
 });
