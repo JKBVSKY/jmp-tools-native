@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/_hooks/useColors';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -87,6 +87,8 @@ const styles = StyleSheet.create({
     },
     modalContainer: {
         width: '100%',
+        maxWidth: Platform.OS === 'web' ? 600 : '100%',
+        alignSelf: 'center',
         borderRadius: 16,
         padding: 16,
         shadowColor: '#000',

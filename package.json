@@ -1,6 +1,6 @@
 {
   "name": "jmp-tools-native",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
@@ -10,7 +10,7 @@
     "web:prod": "expo export --platform web",
     "web:build": "expo export --platform web && cd dist && npx serve",
     "web:vercel": "expo export --platform web",
-    "web:firebase": "expo export --platform web && firebase deploy --only hosting"
+    "web:firebase": "expo export --platform web && npx --yes firebase-tools@13.31.2 deploy --project jmp-tools --only hosting,firestore"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "~1.23.1",

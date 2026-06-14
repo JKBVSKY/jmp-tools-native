@@ -176,7 +176,7 @@ const syncOfflineXP = async () => {
   }, [user, segments, isLoading]);
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, width: '100%', backgroundColor: Colors[theme].background }}>
       {/* ✅ Notification Toast */}
       <XPEarnedNotification
         xpAmount={earnedXP}

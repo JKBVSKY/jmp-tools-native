@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, Dimensions, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, Dimensions, Pressable, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useColors } from '@/_hooks/useColors';
 import ThemedView from '@/components/ThemedView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -180,20 +180,13 @@ export default function ScoreHistory() {
   };
 
   return (
-    <ThemedView
-      style={[
-        styles.container,
-        {
-          paddingTop: insets.top + 8,     // add some spacing from status bar
-          backgroundColor: colors.background,
-        },
-      ]}
-    >
-      <ScrollView
+    <ThemedView style={styles.container}>
+      <View
         style={{ flex: 1 }}
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      // for scrollView
+      // contentContainerStyle={styles.scrollContent}
+      // showsVerticalScrollIndicator={false}
+      // keyboardShouldPersistTaps="handled"
       >
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -203,11 +196,80 @@ export default function ScoreHistory() {
         ) : (
           <>
             {/* Header with toggle */}
-            <View style={styles.header}>
+            <View style={[styles.header, { backgroundColor: colors.navBackground, paddingTop: insets.top + 8 }]}>
               <Text style={[styles.title, { color: colors.text }]}>Statystyki</Text>
+              <Text style={{ color: colors.textSecondary }}>Tutaj możesz zobaczyć swoje statystyki</Text>
+            </View>
 
+            {/* Month selector and toggle buttons container*/}
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              paddingHorizontal: 16,
+              paddingBottom: 16,
+              backgroundColor: colors.navBackground,
+              marginBottom: 16,
+            }}>
+              {/* Month selector */}
+              <View style={styles.monthSelector}>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!currentMonth || months.length === 0) return;
+                    const idx = months.findIndex(
+                      (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                    );
+                    if (idx === -1 || idx === months.length - 1) return; // already oldest
+                    const next = months[idx + 1];
+                    setCurrentMonth({ month: next.month, year: next.year });
+                  }}
+                  style={styles.monthButton}
+                  disabled={
+                    !currentMonth ||
+                    months.findIndex(
+                      (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                    ) === months.length - 1
+                  }
+                >
+                  <MaterialCommunityIcons
+                    name="chevron-left"
+                    size={32}
+                    color={colors.text}
+                  />
+                </TouchableOpacity>
+
+                <Text style={[styles.monthLabel, { color: colors.text }]}>
+                  {currentMonth ? formatMonthLabel(currentMonth) : 'Brak danych'}
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => {
+                    if (!currentMonth || months.length === 0) return;
+                    const idx = months.findIndex(
+                      (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                    );
+                    if (idx <= 0) return; // already newest
+                    const next = months[idx - 1];
+                    setCurrentMonth({ month: next.month, year: next.year });
+                  }}
+                  style={styles.monthButton}
+                  disabled={
+                    !currentMonth ||
+                    months.findIndex(
+                      (m) => m.month === currentMonth.month && m.year === currentMonth.year
+                    ) === 0
+                  }
+                >
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={32}
+                    color={colors.text}
+                  />
+                </TouchableOpacity>
+              </View>
+              {/* View mode toggle */}
               <View style={styles.toggleContainer}>
-                <Pressable
+                <TouchableOpacity
                   onPress={() => setViewMode('table')}
                   style={[
                     styles.toggleButton,
@@ -216,12 +278,12 @@ export default function ScoreHistory() {
                 >
                   <MaterialCommunityIcons
                     name="table"
-                    size={20}
+                    size={26}
                     color={viewMode === 'table' ? '#fff' : colors.text}
                   />
-                </Pressable>
+                </TouchableOpacity>
 
-                <Pressable
+                <TouchableOpacity
                   onPress={() => setViewMode('graph')}
                   style={[
                     styles.toggleButton,
@@ -230,68 +292,11 @@ export default function ScoreHistory() {
                 >
                   <MaterialCommunityIcons
                     name="chart-line"
-                    size={20}
+                    size={26}
                     color={viewMode === 'graph' ? '#fff' : colors.text}
                   />
-                </Pressable>
+                </TouchableOpacity>
               </View>
-            </View>
-
-            {/* Month selector */}
-            <View style={[styles.monthSelector, { backgroundColor: colors.cardBackground }]}>
-              <Pressable
-                onPress={() => {
-                  if (!currentMonth || months.length === 0) return;
-                  const idx = months.findIndex(
-                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                  );
-                  if (idx === -1 || idx === months.length - 1) return; // already oldest
-                  const next = months[idx + 1];
-                  setCurrentMonth({ month: next.month, year: next.year });
-                }}
-                style={styles.monthButton}
-                disabled={
-                  !currentMonth ||
-                  months.findIndex(
-                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                  ) === months.length - 1
-                }
-              >
-                <MaterialCommunityIcons
-                  name="chevron-left"
-                  size={24}
-                  color={colors.text}
-                />
-              </Pressable>
-
-              <Text style={[styles.monthLabel, { color: colors.text }]}>
-                {currentMonth ? formatMonthLabel(currentMonth) : 'Brak danych'}
-              </Text>
-
-              <Pressable
-                onPress={() => {
-                  if (!currentMonth || months.length === 0) return;
-                  const idx = months.findIndex(
-                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                  );
-                  if (idx <= 0) return; // already newest
-                  const next = months[idx - 1];
-                  setCurrentMonth({ month: next.month, year: next.year });
-                }}
-                style={styles.monthButton}
-                disabled={
-                  !currentMonth ||
-                  months.findIndex(
-                    (m) => m.month === currentMonth.month && m.year === currentMonth.year
-                  ) === 0
-                }
-              >
-                <MaterialCommunityIcons
-                  name="chevron-right"
-                  size={24}
-                  color={colors.text}
-                />
-              </Pressable>
             </View>
 
             {/* Summary Table - Always visible when sessions exist */}
@@ -329,6 +334,7 @@ export default function ScoreHistory() {
               </View>
             )}
 
+            {/* Graph/Table */}
             {sessions.length === 0 ? (
               <ScrollView
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
@@ -346,6 +352,8 @@ export default function ScoreHistory() {
               </ScrollView>
             ) : (
               <View style={[styles.graphGrid, { flex: 1 }]}>
+
+                {/* Graph components here */}
                 {viewMode === 'graph' && sessions.length > 0 && (
                   <View style={styles.chartContainer}>
                     <Text style={[styles.chartTitle, { color: colors.text }]}>
@@ -387,8 +395,9 @@ export default function ScoreHistory() {
                   </View>
                 )}
 
+                {/* Table components here */}
                 {viewMode === 'table' && (
-                  <ScrollView
+                  <View
                     style={[styles.tableContainer, { flex: 1 }]}
                     refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
                   >
@@ -403,79 +412,87 @@ export default function ScoreHistory() {
                     </View>
 
                     {/* Table Rows */}
-                    {sessionsForMonth.map((session, index) => (
-                      <View
-                        key={session.id}
-                        style={[
-                          styles.tableRow,
-                          {
-                            backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
-                            borderBottomColor: colors.border
-                          }
-                        ]}
-                      >
-                        <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
-                          {formatDate(session.date)}
-                        </Text>
-                        <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
-                          {formatTime(session.loadingTime)}
-                        </Text>
-                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                          {session.palletsLoaded}
-                        </Text>
-                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                          {session.trucksCount}
-                        </Text>
-                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
-                          {session.palletsRate.toFixed(1)}
-                        </Text>
-
-                        {/* Delete button */}
-                        <Pressable
-                          onPress={() => {
-                            Alert.alert(
-                              'Usuń Sesję',
-                              'Czy na pewno chcesz usunąć tę sesję?',
-                              [
-                                {
-                                  text: 'Anuluj',
-                                  style: 'cancel'
-                                },
-                                {
-                                  text: 'Usuń',
-                                  onPress: async () => {
-                                    try {
-                                      if (!userId) return;
-
-                                      // Delete from Firestore
-                                      await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
-
-                                      // Then update local state
-                                      const updatedSessions = sessions.filter((s) => s.id !== session.id);
-                                      setSessions(updatedSessions);
-                                    } catch (error) {
-                                      Alert.alert('Error', 'Failed to delete session');
-                                    }
-                                  },
-
-                                  style: 'destructive'
-                                }
-                              ]
-                            );
-                          }}
-                          style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
+                    <ScrollView style={{
+                      marginBottom: 16,
+                      borderWidth: 1,
+                      borderColor: colors.border,
+                      borderBottomLeftRadius: 16,
+                      borderBottomRightRadius: 16,
+                    }}>
+                      {sessionsForMonth.map((session, index) => (
+                        <View
+                          key={session.id}
+                          style={[
+                            styles.tableRow,
+                            {
+                              backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
+                              borderBottomColor: colors.border
+                            }
+                          ]}
                         >
-                          <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
-                        </Pressable>
-                      </View>
-                    ))}
-                  </ScrollView>
+                          <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
+                            {formatDate(session.date)}
+                          </Text>
+                          <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
+                            {formatTime(session.loadingTime)}
+                          </Text>
+                          <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                            {session.palletsLoaded}
+                          </Text>
+                          <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                            {session.trucksCount}
+                          </Text>
+                          <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
+                            {session.palletsRate.toFixed(1)}
+                          </Text>
+
+                          {/* Delete button */}
+                          <Pressable
+                            onPress={() => {
+                              Alert.alert(
+                                'Usuń Sesję',
+                                'Czy na pewno chcesz usunąć tę sesję?',
+                                [
+                                  {
+                                    text: 'Anuluj',
+                                    style: 'cancel'
+                                  },
+                                  {
+                                    text: 'Usuń',
+                                    onPress: async () => {
+                                      try {
+                                        if (!userId) return;
+
+                                        // Delete from Firestore
+                                        await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
+
+                                        // Then update local state
+                                        const updatedSessions = sessions.filter((s) => s.id !== session.id);
+                                        setSessions(updatedSessions);
+                                      } catch (error) {
+                                        Alert.alert('Error', 'Failed to delete session');
+                                      }
+                                    },
+
+                                    style: 'destructive'
+                                  }
+                                ]
+                              );
+                            }}
+                            style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
+                          >
+                            <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
+                          </Pressable>
+                        </View>
+                      ))}
+                    </ScrollView>
+                  </View>
                 )}
               </View>
             )}
           </>
         )}
-      </ScrollView>
+      </View>
     </ThemedView>
   );
 }
@@ -497,15 +514,11 @@ export const calculateSummary = (sessionsArray) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 32,
-    paddingBottom: 0,
   },
   header: {
-    flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-    marginTop: 20,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   scrollContent: {
     flexGrow: 1,
@@ -517,7 +530,7 @@ const styles = StyleSheet.create({
   },
   toggleContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 16,
   },
   toggleButton: {
     padding: 10,
@@ -542,6 +555,7 @@ const styles = StyleSheet.create({
   },
   chartContainer: {
     marginBottom: 20,
+    marginHorizontal: 16,
   },
   chartTitle: {
     fontSize: 16,
@@ -553,14 +567,14 @@ const styles = StyleSheet.create({
   },
   tableContainer: {
     flex: 1,
+    marginHorizontal: 16,
   },
   tableHeader: {
     flexDirection: 'row',
     paddingVertical: 12,
     paddingHorizontal: 8,
-    borderBottomWidth: 2,
-    borderRadius: 8,
-    marginBottom: 4,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   tableHeaderText: {
     fontSize: 12,
@@ -578,8 +592,9 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   summaryContainer: {
-    borderRadius: 12,
+    borderRadius: 16,
     padding: 16,
+    marginHorizontal: 16,
     marginBottom: 20,
     borderWidth: 1,
     elevation: 2,
@@ -596,15 +611,15 @@ const styles = StyleSheet.create({
   summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    gap: 8,
+    justifyContent: 'flex-start',
+    gap: 16,
   },
   summaryBox: {
-    width: '48%',
+    width: '47%',
     alignItems: 'center',
     padding: 12,
     backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: 8,
+    borderRadius: 16,
     borderWidth: 1,
   },
   summaryLabel: {
@@ -626,19 +641,17 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 6,
-    marginBottom: 16,
   },
   monthButton: {
+    borderWidth: 1,
     paddingHorizontal: 8,
     paddingVertical: 4,
+    borderRadius: 16,
   },
   monthLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginHorizontal: 12,
+    fontSize: 18,
+    fontWeight: '500',
+    marginHorizontal: 16,
   },
   loadingContainer: {
     flex: 1,

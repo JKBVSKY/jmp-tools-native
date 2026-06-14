@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Alert, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { View, Text, TextInput, StyleSheet, Pressable, Alert, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/_context/AuthContext';
 import { useColors } from '@/_hooks/useColors';
@@ -33,7 +33,7 @@ export default function Login() {
   };
 
   return (
-    <DismissKeyboardView style={{ flex: 1 }}>
+    <DismissKeyboardView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.title }]}>Zaloguj Się</Text>
         <Text style={[styles.desc, { color: colors.textSecondary }]}>
@@ -116,6 +116,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 400 : '100%',
+    alignSelf: 'center',
   },
   title: {
     fontSize: 28,

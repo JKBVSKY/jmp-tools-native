@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TouchableOpacity, Platform } from 'react-native';
 import { useAuth } from '@/_context/AuthContext';
 import { useUserProfile } from '@/_context/UserProfileContext';
 import { useColors } from '@/_hooks/useColors';
@@ -22,13 +22,32 @@ export default function Profile() {
 
   const [gridWidth, setGridWidth] = React.useState(0);
 
-  const columns = width < 340 ? 1 : width <= 375 ? 2 : 3;
+  const isWeb = Platform.OS === 'web';
+  const isWideWeb = isWeb && width >= 900; // breakpoint for merged card, tweak as you like
+
+  // How many columns we want
+  const columns = isWeb
+    ? 4 // fixed 4 columns on web; adjust to taste
+    : width < 340
+      ? 1
+      : width <= 375
+        ? 2
+        : 3;
+
   const gap = isSmallPhone ? 12 : 14;
 
-  const itemWidth =
+  // Max visual size of a tile on web (in px)
+  const MAX_WEB_CARD_SIZE = 140;
+
+  const rawItemWidth =
     gridWidth > 0
       ? (gridWidth - gap * (columns - 1)) / columns - 2
       : 0;
+
+  // Clamp on web, leave original behavior on mobile
+  const itemWidth = isWeb
+    ? Math.min(MAX_WEB_CARD_SIZE, rawItemWidth)
+    : rawItemWidth;
 
   // ✅ HANDLE GUEST USERS
   if (isGuest) {
@@ -148,7 +167,7 @@ export default function Profile() {
     unlocked: profile.achievements.includes(achievement.id),
   }));
 
-  const iconSize = isSmallPhone ? 50 : 30;
+  const iconSize = isWeb ? 40 : isSmallPhone ? 50 : 30;
 
   const renderIcon = (icon) => {
     if (typeof icon === 'string') {
@@ -168,203 +187,296 @@ export default function Profile() {
   };
 
   return (
-    <ScrollView style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.background }]}>
-      {/* Profile Header */}
-      <View style={[styles.header, { backgroundColor: colors.cardBackground }]}>
-        <TouchableOpacity style={{ position: 'absolute', top: 15, right: 15 }} onPress={() => router.push('/(app)/editProfile')}>
-          <Ionicons name="pencil" size={20} color={colors.textSecondary} />
-        </TouchableOpacity>
-        <View style={styles.profileImageContainer}>
-          <Ionicons name="person-circle" size={100} color={colors.iconColor} />
-        </View>
-        <Text style={[styles.userName, { color: colors.title }]}>
-          {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}
-        </Text>
-        <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
-          {user?.email || 'email@example.com'}
-        </Text>
-      </View>
+    <ScrollView style={[styles.container, { paddingTop: insets.top + 8, backgroundColor: colors.background }]}> 
+      <View style={styles.profileShell}>
 
-      {/* Level Card */}
-      <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="medal" size={24} color={colors.iconColor} />
-          <Text style={[styles.cardTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
-        </View>
-
-        <View style={styles.levelInfo}>
-          <Text style={[styles.xpText, { color: colors.textSecondary }]}>
-            {profile.totalXP} zdobyte XP łącznie
-          </Text>
-        </View>
-
-        {/* ✅ XP Progress Display */}
-        <View style={styles.xpProgressContainer}>
-          <Text style={[styles.xpProgressText, { color: colors.text }]}>
-            {xpInCurrentLevel} / {xpForNextLevel} XP
-          </Text>
-        </View>
-
-        {/* Progress Bar */}
-        <View style={[styles.progressBarBackground, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
+        {/* Profile header + level (responsive) */}
+        {isWideWeb ? (
+          // WIDE WEB: merged two-column card
           <View
             style={[
-              styles.progressBar,
-              {
-                backgroundColor: colors.iconColor,
-                width: `${Math.min(levelProgress, 100)}%`,
-              },
+              styles.webProfileCard,
+              { backgroundColor: colors.cardBackground, borderColor: colors.border, borderWidth: 1 },
             ]}
-          />
+          >
+            {/* Left: profile info */}
+            <View style={[styles.webProfileLeft, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
+              <TouchableOpacity
+                style={{ position: 'absolute', top: 15, right: 15 }}
+                onPress={() => router.push('/(app)/editProfile')}
+              >
+                <Ionicons name="pencil" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <View style={styles.profileImageContainer}>
+                <Ionicons name="person-circle" size={100} color={colors.iconColor} />
+              </View>
+              <Text style={[styles.userName, { color: colors.title }]}>
+                {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}
+              </Text>
+              <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
+                {user?.email || 'email@example.com'}
+              </Text>
+            </View>
+
+            {/* Right: level info */}
+            <View style={styles.webProfileRight}>
+              <View style={styles.cardHeader}>
+                <Ionicons name="medal" size={24} color={colors.iconColor} />
+                <Text style={[styles.cardTitle, { color: colors.title }]}>
+                  Poziom {profile.level}
+                </Text>
+              </View>
+
+              <View style={styles.levelInfo}>
+                <Text style={[styles.xpText, { color: colors.textSecondary }]}>
+                  {profile.totalXP} zdobyte XP łącznie
+                </Text>
+              </View>
+
+              <View style={styles.xpProgressContainer}>
+                <Text style={[styles.xpProgressText, { color: colors.text }]}>
+                  {xpInCurrentLevel} / {xpForNextLevel} XP
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.progressBarBackground,
+                  {
+                    backgroundColor: colors.inputBackground,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.progressBar,
+                    {
+                      backgroundColor: colors.iconColor,
+                      width: `${Math.min(levelProgress, 100)}%`,
+                    },
+                  ]}
+                />
+              </View>
+
+              <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                {Math.round(remainingPercent)}% do Poziomu {profile.level + 1}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <>
+            {/* ORIGINAL MOBILE / NARROW WEB HEADER */}
+            <View style={[styles.header, { backgroundColor: colors.cardBackground }]}>
+              <TouchableOpacity
+                style={{ position: 'absolute', top: 15, right: 15 }}
+                onPress={() => router.push('/(app)/editProfile')}
+              >
+                <Ionicons name="pencil" size={20} color={colors.textSecondary} />
+              </TouchableOpacity>
+              <View style={styles.profileImageContainer}>
+                <Ionicons name="person-circle" size={100} color={colors.iconColor} />
+              </View>
+              <Text style={[styles.userName, { color: colors.title }]}>
+                {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}
+              </Text>
+              <Text style={[styles.userEmail, { color: colors.textSecondary }]}>
+                {user?.email || 'email@example.com'}
+              </Text>
+            </View>
+
+            {/* ORIGINAL MOBILE / NARROW WEB LEVEL CARD */}
+            <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
+              <View style={styles.cardHeader}>
+                <Ionicons name="medal" size={24} color={colors.iconColor} />
+                <Text style={[styles.cardTitle, { color: colors.title }]}>
+                  Poziom {profile.level}
+                </Text>
+              </View>
+
+              <View style={styles.levelInfo}>
+                <Text style={[styles.xpText, { color: colors.textSecondary }]}>
+                  {profile.totalXP} zdobyte XP łącznie
+                </Text>
+              </View>
+
+              <View style={styles.xpProgressContainer}>
+                <Text style={[styles.xpProgressText, { color: colors.text }]}>
+                  {xpInCurrentLevel} / {xpForNextLevel} XP
+                </Text>
+              </View>
+
+              <View
+                style={[
+                  styles.progressBarBackground,
+                  {
+                    backgroundColor: colors.inputBackground,
+                    borderColor: colors.border,
+                    borderWidth: 1,
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.progressBar,
+                    {
+                      backgroundColor: colors.iconColor,
+                      width: `${Math.min(levelProgress, 100)}%`,
+                    },
+                  ]}
+                />
+              </View>
+
+              <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                {Math.round(remainingPercent)}% do Poziomu {profile.level + 1}
+              </Text>
+            </View>
+          </>
+        )}
+
+        {/* Statistics Card */}
+        <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="bar-chart" size={24} color={colors.iconColor} />
+            <Text style={[styles.cardTitle, { color: colors.title }]}>Statystyki</Text>
+          </View>
+
+          <View style={styles.statsGrid}>
+            <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+              <Ionicons name="time" size={28} color={colors.iconColor} />
+              <Text style={[styles.statValue, { color: colors.title }]}>
+                {formatTime(profile.stats.totalTimeWorked)}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ogólny czas pracy</Text>
+            </View>
+
+            <View style={[styles.statItem, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+              <Ionicons name="cube" size={28} color={colors.iconColor} />
+              <Text style={[styles.statValue, { color: colors.title }]}>
+                {profile.stats.palletsLoaded}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Palety załadowane</Text>
+            </View>
+
+            <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
+              <Ionicons name="star" size={28} color={colors.iconColor} />
+              <Text style={[styles.statValue, { color: colors.title }]}>
+                {avgScore}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ocena</Text>
+            </View>
+
+            <View style={styles.statItem}>
+              <Ionicons name="trending-up" size={28} color={colors.iconColor} />
+              <Text style={[styles.statValue, { color: colors.title }]}>
+                {profile.stats.totalTimeWorked > 0
+                  ? Math.floor(profile.stats.palletsLoaded / profile.stats.totalTimeWorked)
+                  : 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Średnia ogólna</Text>
+            </View>
+          </View>
         </View>
 
-        {/* ✅ FIXED: Show remaining percentage to next level */}
-        <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-          {Math.round(remainingPercent)}% do Poziomu {profile.level + 1}
-        </Text>
-      </View>
-
-      {/* Statistics Card */}
-      <View style={[styles.card, { backgroundColor: colors.cardBackground }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="bar-chart" size={24} color={colors.iconColor} />
-          <Text style={[styles.cardTitle, { color: colors.title }]}>Statystyki</Text>
-        </View>
-
-        <View style={styles.statsGrid}>
-          <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-            <Ionicons name="time" size={28} color={colors.iconColor} />
-            <Text style={[styles.statValue, { color: colors.title }]}>
-              {formatTime(profile.stats.totalTimeWorked)}
+        {/* Achievements Card */}
+        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.borderColor, borderWidth: 1 }]}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="trophy" size={24} color={colors.iconColor} />
+            <Text style={[styles.cardTitle, { color: colors.text }]}>
+              Osiągnięcia
             </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ogólny czas pracy</Text>
           </View>
 
-          <View style={[styles.statItem, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-            <Ionicons name="cube" size={28} color={colors.iconColor} />
-            <Text style={[styles.statValue, { color: colors.title }]}>
-              {profile.stats.palletsLoaded}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Palety załadowane</Text>
+          <View
+            style={[styles.achievementsGrid, { gap }]}
+            onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
+          >
+            {allAchievements.map((achievement) => (
+              <Pressable
+                key={achievement.id}
+                style={({ pressed }) => [
+                  styles.achievementItem,
+                  {
+                    width: itemWidth,
+                    backgroundColor: achievement.unlocked
+                      ? 'rgba(34, 197, 94, 0.12)' // Lighter green background
+                      : 'rgba(107, 114, 128, 0.08)', // Subtle gray background
+                    borderColor: achievement.unlocked
+                      ? colors.primary // Green border for unlocked
+                      : colors.borderColor, // Gray border for locked
+                    opacity: pressed ? 0.7 : 1,
+                  }
+                ]}
+                onPress={() => handleAchievementPress(achievement)}
+              >
+
+                {/* Lock Icon in Corner */}
+                {!achievement.unlocked && (
+                  <View style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                  }}>
+                    <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
+                  </View>
+                )}
+
+                {/* Unlocked Check Badge */}
+                {achievement.unlocked && (
+                  <View style={{
+                    position: 'absolute',
+                    top: 8,
+                    right: 8,
+                  }}>
+                    <Ionicons name="checkmark-circle" size={18} color={'rgba(34, 197, 94, 1)'} />
+                  </View>
+                )}
+
+                <Text style={[styles.achievementIcon, isSmallPhone && styles.achievementIconSmall]}>{renderIcon(achievement.icon)}</Text>
+                <Text
+                  style={[
+                    styles.achievementName,
+                    isSmallPhone && styles.achievementNameSmall,
+                    {
+                      color: achievement.unlocked ? colors.text : colors.textSecondary,
+                    }
+                  ]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {achievement.name}
+                </Text>
+              </Pressable>
+            ))}
           </View>
 
-          <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
-            <Ionicons name="star" size={28} color={colors.iconColor} />
-            <Text style={[styles.statValue, { color: colors.title }]}>
-              {avgScore}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ocena</Text>
-          </View>
-
-          <View style={styles.statItem}>
-            <Ionicons name="trending-up" size={28} color={colors.iconColor} />
-            <Text style={[styles.statValue, { color: colors.title }]}>
-              {profile.stats.totalTimeWorked > 0
-                ? Math.floor(profile.stats.palletsLoaded / profile.stats.totalTimeWorked)
-                : 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Średnia ogólna</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Achievements Card */}
-      <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.borderColor, borderWidth: 1 }]}>
-        <View style={styles.cardHeader}>
-          <Ionicons name="trophy" size={24} color={colors.iconColor} />
-          <Text style={[styles.cardTitle, { color: colors.text }]}>
-            Osiągnięcia
+          <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
+            {profile.achievements.length} z {allAchievements.length} odblokowano
           </Text>
         </View>
 
-        <View
-          style={[styles.achievementsGrid, { gap }]}
-          onLayout={(e) => setGridWidth(e.nativeEvent.layout.width)}
-        >
-          {allAchievements.map((achievement) => (
-            <Pressable
-              key={achievement.id}
-              style={({ pressed }) => [
-                styles.achievementItem,
-                {
-                  width: itemWidth,
-                  backgroundColor: achievement.unlocked
-                    ? 'rgba(34, 197, 94, 0.12)' // Lighter green background
-                    : 'rgba(107, 114, 128, 0.08)', // Subtle gray background
-                  borderColor: achievement.unlocked
-                    ? colors.primary // Green border for unlocked
-                    : colors.borderColor, // Gray border for locked
-                  opacity: pressed ? 0.7 : 1,
-                }
-              ]}
-              onPress={() => handleAchievementPress(achievement)}
-            >
-
-              {/* Lock Icon in Corner */}
-              {!achievement.unlocked && (
-                <View style={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                }}>
-                  <Ionicons name="lock-closed" size={16} color={colors.textSecondary} />
-                </View>
-              )}
-
-              {/* Unlocked Check Badge */}
-              {achievement.unlocked && (
-                <View style={{
-                  position: 'absolute',
-                  top: 8,
-                  right: 8,
-                }}>
-                  <Ionicons name="checkmark-circle" size={18} color={'rgba(34, 197, 94, 1)'} />
-                </View>
-              )}
-
-              <Text style={[styles.achievementIcon, isSmallPhone && styles.achievementIconSmall]}>{renderIcon(achievement.icon)}</Text>
-              <Text
-                style={[
-                  styles.achievementName,
-                  isSmallPhone && styles.achievementNameSmall,
-                  {
-                    color: achievement.unlocked ? colors.text : colors.textSecondary,
-                  }
-                ]}
-                numberOfLines={2}
-                ellipsizeMode="tail"
-              >
-                {achievement.name}
-              </Text>
-            </Pressable>
-          ))}
+        {/* Sessions Info */}
+        <View style={[styles.infoCard, { backgroundColor: colors.inputBackground, borderColor: colors.primary, borderWidth: 1 }]}>
+          <Ionicons name="information-circle" size={20} color={colors.iconColor} />
+          <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+            {profile.stats.totalSessions} sesji ukończonych łącznie
+          </Text>
         </View>
 
-        <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
-          {profile.achievements.length} z {allAchievements.length} odblokowano
-        </Text>
+        <View style={{ height: 30 }} />
+        <AchievementModal
+          visible={modalVisible}
+          achievement={selectedAchievement}
+          onClose={() => setModalVisible(false)}
+          userStats={{
+            ...profile.stats,
+            level: profile.level,
+            totalXP: profile.totalXP
+          }}
+          isUnlocked={selectedAchievement ? profile.achievements.includes(selectedAchievement.id) : false}
+        />
       </View>
-
-      {/* Sessions Info */}
-      <View style={[styles.infoCard, { backgroundColor: colors.inputBackground, borderColor: colors.primary, borderWidth: 1 }]}>
-        <Ionicons name="information-circle" size={20} color={colors.iconColor} />
-        <Text style={[styles.infoText, { color: colors.textSecondary }]}>
-          {profile.stats.totalSessions} sesji ukończonych łącznie
-        </Text>
-      </View>
-
-      <View style={{ height: 30 }} />
-      <AchievementModal
-        visible={modalVisible}
-        achievement={selectedAchievement}
-        onClose={() => setModalVisible(false)}
-        userStats={{
-          ...profile.stats,
-          level: profile.level,
-          totalXP: profile.totalXP
-        }}
-        isUnlocked={selectedAchievement ? profile.achievements.includes(selectedAchievement.id) : false}
-      />
     </ScrollView>
   );
 }
@@ -571,5 +683,33 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 8,
+  },
+  profileShell: {
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 10,
+  },
+
+  // --- WEB ONLY PROFILE LAYOUT ---
+  webProfileCard: {
+    borderRadius: 12,
+    padding: 20,
+    marginBottom: 15,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  webProfileLeft: {
+    flex: 1,
+    paddingRight: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+  },
+  webProfileRight: {
+    flex: 1,
+    paddingLeft: 24,
+    justifyContent: 'center',
   },
 });

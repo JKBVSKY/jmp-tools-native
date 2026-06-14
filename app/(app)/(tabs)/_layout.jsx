@@ -7,8 +7,9 @@ import {
   Text,
   Pressable,
   StyleSheet,
+  Platform,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, usePathname } from 'expo-router';
 import { useColors } from '@/_hooks/useColors';
 import { useAuth } from '@/_context/AuthContext';
 
@@ -16,8 +17,11 @@ import { useAuth } from '@/_context/AuthContext';
 export default function TabLayout() {
   const [menuVisible, setMenuVisible] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const { signOut } = useAuth();
   const colors = useColors();
+
+  const isWeb = Platform.OS === 'web';
 
   const openMenu = () => setMenuVisible(true);
   const closeMenu = () => setMenuVisible(false);
@@ -27,6 +31,8 @@ export default function TabLayout() {
     router.push(path);
   };
 
+  const isRouteActive = (segment) => pathname?.includes(segment);
+
   const handleLogout = async () => {
     closeMenu();
     await signOut();
@@ -35,89 +41,219 @@ export default function TabLayout() {
 
   return (
     <>
-      <Tabs
-        screenOptions={{
-          initialRouteName: 'index',
-          headerShown: false,
-          tabBarActiveTintColor: 'red',
-          tabBarInactiveTintColor: colors.tabInactive || '#9ca3af',
-          tabBarStyle: {
-            height: 70,
-            backgroundColor: colors.botBarBackground,
-            borderTopColor: colors.border,
-          }, // larger for thumbs
-          unmountOnBlur: true,
+      <View
+        style={{
+          flex: 1,
+          flexDirection: isWeb ? 'row' : 'column',
+          backgroundColor: colors.background,
         }}
       >
-        <Tabs.Screen
-          name="scoreHistory"
-          options={{
-            title: 'Statystyki',
-            tabBarIcon: ({ color }) => <Ionicons name="analytics-outline" size={28} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="leaderboards"
-          options={{
-            title: 'Ranking',
-            tabBarIcon: ({ color }) => <Ionicons name="trophy-outline" size={28} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Panel Główny',
-            tabBarIcon: ({ color }) => <Ionicons name="grid-outline" size={28} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: 'Profil',
-            tabBarIcon: ({ color }) => <Ionicons name="person-circle-outline" size={28} color={color} />,
-          }}
-        />
-        {/* Three-dots "More" tab */}
-        <Tabs.Screen
-          name="more"
-          options={{
-            title: 'Więcej',
-            tabBarIcon: ({ color }) => (
+        {/* WEB: left side navigation */}
+        {isWeb && (
+          <View
+            style={[
+              styles.sidebar,
+              { backgroundColor: colors.navBackground || colors.botBarBackground },
+            ]}
+          >
+            <Text style={[styles.sidebarTitle, { color: colors.textSecondary }]}>
+              Nawigacja
+            </Text>
+
+            <Pressable
+              onPress={() => goTo('/(app)/(tabs)/scoreHistory')}
+              style={({ pressed }) => [
+                styles.sidebarItem,
+                isRouteActive('scoreHistory') && styles.sidebarItemActive,
+                pressed && styles.sidebarItemPressed,
+              ]}
+            >
+              <Ionicons
+                name="analytics-outline"
+                size={22}
+                color={colors.iconColor}
+                style={styles.sidebarIcon}
+              />
+              <Text style={[styles.sidebarLabel, { color: colors.text }]}>Statystyki</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => goTo('/(app)/(tabs)/leaderboards')}
+              style={({ pressed }) => [
+                styles.sidebarItem,
+                isRouteActive('leaderboards') && styles.sidebarItemActive,
+                pressed && styles.sidebarItemPressed,
+              ]}
+            >
+              <Ionicons
+                name="trophy-outline"
+                size={22}
+                color={colors.iconColor}
+                style={styles.sidebarIcon}
+              />
+              <Text style={[styles.sidebarLabel, { color: colors.text }]}>Ranking</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => goTo('/')}
+              style={({ pressed }) => [
+                styles.sidebarItem,
+                isRouteActive('tabs') || isRouteActive('index'),
+                pressed && styles.sidebarItemPressed,
+              ]}
+            >
+              <Ionicons
+                name="grid-outline"
+                size={22}
+                color={colors.iconColor}
+                style={styles.sidebarIcon}
+              />
+              <Text style={[styles.sidebarLabel, { color: colors.text }]}>Panel Główny</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => goTo('/(app)/(tabs)/profile')}
+              style={({ pressed }) => [
+                styles.sidebarItem,
+                isRouteActive('profile') && styles.sidebarItemActive,
+                pressed && styles.sidebarItemPressed,
+              ]}
+            >
+              <Ionicons
+                name="person-circle-outline"
+                size={22}
+                color={colors.iconColor}
+                style={styles.sidebarIcon}
+              />
+              <Text style={[styles.sidebarLabel, { color: colors.text }]}>Profil</Text>
+            </Pressable>
+
+            <View style={styles.sidebarDivider} />
+
+            <Pressable
+              onPress={openMenu}
+              style={({ pressed }) => [
+                styles.sidebarItem,
+                pressed && styles.sidebarItemPressed,
+              ]}
+            >
               <Ionicons
                 name="ellipsis-horizontal"
-                size={28}
-                color={color}
+                size={22}
+                color={colors.iconColor}
+                style={styles.sidebarIcon}
               />
-            ),
-            // custom button that opens menu instead of navigating
-            tabBarButton: (props) => (
-              <Pressable
-                {...props}
-                onPress={openMenu}
-                style={[
-                  props.style,
-                  styles.moreButton,
-                ]}
-              >
-                <Ionicons
-                  name="ellipsis-horizontal"
-                  size={28}
-                  color={
-                    props.accessibilityState?.selected
-                      ? colors.tabActive || 'blue'
-                      : colors.tabInactive || '#9ca3af'
-                  }
-                />
-                <Text style={[styles.moreLabel, { color: colors.tabInactive || '#9ca3af' }]}>
-                  Więcej
-                </Text>
-              </Pressable>
-            ),
-          }}
-        />
-      </Tabs>
+              <Text style={[styles.sidebarLabel, { color: colors.text }]}>Więcej</Text>
+            </Pressable>
+          </View>
+        )}
 
-      {/* Slide-up menu */}
+        {/* Main content with Tabs. On web, tab bar is hidden; navigation is via sidebar. */}
+        <View style={{ flex: 1 }}>
+          <Tabs
+            screenOptions={{
+              initialRouteName: 'index',
+              headerShown: false,
+              tabBarActiveTintColor: 'red',
+              tabBarInactiveTintColor: colors.tabInactive || '#9ca3af',
+              tabBarStyle: {
+                height: 70,
+                backgroundColor: colors.botBarBackground,
+                borderTopColor: 'transparent',
+                overflow: 'hidden',
+                ...(isWeb ? { display: 'none' } : null), // hide bar on web
+              },
+              tabBarLabelPosition: 'below-icon',
+              tabBarLabelStyle: {
+                fontSize: 10,
+                lineHeight: 14,
+                textAlign: 'center',
+              },
+              tabBarIconStyle: Platform.OS === 'web' ? { marginBottom: 2 } : undefined,
+              tabBarItemStyle: Platform.OS === 'web'
+                ? {
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    paddingVertical: 4,
+                  }
+                : undefined,
+              unmountOnBlur: true,
+            }}
+          >
+            <Tabs.Screen
+              name="scoreHistory"
+              options={{
+                title: 'Statystyki',
+                tabBarIcon: ({ color }) => (
+                  <Ionicons name="analytics-outline" size={28} color={color} />
+                ),
+              }}
+            />
+            <Tabs.Screen
+              name="leaderboards"
+              options={{
+                title: 'Ranking',
+                tabBarIcon: ({ color }) => (
+                  <Ionicons name="trophy-outline" size={28} color={color} />
+                ),
+              }}
+            />
+            <Tabs.Screen
+              name="index"
+              options={{
+                title: 'Panel Główny',
+                tabBarIcon: ({ color }) => (
+                  <Ionicons name="grid-outline" size={28} color={color} />
+                ),
+              }}
+            />
+            <Tabs.Screen
+              name="profile"
+              options={{
+                title: 'Profil',
+                tabBarIcon: ({ color }) => (
+                  <Ionicons name="person-circle-outline" size={28} color={color} />
+                ),
+              }}
+            />
+            {/* Three-dots "More" tab – still used for mobile bottom bar */}
+            <Tabs.Screen
+              name="more"
+              options={{
+                title: 'Więcej',
+                tabBarIcon: ({ color }) => (
+                  <Ionicons name="ellipsis-horizontal" size={28} color={color} />
+                ),
+                tabBarButton: (props) => (
+                  <Pressable
+                    {...props}
+                    onPress={openMenu}
+                    style={[props.style, styles.moreButton]}
+                  >
+                    <Ionicons
+                      name="ellipsis-horizontal"
+                      size={28}
+                      color={
+                        props.accessibilityState?.selected
+                          ? colors.tabActive || 'blue'
+                          : colors.tabInactive || '#9ca3af'
+                      }
+                    />
+                    <Text
+                      style={[styles.moreLabel, { color: colors.tabInactive || '#9ca3af' }]}
+                    >
+                      Więcej
+                    </Text>
+                  </Pressable>
+                ),
+              }}
+            />
+          </Tabs>
+        </View>
+      </View>
+
+      {/* Slide-up menu – used on both mobile (from tab) and web (from sidebar) */}
       <Modal
         visible={menuVisible}
         transparent
@@ -129,7 +265,9 @@ export default function TabLayout() {
           <Pressable style={styles.backdrop} onPress={closeMenu} />
 
           {/* Bottom sheet */}
-          <View style={[styles.sheet, { backgroundColor: colors.cardBackground || '#111827' }]}>
+          <View
+            style={[styles.sheet, { backgroundColor: colors.cardBackground || '#111827' }]}
+          >
             <View style={styles.handle} />
 
             <MenuItem
@@ -144,32 +282,7 @@ export default function TabLayout() {
               onPress={() => goTo('/(app)/misc/timeConverter')}
               colors={colors}
             />
-            {/* <MenuItem
-              label="O aplikacji"
-              icon="information-circle-outline"
-              onPress={() => goTo('/(app)/misc/about')}
-              colors={colors}
-            />
-            <MenuItem
-              label="Changelog"
-              icon="document-text-outline"
-              onPress={() => goTo('/(app)/misc/changelog')}
-              colors={colors}
-            />
-            <MenuItem
-              label="Kontakt"
-              icon="chatbubble-ellipses-outline"
-              onPress={() => goTo('/(app)/misc/contact')}
-              colors={colors}
-            />
-            <MenuItem
-              label="Ustawienia"
-              icon="settings-outline"
-              onPress={() => goTo('/(app)/misc/settings')}
-              colors={colors}
-            /> */}
             <View style={styles.divider} />
-
             <MenuItem
               label="Wyloguj się"
               icon="log-out-outline"
@@ -219,10 +332,15 @@ const styles = StyleSheet.create({
   moreButton: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'column',
+    paddingVertical: Platform.OS === 'web' ? 6 : 0,
+    width: '100%',
   },
   moreLabel: {
     fontSize: 10,
-    marginTop: 14,
+    marginTop: Platform.OS === 'web' ? 6 : 14,
+    lineHeight: 14,
   },
   modalRoot: {
     flex: 1,
@@ -233,6 +351,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
   sheet: {
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 600 : '100%',
+    alignSelf: 'center',
     paddingTop: 8,
     paddingBottom: 24,
     paddingHorizontal: 20,
@@ -260,5 +381,48 @@ const styles = StyleSheet.create({
     height: 1,
     backgroundColor: 'rgba(255,255,255,0.1)',
     marginVertical: 8,
+  },
+  
+  // --- WEB SIDEBAR STYLES ---
+  sidebar: {
+    width: 240,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    borderRightWidth: 1,
+    borderRightColor: 'rgba(0,0,0,0.06)',
+    gap: 4,
+  },
+  sidebarTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 16,
+  },
+  sidebarItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  sidebarItemActive: {
+    backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  sidebarItemPressed: {
+    backgroundColor: 'rgba(255,255,255,0.12)',
+  },
+  sidebarIcon: {
+    marginRight: 10,
+  },
+  sidebarLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  sidebarDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.12)',
+    marginVertical: 10,
   },
 });

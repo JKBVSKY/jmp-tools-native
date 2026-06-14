@@ -1,7 +1,7 @@
 // AchievementModal.jsx - New file to add to your project
 
 import React from 'react';
-import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/_hooks/useColors';
 
@@ -306,6 +306,8 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     width: '85%',
+    maxWidth: Platform.OS === 'web' ? 600 : '100%',
+    alignSelf: 'center',
     maxHeight: '80%',
     borderRadius: 16,
     borderWidth: 1,

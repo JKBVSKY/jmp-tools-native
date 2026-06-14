@@ -46,7 +46,7 @@ export default function Register() {
   };
 
   return (
-    <DismissKeyboardView style={{ flex: 1 }}>
+    <DismissKeyboardView style={{ flex: 1, backgroundColor: colors.background }}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.title, { color: colors.title }]}>Utwórz Konto</Text>
         <Text style={[styles.desc, { color: colors.textSecondary }]}>
@@ -168,6 +168,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     padding: 20,
+    width: '100%',
+    maxWidth: Platform.OS === 'web' ? 400 : '100%',
+    alignSelf: 'center',
   },
   title: {
     fontSize: 28,

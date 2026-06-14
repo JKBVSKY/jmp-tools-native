@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-06-14
+
+### Added
+- Added Firebase anonymous authentication for guest sessions, replacing the local guest-id flow.
+- Added current-month ranking on the dashboard for signed-in users.
+
+### Changed
+- Refactored the app layout for better web support, including a desktop sidebar and wider content shells.
+- Redesigned the main dashboard for web with an avatar shortcut to the profile screen and improved responsive spacing.
+- Updated profile and score history screens to behave better on large screens and web layouts.
+- Improved auth screens and modals so they stay centered and readable on web.
+- Updated the web Firebase deployment script to publish both Hosting and Firestore rules.
+
 ## [0.7.0] - 2026-04-05
 
 ### Added

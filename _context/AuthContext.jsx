@@ -6,6 +6,7 @@ import {
   initializeAuth,
   getReactNativePersistence,
   createUserWithEmailAndPassword,
+  signInAnonymously,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   onAuthStateChanged,
@@ -137,38 +138,24 @@ export function AuthProvider({ children }) {
       // Firebase's onAuthStateChanged automatically handles persistent login
       const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
         if (firebaseUser) {
+          const anonymousUser = firebaseUser.isAnonymous;
           // User is logged in - Firebase automatically restored the session!
           const userData = {
             id: firebaseUser.uid,
             email: firebaseUser.email,
-            name: firebaseUser.displayName || firebaseUser.email,
-            isGuest: false,
+            name: firebaseUser.displayName || firebaseUser.email || 'Gość',
+            isGuest: anonymousUser,
           };
 
           setUser(userData);
-          setIsGuest(false);
+          setIsGuest(anonymousUser);
 
           // Also store in StorageManager for extra safety
           await StorageManager.setItem('user', JSON.stringify(userData));
 
-          console.log('✅ User auto-logged in:', userData.email); // DEBUG
+          console.log('✅ User auto-logged in:', anonymousUser ? 'anonymous user' : userData.email); // DEBUG
         } else {
-          // Check if guest mode was saved
-          const guestMode = await StorageManager.getItem('isGuest');
-
-          if (guestMode === 'true') {
-            const guestUser = {
-              id: await StorageManager.getItem('guestId'),
-              name: 'Gość',
-              isGuest: true,
-            };
-
-            setUser(guestUser);
-            setIsGuest(true);
-            console.log('✅ Guest mode restored'); // DEBUG
-          } else {
-            console.log('❌ No user or guest session found'); // DEBUG
-          }
+          console.log('❌ No user or guest session found'); // DEBUG
         }
 
         setIsLoading(false);
@@ -182,20 +169,29 @@ export function AuthProvider({ children }) {
   };
 
   const continueAsGuest = async () => {
-    const guestId = `guest_${Date.now()}`;
-    const guestUser = {
-      id: guestId,
-      name: 'Gość',
-      isGuest: true,
-    };
+    try {
+      const userCredential = await signInAnonymously(auth);
+      const firebaseUser = userCredential.user;
 
-    setUser(guestUser);
-    setIsGuest(true);
+      const guestUser = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: firebaseUser.displayName || 'Gość',
+        isGuest: true,
+      };
 
-    // Save guest mode
-    await StorageManager.setItem('guestId', guestId);
-    await StorageManager.setItem('isGuest', 'true');
-    console.log('✅ Continuing as guest');
+      setUser(guestUser);
+      setIsGuest(true);
+
+      await StorageManager.setItem('user', JSON.stringify(guestUser));
+      await StorageManager.setItem('isGuest', 'true');
+
+      console.log('✅ Continuing as anonymous Firebase user:', firebaseUser.uid);
+      return { success: true };
+    } catch (error) {
+      console.error('Error starting anonymous session:', error);
+      return { success: false, error: error.message };
+    }
   };
 
   const signOut = async () => {
@@ -205,7 +201,6 @@ export function AuthProvider({ children }) {
       setIsGuest(false);
 
       // Clear stored data
-      await StorageManager.removeItem('guestId');
       await StorageManager.removeItem('isGuest');
       await StorageManager.removeItem('user');
 

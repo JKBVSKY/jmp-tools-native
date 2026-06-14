@@ -24,7 +24,6 @@ export const Colors = {
 
     // Navigation
     navText: '#E8EAED',
-    navBackground: '#292A2D',
 
     // Buttons - Modern red accent
     butBackground: '#e3452d',    // Red button
@@ -80,7 +79,6 @@ export const Colors = {
 
     // Navigation
     navText: '#202124',
-    navBackground: '#F8F9FA',
 
     // Buttons - Modern red
     butBackground: '#e3452d',    // Red button
