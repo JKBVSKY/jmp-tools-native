@@ -219,7 +219,6 @@ const styles = StyleSheet.create({
   statCardWide: {
     flex: 1,
     minWidth: 0,
-    marginTop: 12,
   },
   statsRowSmall: {
     flexDirection: 'column',

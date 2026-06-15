@@ -11,28 +11,22 @@ export const getAutoForcedFinishTime = (startTime = new Date()) => {
   let finishHours, finishMinutes;
 
   // Define time ranges and corresponding finish times
-  if (currentTimeInMinutes >= 6 * 60 && currentTimeInMinutes < 10 * 60) {
+  if (currentTimeInMinutes >= 6 * 60 && currentTimeInMinutes < 13.75 * 60) {
     // 06:00 - 09:59 → finish at 14:15
     finishHours = 14;
     finishMinutes = 15;
-  } else if (currentTimeInMinutes >= 10 * 60 && currentTimeInMinutes < 12 * 60) {
-    // 10:00 - 11:59 → finish at 18:15
-    finishHours = 18;
-    finishMinutes = 15;
-  } else if (currentTimeInMinutes >= 12 * 60 && currentTimeInMinutes < 13.5 * 60) {
-    // 12:00 - 13:29 → finish at 20:15
-    finishHours = 20;
-    finishMinutes = 15;
-  } else if (currentTimeInMinutes >= 13.5 * 60 && currentTimeInMinutes < 21.75 * 60) {
-    // 13:30 - 21:44 → finish at 21:45
-    finishHours = 21;
-    finishMinutes = 45;
+  } else if (currentTimeInMinutes >= 13.75 * 60 && currentTimeInMinutes < 21.75 * 60) {
+    // 13:45 - 21:59 → finish at 22:00
+    finishHours = 22;
+    finishMinutes = 0;
   } else {
     // 21:45 - 05:59 (night shift) → finish at 06:00 NEXT DAY
     finishHours = 6;
     finishMinutes = 0;
   }
 
+  console.log('startTime in getAutoForcedFinishTime:', startTime);
+  console.log('currentHours:', currentHours, 'currentMinutes:', currentMinutes, 'currentTimeInMinutes:', currentTimeInMinutes);
   // Create the finish time
   const finishTime = new Date(
     now.getFullYear(),

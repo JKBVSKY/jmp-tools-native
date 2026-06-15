@@ -9,10 +9,12 @@ import {
   Animated,
   Modal,
   TextInput,
-  Platform
+  Platform,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import NewTransportModal from "./NewTransportModal";
 import EditTruckModal from "./EditTruckModal";
@@ -29,11 +31,13 @@ import { PendingXPService } from '@/services/PendingXPService';
 import { useBackgroundXP } from '@/_hooks/useBackgroundXP';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/firebase/config';
+import ThemedCard from '@/components/ThemedCard';
 import NetInfo from '@react-native-community/netinfo';
 import { useAppState } from '@/_hooks/useAppState';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // To save state
 import { XPEarnedNotification } from '@/components/XPEarnedNotification'; // Adjust path if needed
 import { appConfirm } from '@/_utils/crossPlatformAlert';
+import * as NavigationBar from 'expo-navigation-bar';
 
 const { width } = Dimensions.get('window');
 const isWeb = Platform.OS === 'web';
@@ -109,6 +113,12 @@ export default function Working({
     }
   }, [calc.mode, calc.isPaused]); // Dependencies ensure it always has fresh data
 
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      NavigationBar.setBackgroundColorAsync(colors.navBackground);
+      NavigationBar.setButtonStyleAsync('light'); // or 'dark'
+    }
+  }, [colors]);
   // ============================================================================
   // LOGIC FUNCTIONS FOR AUTOMATIC CALCULATION FINISHER
   // ============================================================================
@@ -877,37 +887,34 @@ export default function Working({
       >
         {/* ✅ XP PROGRESS BAR - TOP OF SCREEN */}
         {profile && (
-          <View style={[styles.xpProgressCard, { backgroundColor: colors.cardBackground }]}>
-            <View style={styles.xpHeaderRow}>
-              <View>
-                <Text style={[styles.xpLevel, { color: colors.title }]}>Poziom {profile.level}</Text>
-                <Text style={[styles.xpProgressText, { color: colors.text }]}>
-                  {levelData?.currentXP} / {xpForNextLevel} XP
-                </Text>
-              </View>
-              <View style={[styles.xpRewardBadge, { backgroundColor: colors.butBackground }]}>
-                <Ionicons name="star" size={16} color={colors.butText} />
-                <Text style={[styles.xpRewardText, { color: colors.butText }]}>+{currentXPPerMin}/min</Text>
-              </View>
-            </View>
 
-            {/* Progress Bar */}
-            <View style={[styles.progressBarBackground, { backgroundColor: colors.inputBackground, borderColor: colors.border, borderWidth: 1 }]}>
+          < ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <View>
+              <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
+            </View>
+            <View style={styles.progressContainer}>
               <View
                 style={[
                   styles.progressBar,
                   {
-                    backgroundColor: colors.text,
-                    width: `${Math.min(levelProgress, 100)}%`,
+                    backgroundColor: colors.inputBackground,
+                    borderColor: colors.border,
+                    borderWidth: 1,
                   },
                 ]}
-              />
+              >
+                <View
+                  style={[
+                    styles.progressFill,
+                    { backgroundColor: colors.iconColor, width: `${Math.min(levelProgress, 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                {levelData?.currentXP} / {xpForNextLevel} XP
+              </Text>
             </View>
-
-            <Text style={[styles.progressPercentText, { color: colors.textSecondary }]}>
-              XP zdobyte w tej sesji: +{sessionXPEarned}
-            </Text>
-          </View>
+          </ThemedCard>
         )}
 
         {/* ADD THE NOTIFICATION COMPONENT HERE */}
@@ -951,6 +958,41 @@ export default function Working({
           </View>
         )}
 
+        {/* Trucks section */}
+        <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
+          <View style={styles.tabHeader}>
+            <View style={{ flexDirection: 'column' }}>
+              <Text style={[styles.gridTitle, { color: colors.text }]}>
+                {activeTab === 0 ? "Transporty" : "Zakończone transporty"}
+              </Text>
+              <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+                {activeTab === 0 ? "Lista załadunków w trakcie" : "Lista ukończonych załadunków"}
+              </Text>
+            </View>
+            <View style={[styles.tabDots, { flexDirection: 'row' }]}>
+              <TouchableOpacity
+                style={[styles.tabDot, activeTab === 0 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
+              />
+              <TouchableOpacity
+                style={[styles.tabDot, activeTab === 1 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
+              />
+            </View>
+            <TouchableOpacity
+              style={[styles.btnOutline, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
+              onPress={() => setShowNewTransportModal(true)}
+            >
+              <Ionicons name="add-outline" size={24} color={colors.outButText} />
+            </TouchableOpacity>
+          </View>
+
+          <TabView
+            navigationState={navigationState}
+            renderScene={renderScene}
+            onIndexChange={setActiveTab}
+            renderTabBar={() => null} // Hide default tab bar since using custom dots
+            style={{ height: 200 }} // or another explicit height
+          />
+        </View>
         {isWeb ? (
           <View style={styles.statsSection}>
             <View style={styles.statsGrid}>
@@ -1006,7 +1048,7 @@ export default function Working({
                 </View>
                 <Text style={[styles.cardValue, { color: colors.text }]}>
                   {forcedFinishTime
-                    ? `${new Date(forcedFinishTime).toLocaleTimeString()} (${new Date(forcedFinishTime).getDate()})`
+                    ? `${new Date(forcedFinishTime).toLocaleTimeString()}`
                     : 'Brak'}
                 </Text>
               </TouchableOpacity>
@@ -1028,64 +1070,95 @@ export default function Working({
             </View>
           </View>
         ) : (
-          <View style={styles.statsSection}>
+          <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <Text style={[styles.gridTitle, { color: colors.text }]}>
+              Sesja aktywna
+            </Text>
+            <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+              Twoje statystyki bieżącej sesji.
+            </Text>
             <View style={styles.statsGrid}>
-              {/* Card 1: Elapsed Time */}
-              <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-                <View style={styles.cardHeader}>
-                  <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
-                </View>
-                <Text style={[styles.cardValue, { color: colors.text }]}>
+
+              {/* Card 1: Score */}
+              <View style={[styles.gridCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                <Ionicons name="flash-outline" size={28}
+                  style={[
+                    styles.cardIcon,
+                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                  ]}
+                />
+                <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                  Średnia aktualna
+                </Text>
+                <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 32, fontWeight: '600' }]}>
+                  {palletsRate}
+                </Text>
+              </View>
+
+              {/* Card 2: Time */}
+              <View style={[styles.gridCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                <Ionicons name="time-outline" size={24}
+                  style={[
+                    styles.cardIcon,
+                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                  ]} />
+                <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                  Czas
+                </Text>
+                <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
                   {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
                 </Text>
               </View>
 
-              {/* Card 2: Pallets Loaded */}
-              <TouchableOpacity
-                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
-                onPress={() => Alert.alert('Palety Załadowane', `${palletsLoaded}`)}
-              >
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Palety</Text>
-                  <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
-                </View>
-                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
-              </TouchableOpacity>
-
-              {/* Card 3: Trucks Loaded */}
-              <TouchableOpacity
-                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22.91%' }]}
-                onPress={() => Alert.alert('Dostawy załadowane', `${trucksLoadedCount}`)}
-              >
-                <View style={styles.cardHeader}>
-                  <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Dostawy</Text>
-                  <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
-                </View>
-                <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
-              </TouchableOpacity>
-
-              {/* Card 4: Rate (per hour) */}
-              <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-                <View style={styles.cardHeader}>
-                  <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/godz</Text>
-                </View>
-                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
+              {/* Card 3: Pallets */}
+              <View style={[styles.gridCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                <Ionicons
+                  name="layers-outline"
+                  size={28}
+                  style={[
+                    styles.cardIcon,
+                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                  ]}
+                />
+                <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                  Palety
+                </Text>
+                <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                  {palletsLoaded}
+                </Text>
               </View>
 
-              {/* Card 5: Forced Finish Time */}
-              <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
-                <View style={styles.cardHeader}>
-                  <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
-                </View>
-                <Text style={[styles.cardValue, { color: colors.text }]}>
+              {/* Card 4: Truck loaded */}
+              <View style={[styles.gridCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                <MaterialCommunityIcons name="truck-check-outline" size={28}
+                  style={[
+                    styles.cardIcon,
+                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                  ]} />
+                <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                  Dostawy
+                </Text>
+                <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                  {trucksLoadedCount}
+                </Text>
+              </View>
+
+              {/* Card 5: Time of forced finish */}
+              <View style={[styles.gridCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                <MaterialIcons name="alarm-off" size={28}
+                  style={[
+                    styles.cardIcon,
+                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                  ]} />
+                <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                  Koniec
+                </Text>
+                <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
                   {forcedFinishTime
-                    ? `${new Date(forcedFinishTime).toLocaleTimeString()} (${new Date(forcedFinishTime).getDate()})`
+                    ? `${new Date(forcedFinishTime).toLocaleTimeString()}`
                     : 'Brak'}
                 </Text>
-              </TouchableOpacity>
+              </View>
 
               {calc.timeOfForcedFinish && (
                 <View style={{
@@ -1104,83 +1177,51 @@ export default function Working({
             </View>
           </View>
         )}
-
-        {/* Trucks section */}
-        <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
-          <View style={styles.tabHeader}>
-            <Text style={[styles.infoTitle, { color: colors.text }]}>
-              {activeTab === 0 ? "Aktualne transporty" : "Zakończone transporty"}
-            </Text>
-            <View style={styles.tabDots}>
-              <TouchableOpacity
-                style={[styles.tabDot, activeTab === 0 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
-              />
-              <TouchableOpacity
-                style={[styles.tabDot, activeTab === 1 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
-              />
-            </View>
-          </View>
-
-          <TabView
-            navigationState={navigationState}
-            renderScene={renderScene}
-            onIndexChange={setActiveTab}
-            renderTabBar={() => null} // Hide default tab bar since using custom dots
-            style={{ flex: 1 }}
-          />
-
-
-        </View>
       </ScrollView>
       {/* Buttons */}
-      {isPaused ? (
-        // Paused - Resume button ONLY
-        <View style={[styles.resumeButtonContainer, { elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }]}>
-          <TouchableOpacity
-            style={[styles.btnResume, { backgroundColor: colors.butBackground }]}
-            onPress={handleResume}
-          >
-            <Ionicons name="play" size={20} color={colors.butText} />
-            <Text style={[styles.btnResumeText, { color: colors.butText }]}>Wznów</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        // Working - New, Pause, Finish buttons
-        <View style={styles.buttonsContainer}>
-          <TouchableOpacity
-            style={[styles.btnOutline, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
-            onPress={() => setShowNewTransportModal(true)}
-          >
-            <Ionicons name="add-outline" size={20} color={colors.outButText} />
-            <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>Nowy</Text>
-          </TouchableOpacity>
+      {
+        isPaused ? (
+          // Paused - Resume button ONLY
+          <View style={[styles.resumeButtonContainer, { elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }]}>
+            <TouchableOpacity
+              style={[styles.btnResume, { backgroundColor: colors.butBackground }]}
+              onPress={handleResume}
+            >
+              <Ionicons name="play" size={20} color={colors.butText} />
+              <Text style={[styles.btnResumeText, { color: colors.butText }]}>Wznów</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          // Working -  Pause, Finish buttons
+          <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border }]}>
 
-          <TouchableOpacity
-            style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
-            onPress={() => setShowPauseModal(true)}
-          >
-            <Ionicons name="pause-outline" size={20} color={colors.butText} />
-            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zatrzymaj</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+              onPress={() => setShowPauseModal(true)}
+            >
+              <Ionicons name="pause-outline" size={20} color={colors.butText} />
+              <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zatrzymaj</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            onPress={() => {
-              appConfirm(
-                'Zakończ Sesję',
-                'Czy na pewno chcesz zakończyć tę sesję obliczeniową?',
-                () => {
-                  setEndTime(Date.now());
-                  changeMode('results');
-                }
-              );
-            }}
-            style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
-          >
-            <MaterialCommunityIcons name="flag-checkered" size={20} color={colors.butText} />
-            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zakończ</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+            <TouchableOpacity
+              onPress={() => {
+                appConfirm(
+                  'Zakończ Sesję',
+                  'Czy na pewno chcesz zakończyć tę sesję obliczeniową?',
+                  () => {
+                    setEndTime(Date.now());
+                    changeMode('results');
+                  }
+                );
+              }}
+              style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+            >
+              <MaterialCommunityIcons name="flag-checkered" size={20} color={colors.butText} />
+              <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zakończ</Text>
+            </TouchableOpacity>
+          </View>
+        )
+      }
 
       {/* Modals */}
       {/* Pallets in progress → ask for final number */}
@@ -1278,66 +1319,54 @@ export default function Working({
         initialTime={forcedFinishTime}
         type="finish"
       />
-    </View>
+    </View >
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingHorizontal: 8,
-    paddingVertical: 16,
+    paddingTop: 16,
     justifyContent: 'space-between',
   },
-    scrollContent: {
+  scrollContent: {
     flexGrow: 1,
   },
-  xpProgressCard: {
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-    borderWidth: 1,
-  },
-  xpHeaderRow: {
+  levelCard: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 12,
+    marginHorizontal: 24,
+    marginVertical: 16,
+    borderRadius: 16,
+    gap: 32,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
-  xpLevel: {
-    fontSize: 18,
+  levelTitle: {
+    fontSize: 24,
     fontWeight: 'bold',
   },
-  xpProgressText: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  xpRewardBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  xpRewardText: {
-    fontSize: 13,
-    fontWeight: '600',
-  },
-  progressBarBackground: {
-    height: 8,
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 8,
+  progressContainer: {
+    flex: 1,
   },
   progressBar: {
-    height: 8,
-    borderRadius: 4,
+    height: 10,
+    borderRadius: 5,
+    overflow: 'hidden',
   },
-  progressPercentText: {
-    fontSize: 11,
+  progressFill: {
+    height: 10,
+    borderRadius: 5,
+  },
+  progressText: {
+    fontSize: 14,
     textAlign: 'center',
+    marginTop: 5,
   },
   floatingXPText: {
     position: 'absolute',
@@ -1368,79 +1397,102 @@ const styles = StyleSheet.create({
   },
   statsSection: {
     marginBottom: 16,
+    marginHorizontal: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    paddingHorizontal: 16,
   },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    gap: 12,
   },
-  statCard: {
-    width: '48.61%',
-    borderRadius: 24,
+  gridCard: {
+    width: '47%',
     padding: 16,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-    elevation: 3,  // Android equivalent
+    marginBottom: 16,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 4,
-    gap: 8,
+  gridCardWide: {
+    width: '100%',
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 1,
   },
-  cardLabelBadge: {
-    fontSize: 9,
+  gridCardTitle: {
+    fontSize: 17,
     fontWeight: '600',
-    marginTop: 4,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    marginBottom: 2,
+    marginTop: 2,
   },
-  cardLabel: {
-    fontSize: 12,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-    flex: 1,
-  },
-  cardValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
+  statCardValue: {
+    fontSize: 22,
+    fontWeight: '800',
   },
   infoContainer: {
-    flex: 1,
     borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
     marginBottom: 16,
+    marginHorizontal: 24,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
   },
   tabHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
   },
-  infoTitle: {
-    textAlign: 'center',
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+  gridTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    paddingTop: 16,
+  },
+  gridSubtitle: {
+    fontSize: 15,
+    paddingBottom: 12,
   },
   tabDots: {
     flexDirection: 'row',
+    alignSelf: 'center',
     gap: 8,
+    transform: [{ translateY: 0 }],
   },
   tabDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
     backgroundColor: '#ccc',
+  },
+  btnOutline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    padding: 12,
+    borderRadius: 12,
+    gap: 6,
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  btnOutlineText: {
+    fontSize: 17,
+    fontWeight: '800',
   },
   iconButton: {
     padding: 6,
@@ -1456,34 +1508,18 @@ const styles = StyleSheet.create({
     gap: 8,
     justifyContent: 'space-between',
     flexWrap: 'wrap',
-    marginTop: 16,
-  },
-  btnOutline: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 24,
-    gap: 6,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-  },
-  btnOutlineText: {
-    fontSize: 14,
-    fontWeight: '500',
+    paddingTop: 16,
+    paddingHorizontal: 24,
+    borderTopWidth: 1,
   },
   btnPrimary: {
     flex: 1,
     flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 24,
+    paddingVertical: 12,
+    borderRadius: 16,
     gap: 6,
     elevation: 2,
     shadowColor: '#000',
@@ -1492,8 +1528,8 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   btnPrimaryText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 22,
+    fontWeight: '400',
   },
   resumeButtonContainer: {
     width: '100%',
