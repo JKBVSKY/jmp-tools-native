@@ -20,8 +20,6 @@ export default function Results({
   startTime,
   endTime,
   trucksHistory,
-  changeMode,
-  clearCalculator,
 }) {
   const colors = useColors();
   const calc = useCalculator();
@@ -179,7 +177,7 @@ export default function Results({
   const finishSession = async () => {
     try {
       await calc.clearState();
-      changeMode('init');
+      calc.updateState({ mode: 'init' });
     } catch (error) {
       console.error('Błąd podczas czyszczenia kalkulatora:', error);
     }
@@ -191,7 +189,7 @@ export default function Results({
       'Jesteś pewien? Stracisz punkty XP!',
       async () => {
         await calc.clearState();
-        changeMode('init');
+        calc.updateState({ mode: 'init' });
       }
     );
   };

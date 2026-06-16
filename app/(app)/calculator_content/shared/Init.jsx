@@ -308,9 +308,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
-    borderRadius: 24,
+    borderRadius: 20,
     gap: 6,
     height: 48, // Set a fixed height for a normal button appearance
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   startButtonText: {
     fontSize: 16,

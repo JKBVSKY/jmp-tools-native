@@ -3,7 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CalculatorContext = createContext();
 
-export function CalculatorProvider({ children }) {
+export function CalculatorProvider({ children, storageKey = 'calculatorState', type = 'truck-loading' }) {
   const [state, setState] = useState({
     mode: 'init',
     startTime: null,
@@ -20,14 +20,15 @@ export function CalculatorProvider({ children }) {
     trailerNum: 0,
     forcedFinishTime: null,
     sessionStatus: 'active',
-    isRestored: false, // Track if we've restored from storage
+    sessionType: type,
+    isRestored: false,
   });
 
 
   // Save state to AsyncStorage
   const saveState = async (newState) => {
     try {
-      await AsyncStorage.setItem('calculatorState', JSON.stringify(newState));
+      await AsyncStorage.setItem(storageKey, JSON.stringify(newState));
     } catch (error) {
       console.error('Failed to save calculator state:', error);
     }
@@ -36,7 +37,7 @@ export function CalculatorProvider({ children }) {
   // Restore state from AsyncStorage
   const restoreState = async () => {
     try {
-      const savedState = await AsyncStorage.getItem('calculatorState');
+      const savedState = await AsyncStorage.getItem(storageKey);
       if (savedState) {
         const parsedState = JSON.parse(savedState);
         setState(prev => ({ ...parsedState, isRestored: true }));
@@ -52,7 +53,7 @@ export function CalculatorProvider({ children }) {
   // Clear calculator state (after saving results)
   const clearState = async () => {
     try {
-      await AsyncStorage.removeItem('calculatorState');
+      await AsyncStorage.removeItem(storageKey);
       setState({
         mode: 'init',
         startTime: null,
@@ -69,6 +70,7 @@ export function CalculatorProvider({ children }) {
         trailerNum: 0,
         forcedFinishTime: null,
         sessionStatus: 'cleared',
+        sessionType: type,
         isRestored: true,
       });
     } catch (error) {

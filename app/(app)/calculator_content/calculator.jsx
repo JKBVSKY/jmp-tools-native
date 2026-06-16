@@ -1,23 +1,23 @@
-import React, { useState, useEffect } from "react";
+import React from 'react';
 import { View, StyleSheet } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
-import Init from "./Init";
+import Init from "./shared/Init";
 import Working from "./Working";
-import Results from "./Results";
+import Results from "./shared/Results";
 import { useCalculator } from "@/_context/CalculatorContext";
-import { getAutoStartTime } from "./utils";
+import { getAutoStartTime } from "./shared/utils";
 import { useColors } from '@/_hooks/useColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getAutoForcedFinishTime } from '@/_utils/timeUtils';
 
 export default function Calculator() {
-  const [mode, setMode] = useState("init"); // State to manage current mode
   const calc = useCalculator();
-  const changeMode = (newMode) => setMode(newMode);
-  const forcedFinishTime = calc.forcedFinishTime;
-  const setForcedFinishTime = (time) => calc.updateState({ forcedFinishTime: time });
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const forcedFinishTime = calc.forcedFinishTime;
+  const setForcedFinishTime = (time) => calc.updateState({ forcedFinishTime: time });
+
+  const changeMode = (newMode) => calc.updateState({ mode: newMode });
 
   // Helper function to check if startTime is from today
   const isStartTimeFromToday = (startTime) => {
@@ -67,7 +67,7 @@ export default function Calculator() {
     ]}>
       {calc.mode === "init" && (
         <Init
-          changeMode={(newMode) => calc.updateState({ mode: newMode })}
+          changeMode={changeMode}
           calcUpdateState={calc.updateState}
           setStartTime={(time) => calc.updateState({ startTime: time })}
           startTime={calc.startTime || getAutoStartTime()}
@@ -78,7 +78,7 @@ export default function Calculator() {
 
       {(calc.mode === "working" || calc.mode === "paused") && (
         <Working
-          changeMode={(newMode) => calc.updateState({ mode: newMode })}
+          changeMode={changeMode}
           loadingTime={calc.loadingTime}
           startTime={calc.startTime}
           endTime={calc.endTime}
@@ -112,7 +112,6 @@ export default function Calculator() {
           startTime={calc.startTime}
           endTime={calc.endTime}
           trucksHistory={calc.trucksHistory}
-          changeMode={(newMode) => calc.updateState({ mode: newMode })}
         />
       )}
     </View>

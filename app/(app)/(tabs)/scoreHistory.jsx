@@ -336,8 +336,8 @@ export default function ScoreHistory() {
                       size={28}
                       style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
                     />
-                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Czas</Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>
+                    <Text style={[styles.summaryLabel, { color: colors.cardTitle}]}>Czas</Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue, fontSize: 18, marginTop: 4 }]}>
                       {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
                     </Text>
                   </ThemedCard>

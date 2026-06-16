@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, Text, View, Pressable, ActivityIndicator, ScrollView, Image, Platform } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useAutoHorizontalScroll } from '@/_hooks/useAutoHorizontalScroll';
 import { useColors } from '@/_hooks/useColors';
 import ThemedView from '@/components/ThemedView';
 import { useAuth } from '@/_context/AuthContext';
@@ -15,6 +17,7 @@ import { TouchableOpacity } from 'react-native-gesture-handler';
 import SessionModal from '../modals/SessionModal';
 import { useCalculator } from '@/_context/CalculatorContext';
 import { Ionicons } from "@expo/vector-icons";
+
 
 
 const calculateSummary = (sessionsArray) => {
@@ -66,6 +69,8 @@ export default function Dashboard() {
   const [isSessionModalVisible, setSessionModalVisible] = useState(false);
   const [rank, setRank] = useState('-');
   const userId = user?.id;
+
+  const CARD_SIZE = 140;
 
   const calc = useCalculator();
   const isWeb = Platform.OS === 'web';
@@ -246,6 +251,20 @@ export default function Dashboard() {
     const m = Math.floor((seconds % 3600) / 60);
     return `${h}h ${m}m`;
   };
+
+  //AutoHorizontalScroll Configuration
+  const {
+    scrollRef,
+    handleLayout,
+    handleContentSizeChange,
+    handleUserInteraction,
+    handleMomentumScrollEnd,
+    handleScrollEndDrag,
+  } = useAutoHorizontalScroll({
+    speed: 20,
+    pauseAtEdgesMs: 2000,
+    idleToResumeMs: 5000,
+  });
 
   const handleAvatarPress = () => {
     router.push('/(app)/(tabs)/profile');
@@ -541,55 +560,71 @@ export default function Dashboard() {
                       {summary.averageRate.toFixed(2)} pal/h
                     </Text>
                   </ThemedCard>
-                  <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
+
+                  {/* HORIZONTAL CARDS */}
+                  <Animated.ScrollView
+                    ref={scrollRef}
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    onLayout={handleLayout}
+                    onContentSizeChange={handleContentSizeChange}
+                    onTouchStart={handleUserInteraction}
+                    onScrollBeginDrag={handleUserInteraction}
+                    onScrollEndDrag={handleScrollEndDrag}
+                    onMomentumScrollEnd={handleMomentumScrollEnd}
+                    scrollEventThrottle={16}
+                    contentContainerStyle={styles.horizontalCardsContent}
                   >
-                    <Ionicons
-                      name="layers-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Palety
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
-                      {summary.totalPallets}
-                    </Text>
-                  </ThemedCard>
-                  <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
-                  >
-                    <Ionicons
-                      name="trophy-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Ranking
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{rank}</Text>
-                  </ThemedCard>
-                  <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={28}
-                      style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Czas
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
-                      {formatTime(summary.totalTime)}
-                    </Text>
-                  </ThemedCard>
+                    <ThemedCard
+                      style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
+                    >
+                      <Ionicons
+                        name="layers-outline"
+                        size={28}
+                        style={[
+                          styles.cardIcon,
+                          { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                        ]}
+                      />
+                      <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
+                        Palety
+                      </Text>
+                      <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
+                        {summary.totalPallets}
+                      </Text>
+                    </ThemedCard>
+                    <ThemedCard
+                      style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
+                    >
+                      <Ionicons
+                        name="trophy-outline"
+                        size={28}
+                        style={[
+                          styles.cardIcon,
+                          { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                        ]}
+                      />
+                      <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
+                        Ranking
+                      </Text>
+                      <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{rank}</Text>
+                    </ThemedCard>
+                    <ThemedCard
+                      style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
+                    >
+                      <Ionicons
+                        name="time-outline"
+                        size={28}
+                        style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
+                      />
+                      <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
+                        Czas
+                      </Text>
+                      <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
+                        {formatTime(summary.totalTime)}
+                      </Text>
+                    </ThemedCard>
+                  </Animated.ScrollView>
                 </View>
               </View>
             </View>
@@ -667,7 +702,7 @@ const styles = StyleSheet.create({
     marginBottom: 0,
   },
   summaryContainer: {
-    marginHorizontal: 16,
+    marginHorizontal: 24,
     borderRadius: 16,
     borderWidth: 1,
     elevation: 2,
@@ -680,17 +715,17 @@ const styles = StyleSheet.create({
   gridTitle: {
     fontSize: 24,
     fontWeight: 'bold',
-    marginHorizontal: 8,
+    marginHorizontal: 4,
   },
   gridSubtitle: {
     fontSize: 15,
-    marginHorizontal: 8,
+    marginHorizontal: 4,
     marginBottom: 12,
   },
   levelCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginHorizontal: 16,
+    marginHorizontal: 24,
     marginVertical: 16,
     borderRadius: 16,
     gap: 32,
@@ -748,15 +783,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#cccccc',
   },
   statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    marginHorizontal: 8,
+    marginHorizontal: 4,
+  },
+  horizontalCardsContent: {
+    gap: 12,
   },
   statCard: {
-    width: '31%',
     borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
+    justifyContent: 'center',
   },
   statCardWide: {
     width: '100%',
