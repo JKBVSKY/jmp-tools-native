@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, StyleSheet, Pressable, Alert, ActivityIndicator } from 'react-native';
+import Animated from 'react-native-reanimated';
+import { useAutoHorizontalScroll } from '@/_hooks/useAutoHorizontalScroll';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from '@/_hooks/useColors';
 import { useCalculator } from '@/_context/CalculatorContext';
@@ -13,6 +15,7 @@ import { db } from '@/firebase/config';
 import { collection, addDoc } from 'firebase/firestore';
 import { useAuth } from '@/_context/AuthContext';
 import { appConfirm, appAlert } from '@/_utils/crossPlatformAlert';
+import ThemedCard from '@/components/ThemedCard';
 
 
 export default function Results({
@@ -27,6 +30,8 @@ export default function Results({
   const { user } = useAuth();
   const userId = user?.id; // uid from AuthContext
   const [isSaving, setIsSaving] = useState(false);
+
+  const CARD_SIZE = 140;
 
   const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
   const trucksCount = trucksHistory.length;
@@ -194,6 +199,20 @@ export default function Results({
     );
   };
 
+  //AutoHorizontalScroll Configuration
+  const {
+    scrollRef,
+    handleLayout,
+    handleContentSizeChange,
+    handleUserInteraction,
+    handleMomentumScrollEnd,
+    handleScrollEndDrag,
+  } = useAutoHorizontalScroll({
+    speed: 20,
+    pauseAtEdgesMs: 2000,
+    idleToResumeMs: 5000,
+  });
+
   return (
     <View style={[styles.scrollContent, { backgroundColor: colors.background }]}>
       {isSaving && (
@@ -213,7 +232,7 @@ export default function Results({
           <Text style={[styles.title, { color: colors.title }]}>Sesja Zakończona! ✓</Text>
 
           {/* Score Display */}
-          <View style={[styles.scoreCard, { backgroundColor: colors.cardBackground }]}>
+          <View style={[styles.scoreCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
             <View style={styles.scoreContent}>
               <Text style={[styles.scoreLabel, { color: colors.textSecondary }]}>Ocena Sesji</Text>
               <Text style={[styles.scoreValue, { color: colors.text }]}>{sessionScore.toFixed(1)}/10.0</Text>
@@ -227,48 +246,57 @@ export default function Results({
           </View>
 
           {/* Stats Cards Section */}
-          <View style={styles.statsSection}>
-            <View style={styles.statsGrid}>
-              {/* Card 1: Elapsed Time */}
-              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            {/* Card 1: Rate (per hour) */}
+            <View style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+              <View style={styles.cardHeader}>
+                <MaterialCommunityIcons name="speedometer" size={20} color={colors.grayIconColor} />
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/h</Text>
+              </View>
+              <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
+            </View>
+
+            {/* HORIZONTAL CARDS */}
+            <Animated.ScrollView
+              ref={scrollRef}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              onLayout={handleLayout}
+              onContentSizeChange={handleContentSizeChange}
+              onTouchStart={handleUserInteraction}
+              onScrollBeginDrag={handleUserInteraction}
+              onScrollEndDrag={handleScrollEndDrag}
+              onMomentumScrollEnd={handleMomentumScrollEnd}
+              scrollEventThrottle={16}
+              contentContainerStyle={styles.horizontalCardsContent}
+            >
+              {/* Card 2: Elapsed Time */}
+              <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE }]}>
+                <MaterialCommunityIcons name="clock" size={28} color={colors.grayIconColor} />
                 <View style={styles.cardHeader}>
-                  <MaterialCommunityIcons name="clock" size={20} color={colors.iconColor} />
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Sesji</Text>
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas</Text>
                 </View>
                 <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
-              </View>
+              </ThemedCard>
 
-              {/* Card 2: Pallets Loaded */}
-              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              {/* Card 3: Pallets Loaded */}
+              <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE }]}>
+                <MaterialCommunityIcons name="cube-send" size={28} color={colors.grayIconColor} />
                 <View style={styles.cardHeader}>
-                  <MaterialCommunityIcons name="cube-send" size={20} color={colors.iconColor} />
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Palety Załadowane</Text>
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Palety</Text>
                 </View>
                 <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
-              </View>
-            </View>
-            <View style={styles.statsGrid}>
-              {/* Card 3: Rate (per hour) */}
-              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                <View style={styles.cardHeader}>
-                  <MaterialCommunityIcons name="speedometer" size={20} color={colors.iconColor} />
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/h</Text>
-                </View>
-                <Text style={[styles.cardValue, { color: colors.title }]}>{palletsRate}</Text>
-              </View>
-
+              </ThemedCard>
               {/* Card 4: Trucks Loaded */}
-              <View style={[styles.statCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+              <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE }]}>
+                <MaterialCommunityIcons name="truck" size={28} color={colors.grayIconColor} />
                 <View style={styles.cardHeader}>
-                  <MaterialCommunityIcons name="truck" size={20} color={colors.iconColor} />
-                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Naczepy Załadowane</Text>
+                  <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Dostawy</Text>
                 </View>
                 <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
-              </View>
-            </View>
-
+              </ThemedCard>
+            </Animated.ScrollView>
           </View>
-
 
           {/* Session Details */}
           <View style={[styles.detailsBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -283,8 +311,7 @@ export default function Results({
             </View>
           </View>
 
-          <ScrollView style={styles.scrollView}>
-            {/* Trucks Summary */}
+          {/* <ScrollView style={styles.scrollView}>
             <View style={[styles.trucksBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <Text style={[styles.trucksTitle, { color: colors.title }]}>Szczegóły Dostaw</Text>
               {trucksHistory.map((truck, idx) => (
@@ -298,7 +325,7 @@ export default function Results({
                 </View>
               ))}
             </View>
-          </ScrollView>
+          </ScrollView> */}
         </ScrollView>
         {/* Action Buttons */}
         <View style={styles.buttonsContainer}>
@@ -350,7 +377,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingVertical: 32,
     justifyContent: 'space-between',
     paddingBottom: 0,
@@ -368,6 +395,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    borderWidth: 1,
   },
   scoreContent: {
     flex: 1,
@@ -390,19 +423,41 @@ const styles = StyleSheet.create({
     marginLeft: 20,
   },
   statsSection: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
     marginBottom: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   statsGrid: {
+    marginHorizontal: 4,
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  horizontalCardsContent: {
     gap: 12,
   },
   statCard: {
-    flex: 1,
-    borderRadius: 24,
+    aspectRatio: 1,
     padding: 16,
-    marginBottom: 12,
-    borderWidth: 0,
-    borderColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 16,
+    justifyContent: 'center',
+  },
+  statCardWide: {
+    width: '100%',
+    padding: 16,
+    marginBottom: 16,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -411,19 +466,25 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   cardLabel: {
-    fontSize: 12,
+    fontSize: 17,
     fontWeight: '600',
-    flex: 1,
+    marginBottom: 2,
+    marginTop: 2,
   },
   cardValue: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '800',
   },
   detailsBox: {
-    borderWidth: 0,
-    borderRadius: 24,
     padding: 16,
     marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    borderRadius: 16,
+    borderWidth: 1,
   },
   detailsTitle: {
     fontSize: 16,

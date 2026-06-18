@@ -665,7 +665,7 @@ export default function WorkingLayout(props) {
             {
                 isPaused ? (
                     // Paused - Resume button ONLY
-                    <View style={[styles.resumeButtonContainer, { elevation: 2, shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4 }]}>
+                    <View style={[styles.resumeButtonContainer, { backgroundColor: colors.navBackground, borderColor: colors.border }]}>
                         <TouchableOpacity
                             style={[styles.btnResume, { backgroundColor: colors.butBackground }]}
                             onPress={handleResume}
@@ -1040,7 +1040,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
         paddingTop: 16,
         paddingHorizontal: 24,
-        paddingVertical:  16,
+        paddingVertical: 16,
         borderTopWidth: 1,
     },
     btnPrimary: {
@@ -1059,29 +1059,31 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
     },
     btnPrimaryText: {
-        fontSize: 18,
+        fontSize: 15,
         fontWeight: '500',
         textTransform: 'uppercase',
     },
     resumeButtonContainer: {
         width: '100%',
         alignItems: 'stretch',
-        borderRadius: 24,
         overflow: 'hidden',
-        marginTop: 34,
+        paddingVertical: 16,
+        paddingHorizontal: 24,
+        borderTopWidth: 1,
     },
     btnResume: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         paddingHorizontal: 20,
-        paddingVertical: 11,
-        borderRadius: 24,
+        paddingVertical: 10,
+        borderRadius: 20,
         gap: 6,
     },
     btnResumeText: {
-        fontSize: 14,
-        fontWeight: '600',
+        fontSize: 15,
+        fontWeight: '500',
+        textTransform: 'uppercase',
     },
     // Truck List Section
     trucksList: {

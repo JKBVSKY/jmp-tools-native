@@ -711,6 +711,8 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
         levelData,
         xpForNextLevel,
         levelProgress,
+        loadingTime,
+        forcedFinishTime,
 
         // UI state
         activeTab,
