@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   View,
@@ -54,6 +54,9 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
   const [seconds, setSeconds] = useState(initial.seconds);
   const [validationError, setValidationError] = useState('');
 
+  const hoursRef = useRef(null);
+  const minutesRef = useRef(null);
+  const secondsRef = useRef(null);
   // Update when modal opens with new initialTime
   useEffect(() => {
     if (visible) {
@@ -108,15 +111,18 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     const num = parseInt(cleaned, 10);
 
     // For finish type, validate against max hours
-    if (type === 'finish' && timeRange && cleaned.length === 2) {
-      const maxHours = parseInt(timeRange.maxHours, 10);
-      if (num > maxHours) return;
-    } else if (cleaned.length === 2 && num > 23) {
+    // Only basic hour validation: 0–23
+    if (cleaned.length === 2 && (isNaN(num) || num > 23)) {
       return;
     }
 
     setHours(cleaned);
     setValidationError('');
+
+    // NEW: when 2 digits typed, focus minutes
+    if (cleaned.length === 2) {
+      minutesRef.current?.focus();
+    }
   };
 
   const handleMinutesChange = (text) => {
@@ -128,6 +134,11 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
 
     setMinutes(cleaned);
     setValidationError('');
+
+    // NEW: when 2 digits typed, focus seconds
+    if (cleaned.length === 2) {
+      secondsRef.current?.focus();
+    }
   };
 
   const handleSecondsChange = (text) => {
@@ -148,16 +159,33 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     if (!isValid) return;
 
     const now = new Date();
+    const selectedHour = parseInt(hours, 10);
+    const selectedMinute = parseInt(minutes, 10);
+    const selectedSecond = parseInt(seconds, 10);
+
+    let day = now.getDate();
+
+    // If finish range crosses midnight, move 0..maxHours to next day
+    if (type === 'finish' && timeRange) {
+      const minHours = parseInt(timeRange.minHours, 10);
+      const maxHours = parseInt(timeRange.maxHours, 10);
+      const wrapsMidnight = minHours > maxHours;
+
+      if (wrapsMidnight && selectedHour <= maxHours) {
+        // Example: range 13:45–01:45 → hours 0–1 should be next day
+        day = day + 1;
+      }
+    }
+
     const adjusted = new Date(
       now.getFullYear(),
       now.getMonth(),
-      now.getDate(),
-      parseInt(hours, 10),
-      parseInt(minutes, 10),
-      parseInt(seconds, 10)
+      day,
+      selectedHour,
+      selectedMinute,
+      selectedSecond
     ).getTime();
 
-    // For finish type, validate against start time
     if (type === 'finish' && startTime) {
       if (!isFinishTimeValid(adjusted, startTime)) {
         setValidationError(
@@ -175,7 +203,7 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-          <View style={ styles.modalContainer }>
+          <View style={styles.modalContainer}>
             <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
               <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
               <Text style={[styles.description, { color: colors.textSecondary }]}>
@@ -210,66 +238,69 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
                 )}
               </View>
 
-            {/* Time Input Row */}
-            <View style={styles.timeInputContainer}>
-              {/* Hours */}
-              <TextInput
-                style={[
-                  styles.timeInput,
-                  {
-                    color: colors.text,
-                    borderColor: hours.length === 2 ? colors.selection : colors.border
-                  }
-                ]}
-                value={hours}
-                onChangeText={handleHoursChange}
-                keyboardType="number-pad"
-                maxLength={2}
-                placeholder="00"
-                placeholderTextColor={colors.textSecondary}
-                selectTextOnFocus
-              />
+              {/* Time Input Row */}
+              <View style={styles.timeInputContainer}>
+                {/* Hours */}
+                <TextInput
+                  ref={hoursRef}
+                  style={[
+                    styles.timeInput,
+                    {
+                      color: colors.text,
+                      borderColor: hours.length === 2 ? colors.selection : colors.border
+                    }
+                  ]}
+                  value={hours}
+                  onChangeText={handleHoursChange}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="00"
+                  placeholderTextColor={colors.textSecondary}
+                  selectTextOnFocus
+                />
 
                 <Text style={[styles.separator, { color: colors.text }]}>:</Text>
 
-              {/* Minutes */}
-              <TextInput
-                style={[
-                  styles.timeInput,
-                  {
-                    color: colors.text,
-                    borderColor: minutes.length === 2 ? colors.selection : colors.border
-                  }
-                ]}
-                value={minutes}
-                onChangeText={handleMinutesChange}
-                keyboardType="number-pad"
-                maxLength={2}
-                placeholder="00"
-                placeholderTextColor={colors.textSecondary}
-                selectTextOnFocus
-              />
+                {/* Minutes */}
+                <TextInput
+                  ref={minutesRef}
+                  style={[
+                    styles.timeInput,
+                    {
+                      color: colors.text,
+                      borderColor: minutes.length === 2 ? colors.selection : colors.border
+                    }
+                  ]}
+                  value={minutes}
+                  onChangeText={handleMinutesChange}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="00"
+                  placeholderTextColor={colors.textSecondary}
+                  selectTextOnFocus
+                />
 
                 <Text style={[styles.separator, { color: colors.text }]}>:</Text>
 
-              {/* Seconds */}
-              <TextInput
-                style={[
-                  styles.timeInput,
-                  {
-                    color: colors.text,
-                    borderColor: seconds.length === 2 ? colors.selection : colors.border
-                  }
-                ]}
-                value={seconds}
-                onChangeText={handleSecondsChange}
-                keyboardType="number-pad"
-                maxLength={2}
-                placeholder="00"
-                placeholderTextColor={colors.textSecondary}
-                selectTextOnFocus
-              />
-            </View>
+                {/* Seconds */}
+                <TextInput
+                  ref={secondsRef}
+                  style={[
+                    styles.timeInput,
+                    {
+                      color: colors.text,
+                      borderColor: seconds.length === 2 ? colors.selection : colors.border
+                    }
+                  ]}
+                  value={seconds}
+                  onChangeText={handleSecondsChange}
+                  keyboardType="number-pad"
+                  maxLength={2}
+                  placeholder="00"
+                  placeholderTextColor={colors.textSecondary}
+                  selectTextOnFocus
+                />
+              </View>
 
               {/* Helper text */}
               <Text style={[styles.helperText, { color: colors.textSecondary }]}>
@@ -306,14 +337,14 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
             </View>
           </View>
         </KeyboardAvoidingView>
-              {showCustomPicker && (
-                  <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000 }}>
-                    <CustomTimePicker
-                      onConfirm={handleCustomPickerConfirm}
-                      onCancel={() => setShowCustomPicker(false)}
-                    />
-                   </View>
-              )}
+        {showCustomPicker && (
+          <View style={{ position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 1000 }}>
+            <CustomTimePicker
+              onConfirm={handleCustomPickerConfirm}
+              onCancel={() => setShowCustomPicker(false)}
+            />
+          </View>
+        )}
       </View>
     </Modal>
   );

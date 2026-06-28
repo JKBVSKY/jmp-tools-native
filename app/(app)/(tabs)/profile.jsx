@@ -162,9 +162,63 @@ export default function Profile() {
     : 0;
 
   // ✅ GET ALL ACHIEVEMENTS
-  const allAchievements = Object.values(ACHIEVEMENTS).map(achievement => ({
+  const isAchievementUnlocked = (achievementId, profile) => {
+    if (!profile) return false;
+
+    const stats = profile.stats || {};
+    const averageScore =
+      (stats.totalSessions || 0) > 0
+        ? (stats.totalScore || 0) / stats.totalSessions
+        : 0;
+
+    switch (achievementId) {
+      case 'achievement_first_shift':
+        return (stats.totalSessions || 0) >= 1;
+
+      case 'achievement_speed_hunter':
+        return (stats.palletsLoadedInSession || 0) >= 400;
+
+      case 'achievement_consistency':
+        return averageScore >= 8.5;
+
+      case 'achievement_night_owl':
+        return (stats.nightShiftsCompleted || 0) >= 20;
+
+      case 'achievement_master_loader':
+        return (profile.level || 0) >= 50;
+
+      case 'achievement_perfectionist':
+        return (stats.perfectScores || 0) >= 5;
+
+      case 'achievement_pallets_1':
+        return (stats.palletsLoaded || 0) >= 1000;
+
+      case 'achievement_pallets_2':
+        return (stats.palletsLoaded || 0) >= 5000;
+
+      case 'achievement_pallets_3':
+        return (stats.palletsLoaded || 0) >= 10000;
+
+      case 'achievement_pallets_4':
+        return (stats.palletsLoaded || 0) >= 25000;
+
+      case 'achievement_pallets_5':
+        return (stats.palletsLoaded || 0) >= 50000;
+
+      case 'achievement_pallets_6':
+        return (stats.palletsLoaded || 0) >= 100000;
+
+      case 'achievement_marathon':
+        return (stats.totalTimeWorked || 0) >= 100;
+
+      default:
+        return false;
+    }
+  };
+
+  const allAchievements = Object.values(ACHIEVEMENTS).map((achievement) => ({
     ...achievement,
-    unlocked: profile.achievements.includes(achievement.id),
+    unlocked: isAchievementUnlocked(achievement.id, profile),
   }));
 
   const iconSize = isWeb ? 40 : isSmallPhone ? 50 : 30;
@@ -268,7 +322,7 @@ export default function Profile() {
         ) : (
           <>
             {/* ORIGINAL MOBILE / NARROW WEB HEADER */}
-            <View style={[styles.header, { backgroundColor: colors.cardBackground, borderColor: colors.border  }]}>
+            <View style={[styles.header, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <TouchableOpacity
                 style={{ position: 'absolute', top: 15, right: 15 }}
                 onPress={() => router.push('/(app)/editProfile')}
@@ -452,7 +506,7 @@ export default function Profile() {
           </View>
 
           <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
-            {profile.achievements.length} z {allAchievements.length} odblokowano
+            {allAchievements.filter(a => a.unlocked).length} z {allAchievements.length} odblokowano
           </Text>
         </View>
 
@@ -474,8 +528,7 @@ export default function Profile() {
             level: profile.level,
             totalXP: profile.totalXP
           }}
-          isUnlocked={selectedAchievement ? profile.achievements.includes(selectedAchievement.id) : false}
-        />
+          isUnlocked={selectedAchievement ? isAchievementUnlocked(selectedAchievement.id, profile) : false} />
       </ScrollView>
     </View>
   );

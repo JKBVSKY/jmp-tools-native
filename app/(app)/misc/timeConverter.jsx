@@ -264,6 +264,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     gap: 5,
+    paddingBottom: 16,
   },
   header: {
     paddingHorizontal: 32,

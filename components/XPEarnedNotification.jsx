@@ -123,7 +123,7 @@ export const XPEarnedNotification = memo(function XPEarnedNotification({ xpAmoun
               },
             ]}
           >
-            You earned XP!
+            Zdobyłeś XP!
           </Text>
           <Text
             style={[

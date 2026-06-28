@@ -192,12 +192,11 @@ export default function Leaderboards() {
       style={[
         styles.container,
         {
-          paddingTop: insets.top + 8,
           backgroundColor: colors.background,
         },
       ]}
     >
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: colors.navBackground, paddingTop: insets.top + 8 }]}>
         <Text style={[styles.title, { color: colors.text }]}>Tablice Wyników - Załadunek</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
           Srednia miesięczna palet na godzinę, {monthInfo.label}
@@ -309,11 +308,11 @@ export default function Leaderboards() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
   },
   header: {
-    marginTop: 12,
     marginBottom: 20,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
   },
   title: {
     fontSize: 28,
@@ -343,6 +342,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     padding: 18,
     marginBottom: 18,
+    marginHorizontal: 24,
     borderWidth: 1,
     elevation: 2,
     shadowColor: '#000',
@@ -392,6 +392,7 @@ const styles = StyleSheet.create({
   list: {
     gap: 12,
     paddingBottom: 20,
+    marginHorizontal: 24,
   },
   row: {
     flexDirection: 'row',

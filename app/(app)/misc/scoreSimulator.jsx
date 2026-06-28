@@ -393,7 +393,8 @@ const createStyles = (palette) =>
     description: {
       fontSize: 14,
       color: palette.textSecondary,
-      marginBottom: 16,
+      marginBottom: 8,
+      marginTop: 4,
     },
     formGroup: {
       marginBottom: 12,

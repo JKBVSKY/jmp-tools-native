@@ -92,8 +92,8 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
 
   const handleConnectedShopsChange = (value) => {
     setConnectedShops(value);
-        if (value === true) {
-      setForm((prev) => ({ ...prev, pallets: "" }));
+    if (value === true) {
+      setForm((prev) => ({ ...prev, secondShop: "" }));
     }
   };
 
@@ -246,7 +246,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                   </View>
                 </View>
 
-                {/* Hidden Cards */}
+                {/* Hidden Inputs */}
                 {areSessionDetailsVisible && (
                   <Animated.View
                     pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}

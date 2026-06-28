@@ -1,5 +1,5 @@
 // calculator_content/shared/WorkingLayout.jsx
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -12,6 +12,7 @@ import {
     Alert,
     Animated,
 } from 'react-native';
+import Reanimated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import FontAwesome5 from '@expo/vector-icons/FontAwesome5';
 import { TabView } from 'react-native-tab-view';
@@ -34,6 +35,7 @@ export default function WorkingLayout(props) {
         colors,
 
         // computed values
+        startTime,
         trucks,
         trucksHistory,
         palletsLoaded,
@@ -98,6 +100,8 @@ export default function WorkingLayout(props) {
         profile,
         isWeb,
     } = useWorkingLogic(props);
+
+    const [showLevelUpPreview, setShowLevelUpPreview] = useState(false);
 
     const handleFinishSession = () => {
         const now = Date.now();
@@ -181,12 +185,6 @@ export default function WorkingLayout(props) {
                     >
                         {/* COLLAPSED VIEW - Always Visible */}
                         <View style={styles.compactRow}>
-                            {/* Shop */}
-                            <View style={styles.compactField}>
-                                <Text style={[styles.fieldLabel, { color: colors.text }]}>Sklep:</Text>
-                                <Text style={[styles.fieldValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
-                            </View>
-
                             {/* Pallets */}
                             <View style={styles.compactField}>
                                 <Text style={[styles.fieldLabel, { color: colors.text }]}>Palety:</Text>
@@ -219,18 +217,18 @@ export default function WorkingLayout(props) {
                             onPress={() => setEditingTruck(truck)}
                             style={[styles.iconButton, { borderColor: colors.border }]}
                         >
-                            <MaterialCommunityIcons name="pencil" size={20} color={colors.text} />
+                            <MaterialCommunityIcons name="pencil" size={24} color={colors.text} />
                         </TouchableOpacity>
 
                         {/* Vertical divider */}
-                        <View style={{width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
+                        <View style={{ width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
 
                         {!isHistory && (
                             <TouchableOpacity
                                 onPress={() => handleTruckDone(truck.id)}
                                 style={[styles.iconButton, { borderColor: colors.border }]}
                             >
-                                <MaterialCommunityIcons name="check" size={20} color={colors.success || '#10b981'} />
+                                <MaterialCommunityIcons name="check" size={24} color={colors.success || '#10b981'} />
                             </TouchableOpacity>
                         )}
 
@@ -239,7 +237,7 @@ export default function WorkingLayout(props) {
                                 onPress={() => handleRemoveHistoryTruck(truck.id)}
                                 style={[styles.iconButton, { borderColor: colors.border }]}
                             >
-                                <MaterialCommunityIcons name="delete" size={20} color={colors.error || '#ef4444'} />
+                                <MaterialCommunityIcons name="delete" size={24} color={colors.error || '#ef4444'} />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -248,6 +246,19 @@ export default function WorkingLayout(props) {
                     {/* EXPANDED VIEW - Additional Details */}
                     {isExpanded && (
                         <View style={[styles.expandedDetails, { borderColor: colors.breakLine }]}>
+                            {/* Shop Row*/}
+                            <View style={styles.detailRow}>
+                                <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep:</Text>
+                                <Text style={[styles.detailValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
+                            </View>
+
+                            {/* Shop 2 Row*/}
+                            {truck.secondShop && (
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep 2:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.secondShop || '—'}</Text>
+                                </View>
+                            )}
                             {/* Gate Row */}
                             <View style={styles.detailRow}>
                                 <Text style={[styles.detailLabel, { color: colors.text }]}>Brama:</Text>
@@ -284,36 +295,56 @@ export default function WorkingLayout(props) {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                {/* ✅ XP PROGRESS BAR - TOP OF SCREEN */}
-                {profile && (
-
-                    < ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                        <View>
-                            <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
+                {/* ✅ LEVEL UP CELEBRATION */}
+                {(leveledUpMessage || showLevelUpPreview) ? (
+                    <Reanimated.View
+                        key="level-up-banner"
+                        entering={FadeInUp.springify().damping(14).stiffness(120)}
+                        exiting={FadeOutUp.duration(220)}
+                    >
+                        <View style={[styles.levelUpBanner, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
+                            <Text style={[styles.levelUpText, { color: colors.text }]}>Nowy poziom: {leveledUpMessage} !🎉</Text>
+                            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
                         </View>
-                        <View style={styles.progressContainer}>
-                            <View
-                                style={[
-                                    styles.progressBar,
-                                    {
-                                        backgroundColor: colors.inputBackground,
-                                        borderColor: colors.border,
-                                        borderWidth: 1,
-                                    },
-                                ]}
-                            >
-                                <View
-                                    style={[
-                                        styles.progressFill,
-                                        { backgroundColor: colors.iconColor, width: `${Math.min(levelProgress, 100)}%` },
-                                    ]}
-                                />
-                            </View>
-                            <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-                                {levelData?.currentXP} / {xpForNextLevel} XP
-                            </Text>
-                        </View>
-                    </ThemedCard>
+                    </Reanimated.View>
+                ) : (
+                    // XP PROGRESS BAR - TOP OF SCREEN
+                    profile && (
+                        <Reanimated.View
+                            key="xp-card"
+                            entering={FadeInUp.springify().damping(14).stiffness(120)}
+                            exiting={FadeOutUp.duration(220)}
+                        >
+                            < ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                                <View>
+                                    <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
+                                </View>
+                                <View style={styles.progressContainer}>
+                                    <View
+                                        style={[
+                                            styles.progressBar,
+                                            {
+                                                backgroundColor: colors.inputBackground,
+                                                borderColor: colors.border,
+                                                borderWidth: 1,
+                                            },
+                                        ]}
+                                    >
+                                        <View
+                                            style={[
+                                                styles.progressFill,
+                                                { backgroundColor: colors.iconColor, width: `${Math.min(levelProgress, 100)}%` },
+                                            ]}
+                                        />
+                                    </View>
+                                    <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                                        {levelData?.currentXP} / {xpForNextLevel} XP
+                                    </Text>
+                                </View>
+                            </ThemedCard>
+                        </Reanimated.View>
+                    )
                 )}
 
                 {/* ADD THE NOTIFICATION COMPONENT HERE */}
@@ -346,15 +377,6 @@ export default function WorkingLayout(props) {
                     >
                         <Text style={[styles.floatingXPValue, { color: colors.text }]}>+{floatingXPAmount} XP</Text>
                     </Animated.View>
-                )}
-
-                {/* ✅ LEVEL UP CELEBRATION */}
-                {leveledUpMessage && (
-                    <View style={[styles.levelUpBanner, { backgroundColor: colors.cardBackground }]}>
-                        <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
-                        <Text style={[styles.levelUpText, { color: colors.text }]}>Level Up to {leveledUpMessage}! 🎉</Text>
-                        <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
-                    </View>
                 )}
 
                 {isWeb ? (
@@ -579,7 +601,7 @@ export default function WorkingLayout(props) {
                                     </View>
 
                                     {/* Card 5: Forced finish */}
-                                    <View
+                                    <TouchableOpacity
                                         style={[
                                             styles.gridCard,
                                             {
@@ -587,6 +609,7 @@ export default function WorkingLayout(props) {
                                                 borderColor: colors.border,
                                             },
                                         ]}
+                                        onPress={() => setShowAdjustFinishTimeModal(true)}
                                     >
                                         <View style={styles.gridCardContent}>
                                             <MaterialIcons
@@ -606,7 +629,7 @@ export default function WorkingLayout(props) {
                                                     : 'Brak'}
                                             </Text>
                                         </View>
-                                    </View>
+                                    </TouchableOpacity>
 
                                     {calc.timeOfForcedFinish && (
                                         <View
@@ -703,6 +726,20 @@ export default function WorkingLayout(props) {
                             <MaterialCommunityIcons name="flag-checkered" size={24} color={colors.butText} />
                             <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zakończ</Text>
                         </TouchableOpacity>
+
+                        {/* <TouchableOpacity
+                            onPress={() => setShowLevelUpPreview(prev => !prev)}
+                            style={{
+                                padding: 12,
+                                borderRadius: 12,
+                                backgroundColor: colors.iconColor,
+                                marginBottom: 12,
+                            }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                Toggle animation preview
+                            </Text>
+                        </TouchableOpacity> */}
                     </View>
                 )
             }
@@ -802,6 +839,7 @@ export default function WorkingLayout(props) {
                 }}
                 initialTime={forcedFinishTime}
                 type="finish"
+                startTime={startTime}
             />
         </View >
     );
@@ -824,7 +862,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         gap: 32,
         borderWidth: 1,
-        elevation: 2,
+        elevation: 0,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -868,14 +906,20 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 12,
-        marginBottom: 16,
-        borderRadius: 12,
+        paddingVertical: 21,
+        marginHorizontal: 24,
+        marginVertical: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        elevation: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
         gap: 10,
     },
     levelUpText: {
-        color: '#fff',
-        fontSize: 16,
+        fontSize: 24,
         fontWeight: 'bold',
     },
     statsSection: {

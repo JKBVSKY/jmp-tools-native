@@ -27,12 +27,13 @@ export const Colors = {
 
     // Buttons - Modern red accent
     butBackground: '#e3452d',    // Red button
+    cardButBackground: '#3A3C40',
     butText: '#FFFFFF',
     butBorder: '#b93622',        // Darker red for border
     outButBackground: '#292A2D', // Gray background for outlined button
     outButBorder: '#44484d',     // Gray border
     outButText: '#E8EAED',
-    disabledButBackground: '#3A3C40', // or '#3F4144'
+    disabledButBackground: '#292A2D', // or '#3F4144'
     disabledButText: '#9AA0A6',
     disabledButBorder: '#3F4144',
 
@@ -83,6 +84,7 @@ export const Colors = {
 
     // Buttons - Modern red
     butBackground: '#e3452d',    // Red button
+    cardButBackground: '#FFFFFF',
     butText: '#FFFFFF',
     butBorder: '#e3452d',        // Darker red
     outButBackground: '#FFFFFF',

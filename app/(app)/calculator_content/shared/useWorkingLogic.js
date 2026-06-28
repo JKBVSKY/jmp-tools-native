@@ -703,6 +703,7 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
         colors,
 
         // computed values
+        startTime,
         trucks,
         trucksHistory,
         palletsLoaded,
@@ -714,6 +715,7 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
         levelProgress,
         loadingTime,
         forcedFinishTime,
+        setForcedFinishTime,
 
         // UI state
         activeTab,
