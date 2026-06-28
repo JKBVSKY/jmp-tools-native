@@ -10,26 +10,35 @@ import {
   Platform,
   ScrollView,
   Switch,
+  Pressable,
+  Animated,
+  Easing,
 } from "react-native";
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useColors } from "@/_hooks/useColors";
 
 export default function NewTransportModal({ visible, onClose, onAdd }) {
   const colors = useColors();
 
+  const [areSessionDetailsVisible, setAreSessionDetailsVisible] = useState(false);
+  const detailsAnimation = useRef(new Animated.Value(0)).current;
+
   const [form, setForm] = useState({
     shop: "",
+    secondShop: "",
     gate: "",
     trailer: "",
     pallets: "",
   });
 
-  // State for "Pallets in progress" checkbox
   const [palletsInProgress, setPalletsInProgress] = useState(false);
+  const [connectedShops, setConnectedShops] = useState(false);
 
   // Refs
   const scrollViewRef = useRef(null);
   const palletsInputRef = useRef(null);
   const shopInputRef = useRef(null);
+  const secondShopInputRef = useRef(null);
   const gateInputRef = useRef(null);
   const trailerInputRef = useRef(null);
 
@@ -50,7 +59,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   };
   const handleClose = () => {
     onClose();
-    setForm({ shop: "", gate: "", trailer: "", pallets: "" });
+    setForm({ shop: "", secondShop: "", gate: "", trailer: "", pallets: "" });
     setPalletsInProgress(false);
   };
 
@@ -81,6 +90,13 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     }
   };
 
+  const handleConnectedShopsChange = (value) => {
+    setConnectedShops(value);
+        if (value === true) {
+      setForm((prev) => ({ ...prev, pallets: "" }));
+    }
+  };
+
   const handleInputChange = (name, value) => {
     // Update form value
     handleChange(name, value);
@@ -89,17 +105,49 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   useEffect(() => {
     if (visible) {
       const timer = setTimeout(() => {
-        if (palletsInputRef.current) {
-          palletsInputRef.current.focus();
-        }
-      }, 300); // small delay so Modal is fully shown
+        palletsInputRef.current?.focus();
+      }, 300);
+
       return () => clearTimeout(timer);
     }
   }, [visible]);
 
+  useEffect(() => {
+    if (visible && palletsInProgress === false) {
+      const timer = setTimeout(() => {
+        palletsInputRef.current?.focus();
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }
+  }, [palletsInProgress, visible]);
+
+  // Animation function
+  useEffect(() => {
+    Animated.timing(detailsAnimation, {
+      toValue: areSessionDetailsVisible ? 1 : 0,
+      duration: 260,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [areSessionDetailsVisible, detailsAnimation]);
+
+  const detailsAnimatedStyle = {
+    opacity: detailsAnimation,
+    transform: [
+      {
+        translateY: detailsAnimation.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-12, 0],
+        }),
+      },
+    ],
+  };
+
   return (
     <Modal
       visible={visible}
+      animationType="fade"
       transparent={true}
       onRequestClose={handleClose}
     >
@@ -148,6 +196,28 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                     />
                   </View>
 
+                  {connectedShops && (
+                    <View style={styles.inputHalf}>
+                      <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep 2</Text>
+                      <TextInput
+                        ref={secondShopInputRef}
+                        style={[
+                          styles.inputSmall,
+                          {
+                            backgroundColor: colors.inputBackground,
+                            color: colors.text,
+                            borderColor: colors.border
+                          }
+                        ]}
+                        value={form.secondShop}
+                        onChangeText={(value) => handleInputChange("secondShop", value)}
+                        placeholder="Sklep 2"
+                        placeholderTextColor={colors.phText}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  )}
+
                   <View style={styles.inputHalf}>
                     <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
                     <TextInput
@@ -176,56 +246,105 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                   </View>
                 </View>
 
-                {/* Second Row: Gate and Trailer */}
-                <View style={styles.inputRow}>
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
-                    <TextInput
-                      ref={gateInputRef}
-                      style={[
-                        styles.inputSmall,
-                        {
-                          backgroundColor: colors.inputBackground,
-                          color: colors.text,
-                          borderColor: colors.border
-                        }
-                      ]}
-                      value={form.gate}
-                      onChangeText={(value) => handleInputChange("gate", value)}
-                      placeholder="Brama"
-                      placeholderTextColor={colors.phText}
-                      keyboardType="numeric"
-                    />
-                  </View>
+                {/* Hidden Cards */}
+                {areSessionDetailsVisible && (
+                  <Animated.View
+                    pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}
+                    style={[
+                      styles.expandableContent,
+                      detailsAnimatedStyle,
+                      !areSessionDetailsVisible && styles.expandableContentHidden,
+                    ]}
+                  >
+                    {/* Second Row: Gate and Trailer */}
+                    <View style={styles.inputRow}>
+                      <View style={styles.inputHalf}>
+                        <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
+                        <TextInput
+                          ref={gateInputRef}
+                          style={[
+                            styles.inputSmall,
+                            {
+                              backgroundColor: colors.inputBackground,
+                              color: colors.text,
+                              borderColor: colors.border
+                            }
+                          ]}
+                          value={form.gate}
+                          onChangeText={(value) => handleInputChange("gate", value)}
+                          placeholder="Brama"
+                          placeholderTextColor={colors.phText}
+                          keyboardType="numeric"
+                        />
+                      </View>
 
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Naczepa</Text>
-                    <TextInput
-                      ref={trailerInputRef}
-                      style={[
-                        styles.inputSmall,
-                        {
-                          backgroundColor: colors.inputBackground,
-                          color: colors.text,
-                          borderColor: colors.border
-                        }
-                      ]}
-                      value={form.trailer}
-                      onChangeText={(value) => handleInputChange("trailer", value)}
-                      placeholder="Naczepa"
-                      placeholderTextColor={colors.phText}
-                      keyboardType="numeric"
-                    />
+                      <View style={styles.inputHalf}>
+                        <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Naczepa</Text>
+                        <TextInput
+                          ref={trailerInputRef}
+                          style={[
+                            styles.inputSmall,
+                            {
+                              backgroundColor: colors.inputBackground,
+                              color: colors.text,
+                              borderColor: colors.border
+                            }
+                          ]}
+                          value={form.trailer}
+                          onChangeText={(value) => handleInputChange("trailer", value)}
+                          placeholder="Naczepa"
+                          placeholderTextColor={colors.phText}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    </View>
+                  </Animated.View>
+                )}
 
-                  </View>
+                {/* Expand / collapse button */}
+                <View>
+                  <Pressable
+                    onPress={() => setAreSessionDetailsVisible(prev => !prev)}
+                    style={({ pressed }) => [
+                      styles.expandButton,
+                      {
+                        backgroundColor: colors.cardBackground,
+                        borderColor: colors.border,
+                        opacity: pressed ? 0.85 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={styles.expandButtonContent}>
+                      <Text style={[styles.expandButtonText, { color: colors.text }]}>
+                        {areSessionDetailsVisible ? 'Mniej' : 'Więcej'}
+                      </Text>
+
+                      <Ionicons
+                        name={areSessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
+                        size={20}
+                        color={colors.grayIconColor}
+                      />
+                    </View>
+                  </Pressable>
                 </View>
 
                 {/* Pallets in Progress Switch */}
-                <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 8, borderColor: colors.border, borderWidth: 1 }]}>
+                <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 16, borderColor: colors.border, borderWidth: 1 }]}>
                   <Text style={[styles.checkboxLabel, { color: colors.text }]}>Palety w trakcie</Text>
                   <Switch
                     value={palletsInProgress}
                     onValueChange={handlePalletsInProgressChange}
+                    trackColor={{ false: "#333", true: colors.butBackground }}
+                    thumbColor={"#fff"}
+                  />
+                </View>
+
+                {/* Multiple Shops Switch */}
+                <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 16, borderColor: colors.border, borderWidth: 1 }]}>
+                  <Text style={[styles.checkboxLabel, { color: colors.text }]}>Łączenie</Text>
+                  <Switch
+                    value={connectedShops}
+                    onValueChange={handleConnectedShopsChange}
                     trackColor={{ false: "#333", true: colors.butBackground }}
                     thumbColor={"#fff"}
                   />
@@ -340,7 +459,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#ccc',
   },
   cancelButtonText: {
     textAlign: 'center',
@@ -391,12 +509,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 20,
+    marginTop: 8,
     paddingVertical: 8,
     paddingHorizontal: 8,
   },
   checkboxLabel: {
+    paddingLeft: 8,
     fontSize: 14,
     fontWeight: '500',
+  },
+  expandButton: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    marginTop: 0,
+    marginBottom: 12,
+  },
+  expandButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  expandButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
   },
 });

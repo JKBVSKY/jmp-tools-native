@@ -109,7 +109,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
       return () => clearTimeout(timer);
     }
   }, [visible]);
-  
+
   return (
     <Modal
       visible={visible}
@@ -117,160 +117,168 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
       transparent={true}
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.overlay}
-      >
-        <View style={styles.modalContainer}>
+      <View style={styles.overlay}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}
+        >
           <ScrollView
             ref={scrollViewRef}
-            contentContainerStyle={[styles.modalContent, { backgroundColor: colors.background }]}
+            style={{ width: '100%' }}
+            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
+            scrollEnabled={true}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Title */}
-            <Text style={[styles.title, { color: colors.text }]}>Edytuj Transport</Text>
-            <Text style={[styles.description, { color: colors.textSecondary }]}>
-              Edytuj szczegóły transportu #{truck?.displayId}.
-            </Text>
+            <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+              <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
 
-            {/* First Row: Pallets and Shop */}
-            <View style={styles.inputRow}>
-              <View style={styles.inputHalf}>
-                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
-                <TextInput
-                  ref={shopInputRef}
-                  style={[
-                    styles.inputSmall,
-                    {
-                      backgroundColor: colors.inputBackground,
-                      color: colors.text,
-                      borderColor: colors.border
-                    }
-                  ]}
-                  value={form.shop}
-                  onChangeText={(value) => handleInputChange("shop", value)}
-                  placeholder="Sklep"
-                  placeholderTextColor={colors.phText}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.inputHalf}>
-                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
-                <TextInput
-                  ref={palletsInputRef}
-                  style={[
-                    styles.inputSmall,
-                    {
-                      backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
-                      color: colors.text,
-                      borderColor: palletsInProgress ? 'red' : colors.border
-                    },
-                    !isPalletsValid && form.pallets && styles.inputError
-                  ]}
-                  value={form.pallets}
-                  onChangeText={(value) => handleChange("pallets", value)}
-                  placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
-                  placeholderTextColor={palletsInProgress ? "red" : colors.phText}
-                  keyboardType="numeric"
-                  editable={!palletsInProgress}
-                />
-                {!isPalletsValid && form.pallets && (
-                  <Text style={styles.errorText}>Ilość musi być poprawna</Text>
-                )}
-              </View>
-            </View>
-
-            {/* Second Row: Gate and Trailer */}
-            <View style={styles.inputRow}>
-              <View style={styles.inputHalf}>
-                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
-                <TextInput
-                  ref={gateInputRef}
-                  style={[
-                    styles.inputSmall,
-                    {
-                      backgroundColor: colors.inputBackground,
-                      color: colors.text,
-                      borderColor: colors.border
-                    }
-                  ]}
-                  value={form.gate}
-                  onChangeText={(value) => handleInputChange("gate", value)}
-                  placeholder="Brama"
-                  placeholderTextColor={colors.phText}
-                  keyboardType="numeric"
-                />
-              </View>
-
-              <View style={styles.inputHalf}>
-                <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Naczepa</Text>
-                <TextInput
-                  ref={trailerInputRef}
-                  style={[
-                    styles.inputSmall,
-                    {
-                      backgroundColor: colors.inputBackground,
-                      color: colors.text,
-                      borderColor: colors.border
-                    }
-                  ]}
-                  value={form.trailer}
-                  onChangeText={(value) => handleInputChange("trailer", value)}
-                  placeholder="Naczepa"
-                  placeholderTextColor={colors.phText}
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            {/* Pallets in Progress Switch */}
-            <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 8 }]}>
-              <Text style={[styles.checkboxLabel, { color: colors.text }]}>Palety w trakcie</Text>
-              <Switch
-                value={palletsInProgress}
-                onValueChange={handlePalletsInProgressChange}
-                trackColor={{ false: "#333", true: colors.butBackground }}
-                thumbColor={"#fff"}
-              />
-            </View>
-
-            {/* Button Container */}
-            <View style={styles.buttonContainer}>
-              <TouchableOpacity
-                style={[styles.cancelButton, { backgroundColor: colors.cancelBackground, borderColor: colors.border }]}
-                onPress={handleClose}
-              >
-                <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                  Anuluj
+                {/* Title */}
+                <Text style={[styles.title, { color: colors.text }]}>Edytuj Transport</Text>
+                <Text style={[styles.description, { color: colors.textSecondary }]}>
+                  Edytuj szczegóły transportu #{truck?.displayId}.
                 </Text>
-              </TouchableOpacity>
 
-              <TouchableOpacity
-                style={[
-                  styles.addButton,
-                  { backgroundColor: colors.butBackground },
-                  !canSaveTransport && styles.addButtonDisabled
-                ]}
-                onPress={handleSave}
-                disabled={!canSaveTransport}
-              >
-                <Text
-                  style={[
-                    styles.addButtonText,
-                    canSaveTransport
-                      ? { color: colors.buttonText || '#fff' }
-                      : { color: colors.disabledText || '#999' },
-                  ]}
-                >
-                  Zapisz zmiany
-                </Text>
-              </TouchableOpacity>
+                {/* First Row: Pallets and Shop */}
+                <View style={styles.inputRow}>
+                  <View style={styles.inputHalf}>
+                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
+                    <TextInput
+                      ref={shopInputRef}
+                      style={[
+                        styles.inputSmall,
+                        {
+                          backgroundColor: colors.inputBackground,
+                          color: colors.text,
+                          borderColor: colors.border
+                        }
+                      ]}
+                      value={form.shop}
+                      onChangeText={(value) => handleInputChange("shop", value)}
+                      placeholder="Sklep"
+                      placeholderTextColor={colors.phText}
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.inputHalf}>
+                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
+                    <TextInput
+                      ref={palletsInputRef}
+                      style={[
+                        styles.inputSmall,
+                        {
+                          backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
+                          color: colors.text,
+                          borderColor: palletsInProgress ? 'red' : colors.border
+                        },
+                        !isPalletsValid && form.pallets && styles.inputError
+                      ]}
+                      value={form.pallets}
+                      onChangeText={(value) => handleChange("pallets", value)}
+                      placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
+                      placeholderTextColor={palletsInProgress ? "red" : colors.phText}
+                      keyboardType="numeric"
+                      editable={!palletsInProgress}
+                      selectTextOnFocus={true}
+                    />
+                    {!isPalletsValid && form.pallets && (
+                      <Text style={styles.errorText}>Ilość musi być poprawna</Text>
+                    )}
+                  </View>
+                </View>
+
+                {/* Second Row: Gate and Trailer */}
+                <View style={styles.inputRow}>
+                  <View style={styles.inputHalf}>
+                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
+                    <TextInput
+                      ref={gateInputRef}
+                      style={[
+                        styles.inputSmall,
+                        {
+                          backgroundColor: colors.inputBackground,
+                          color: colors.text,
+                          borderColor: colors.border
+                        }
+                      ]}
+                      value={form.gate}
+                      onChangeText={(value) => handleInputChange("gate", value)}
+                      placeholder="Brama"
+                      placeholderTextColor={colors.phText}
+                      keyboardType="numeric"
+                    />
+                  </View>
+
+                  <View style={styles.inputHalf}>
+                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Naczepa</Text>
+                    <TextInput
+                      ref={trailerInputRef}
+                      style={[
+                        styles.inputSmall,
+                        {
+                          backgroundColor: colors.inputBackground,
+                          color: colors.text,
+                          borderColor: colors.border
+                        }
+                      ]}
+                      value={form.trailer}
+                      onChangeText={(value) => handleInputChange("trailer", value)}
+                      placeholder="Naczepa"
+                      placeholderTextColor={colors.phText}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                {/* Pallets in Progress Switch */}
+                <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 8 }]}>
+                  <Text style={[styles.checkboxLabel, { color: colors.text }]}>Palety w trakcie</Text>
+                  <Switch
+                    value={palletsInProgress}
+                    onValueChange={handlePalletsInProgressChange}
+                    trackColor={{ false: "#333", true: colors.butBackground }}
+                    thumbColor={"#fff"}
+                  />
+                </View>
+
+                {/* Button Container */}
+                <View style={styles.buttonContainer}>
+                  <TouchableOpacity
+                    style={[styles.cancelButton, { backgroundColor: colors.outButBackground, borderColor: colors.border }]}
+                    onPress={handleClose}
+                  >
+                    <Text style={[styles.cancelButtonText, { color: colors.text }]}>
+                      Anuluj
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[
+                      styles.addButton,
+                      { backgroundColor: colors.butBackground },
+                      !canSaveTransport && styles.addButtonDisabled
+                    ]}
+                    onPress={handleSave}
+                    disabled={!canSaveTransport}
+                  >
+                    <Text
+                      style={[
+                        styles.addButtonText,
+                        canSaveTransport
+                          ? { color: colors.buttonText || '#fff' }
+                          : { color: colors.disabledText || '#999' },
+                      ]}
+                    >
+                      Zapisz zmiany
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
+        </KeyboardAvoidingView>
+      </View>
+    </Modal >
   );
 }
 
@@ -413,6 +421,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   checkboxLabel: {
+    paddingLeft: 8,
     fontSize: 14,
     fontWeight: '500',
   },

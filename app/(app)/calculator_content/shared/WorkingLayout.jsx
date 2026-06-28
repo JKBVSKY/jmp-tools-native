@@ -47,6 +47,7 @@ export default function WorkingLayout(props) {
         forcedFinishTime,
         setForcedFinishTime,
         palletsInputRef,
+        setEditingTruck,
         editingTruck,
         changeMode,
 
@@ -216,26 +217,29 @@ export default function WorkingLayout(props) {
                     <View style={styles.truckActionsRight}>
                         <TouchableOpacity
                             onPress={() => setEditingTruck(truck)}
-                            style={styles.iconButton}
+                            style={[styles.iconButton, { borderColor: colors.border }]}
                         >
-                            <MaterialCommunityIcons name="pencil" size={16} color={colors.text} />
+                            <MaterialCommunityIcons name="pencil" size={20} color={colors.text} />
                         </TouchableOpacity>
+
+                        {/* Vertical divider */}
+                        <View style={{width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
 
                         {!isHistory && (
                             <TouchableOpacity
                                 onPress={() => handleTruckDone(truck.id)}
-                                style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+                                style={[styles.iconButton, { borderColor: colors.border }]}
                             >
-                                <MaterialCommunityIcons name="check" size={16} color={colors.success || '#10b981'} />
+                                <MaterialCommunityIcons name="check" size={20} color={colors.success || '#10b981'} />
                             </TouchableOpacity>
                         )}
 
                         {isHistory && (
                             <TouchableOpacity
                                 onPress={() => handleRemoveHistoryTruck(truck.id)}
-                                style={[styles.iconButton, { borderLeftColor: colors.breakLine, borderLeftWidth: 1, paddingLeft: 12 }]}
+                                style={[styles.iconButton, { borderColor: colors.border }]}
                             >
-                                <MaterialCommunityIcons name="delete" size={16} color={colors.error || '#ef4444'} />
+                                <MaterialCommunityIcons name="delete" size={20} color={colors.error || '#ef4444'} />
                             </TouchableOpacity>
                         )}
                     </View>
@@ -657,7 +661,7 @@ export default function WorkingLayout(props) {
                         renderScene={renderScene}
                         onIndexChange={setActiveTab}
                         renderTabBar={() => null} // Hide default tab bar since using custom dots
-                        style={{ height: 200 }} // or another explicit height
+                        style={{ minHeight: 100 }} // or another explicit height
                     />
                 </View>
             </ScrollView>
@@ -665,12 +669,12 @@ export default function WorkingLayout(props) {
             {
                 isPaused ? (
                     // Paused - Resume button ONLY
-                    <View style={[styles.resumeButtonContainer, { backgroundColor: colors.navBackground, borderColor: colors.border }]}>
+                    <View style={[styles.resumeButtonContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border }]}>
                         <TouchableOpacity
                             style={[styles.btnResume, { backgroundColor: colors.butBackground }]}
                             onPress={handleResume}
                         >
-                            <Ionicons name="play" size={20} color={colors.butText} />
+                            <Ionicons name="play" size={24} color={colors.butText} />
                             <Text style={[styles.btnResumeText, { color: colors.butText }]}>Wznów</Text>
                         </TouchableOpacity>
                     </View>
@@ -967,6 +971,7 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     infoContainer: {
+        flexGrow: 1,
         borderRadius: 16,
         borderWidth: 1,
         borderColor: 'rgba(0,0,0,0.05)',
@@ -1026,6 +1031,8 @@ const styles = StyleSheet.create({
     },
     iconButton: {
         padding: 6,
+        borderWidth: 2,
+        borderRadius: 8,
     },
     emptyText: {
         textAlign: 'center',
@@ -1064,21 +1071,29 @@ const styles = StyleSheet.create({
         textTransform: 'uppercase',
     },
     resumeButtonContainer: {
-        width: '100%',
-        alignItems: 'stretch',
-        overflow: 'hidden',
-        paddingVertical: 16,
+        flexDirection: 'row',
+        gap: 8,
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        paddingTop: 16,
         paddingHorizontal: 24,
+        paddingVertical: 16,
         borderTopWidth: 1,
     },
     btnResume: {
+        flex: 1,
         flexDirection: 'row',
-        alignItems: 'center',
         justifyContent: 'center',
+        alignItems: 'center',
         paddingHorizontal: 20,
         paddingVertical: 10,
         borderRadius: 20,
         gap: 6,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
     },
     btnResumeText: {
         fontSize: 15,

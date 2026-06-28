@@ -328,7 +328,7 @@ export default function Results({
           </ScrollView> */}
         </ScrollView>
         {/* Action Buttons */}
-        <View style={styles.buttonsContainer}>
+        <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border }]}>
           <Pressable
             style={[
               styles.button,
@@ -342,7 +342,7 @@ export default function Results({
             onPress={handleSave}
             disabled={isSaving}
           >
-            <MaterialCommunityIcons name="check" size={20} color={colors.butText} />
+            <MaterialCommunityIcons name="check" size={24} color={colors.butText} />
             <Text style={[styles.buttonText, { color: colors.butText }]}>Zapisz Sesję</Text>
           </Pressable>
 
@@ -359,7 +359,7 @@ export default function Results({
             ]}
             onPress={handleDiscard}
           >
-            <MaterialCommunityIcons name="close" size={20} color={colors.text} />
+            <MaterialCommunityIcons name="close" size={24} color={colors.text} />
             <Text style={[styles.buttonText, { color: colors.text }]}>Nie Zapisuj</Text>
           </Pressable>
         </View>
@@ -377,21 +377,19 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 32,
     justifyContent: 'space-between',
-    paddingBottom: 0,
   },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
-    marginBottom: 20,
+    padding: 24,
     textAlign: 'center',
   },
   scoreCard: {
     borderRadius: 24,
-    padding: 20,
-    marginBottom: 20,
+    marginHorizontal: 24,
+    padding: 24,
+    marginBottom: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -423,9 +421,9 @@ const styles = StyleSheet.create({
     marginLeft: 20,
   },
   statsSection: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    marginBottom: 16,
+    padding: 24,
+    marginHorizontal: 24,
+    marginBottom: 24,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -435,7 +433,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   statsGrid: {
-    marginHorizontal: 4,
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
@@ -449,7 +446,6 @@ const styles = StyleSheet.create({
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
-    marginBottom: 16,
     justifyContent: 'center',
   },
   statCardWide: {
@@ -476,8 +472,9 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   detailsBox: {
-    padding: 16,
-    marginBottom: 20,
+    marginHorizontal: 24,
+    padding: 24,
+    marginBottom: 24,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -528,24 +525,36 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
+    justifyContent: 'space-between',
+    flexWrap: 'wrap',
+    paddingTop: 16,
+    paddingHorizontal: 24,
     paddingVertical: 16,
+    borderTopWidth: 1,
   },
   button: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    gap: 6,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   discardButton: {
     borderWidth: 1,
   },
   buttonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
+    textTransform: 'uppercase',
   },
   loadingOverlay: {
     position: 'absolute',

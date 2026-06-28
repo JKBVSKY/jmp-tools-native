@@ -60,7 +60,7 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background, paddingHorizontal: horizontalPadding }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={styles.scrollContent}
@@ -68,7 +68,7 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
         keyboardShouldPersistTaps="handled"
       >
         {/* Stats Cards Section */}
-        <View style={styles.statsSection}>
+        <View style={[styles.statsSection, { paddingHorizontal: horizontalPadding }]}>
           <View style={[styles.statsGridModern, { backgroundColor: colors.cardBackground }, isSmallPhone && styles.statsGridSmall]}>
             <View style={styles.headerRow}>
               <Ionicons name="settings-outline" size={24} style={{ color: colors.grayIconColor }} />
@@ -100,7 +100,7 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
           </View>
         </View>
 
-        <View style={styles.middleContent}>
+        <View style={[styles.middleContent, { paddingHorizontal: horizontalPadding }]}>
           <View style={[styles.middleCard, { backgroundColor: colors.cardBackground }]}>
             <Ionicons name="information-circle-outline" size={28} style={[styles.cardIcon, { color: colors.grayIconColor }]} />
             <Text style={[styles.middleCardTitle, { color: colors.text }]}>Zanim rozpoczniesz</Text>
@@ -119,13 +119,13 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
       </ScrollView>
 
       {/* Buttons */}
-      <View style={styles.buttonsContainer}>
+      <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border }]}>
         <TouchableOpacity
           style={[styles.startButton, { backgroundColor: colors.butBackground, opacity: forcedFinishTime ? 1 : 0.5 }]}
           onPress={handleStart}
           disabled={!forcedFinishTime}
         >
-          <Ionicons name="play" size={20} color="white" style={[styles.playIcon, { color: colors.butText }]} />
+          <Ionicons name="play" size={24} color="white" style={[styles.playIcon, { color: colors.butText }]} />
           <Text style={[styles.startButtonText, { color: colors.butText }]}>Rozpocznij Pracę</Text>
         </TouchableOpacity>
       </View>
@@ -162,19 +162,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'space-between',
-    padding: 32,
-    paddingBottom: 0,
+    paddingTop: 24,
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 24,
   },
   statsSection: {
-    marginBottom: 16,
+    marginBottom: 24,
   },
   statsGridModern: {
     borderRadius: 16,
-    padding: 12,
+    padding: 24,
     gap: 16,
     backgroundColor: '#fff', // fallback, will be overridden
     shadowColor: '#000',
@@ -280,10 +279,13 @@ const styles = StyleSheet.create({
   },
   buttonsContainer: {
     flexDirection: 'row',
-    gap: 18,
+    gap: 8,
     justifyContent: 'space-between',
     flexWrap: 'wrap',
+    paddingTop: 16,
+    paddingHorizontal: 24,
     paddingVertical: 16,
+    borderTopWidth: 1,
   },
   adjustButton: {
     flexDirection: 'row',
@@ -304,13 +306,12 @@ const styles = StyleSheet.create({
   startButton: {
     flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'center',
+    alignItems: 'center',
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 20,
     gap: 6,
-    height: 48, // Set a fixed height for a normal button appearance
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -318,8 +319,9 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   startButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontWeight: '500',
+    textTransform: 'uppercase',
   },
   playIcon: {
     marginRight: 4,

@@ -26,6 +26,7 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
 
     // Local state only for UI elements (modals, active tab)
     const [activeTab, setActiveTab] = useState(0); // 0 = Monitoring, 1 = History
+    const [editingTruck, setEditingTruck] = useState(null);
     const [showNewTransportModal, setShowNewTransportModal] = useState(false);
     const [showPauseModal, setShowPauseModal] = useState(false);
     const [expandedTruckId, setExpandedTruckId] = useState(null);
@@ -717,6 +718,8 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
         // UI state
         activeTab,
         setActiveTab,
+        editingTruck,
+        setEditingTruck,
         showPauseModal,
         setShowPauseModal,
         showNewTransportModal,

@@ -147,13 +147,14 @@ const syncOfflineXP = async () => {
 };
 
   // Set navigation bar color when theme changes
+  // TODO: REMOVE CONDITION - SET TO NAVBACKGROUND COLOR FOR ANY CASE
   useEffect(() => {
     const setNavBar = async () => {
       try {
         // console.log('Pathname:', pathname);
         const isInMisc = pathname.includes('/misc') || pathname.includes('/calculator_content');
         // console.log('isInMisc:', isInMisc);
-        const navBarColor = isInMisc ? Colors[theme].background : Colors[theme].botBarBackground;
+        const navBarColor = isInMisc ? Colors[theme].navBackground : Colors[theme].navBackground;
         // console.log('navBarColor:', navBarColor);
         await NavigationBar.setBackgroundColorAsync(navBarColor);
         await NavigationBar.setButtonStyleAsync(theme === 'dark' ? 'light' : 'dark');
