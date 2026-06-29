@@ -165,6 +165,19 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
 
     let day = now.getDate();
 
+    // ✅ START TIME: if chosen time-of-day is later than now, treat as previous day
+    if (type === 'start') {
+      const selectedTotalSeconds =
+        selectedHour * 3600 + selectedMinute * 60 + selectedSecond;
+      const nowTotalSeconds =
+        now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+      if (selectedTotalSeconds > nowTotalSeconds) {
+        // User picked a time "later than now" → interpret it as yesterday
+        day = day - 1;
+      }
+    }
+
     // If finish range crosses midnight, move 0..maxHours to next day
     if (type === 'finish' && timeRange) {
       const minHours = parseInt(timeRange.minHours, 10);

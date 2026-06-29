@@ -4,147 +4,34 @@ import React from 'react';
 import { View, Text, StyleSheet, Modal, ScrollView, TouchableOpacity, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useColors } from '@/_hooks/useColors';
+import { getAchievementProgress } from '@/constants/LevelSystem';
 
 export const AchievementModal = ({ visible, achievement, onClose, userStats, isUnlocked }) => {
   const colors = useColors();
 
   // Calculate progress based on achievement type
-  const getProgressData = () => {
-    if (!achievement || !userStats) return { current: 0, total: 100, percent: 0 };
-
-    const stats = userStats;
-
-    switch (achievement.id) {
-      case 'achievement_first_shift':
-        return {
-          current: Math.min(stats.totalSessions, 1),
-          total: 1,
-          percent: Math.min((stats.totalSessions / 1) * 100, 100),
-          label: `${stats.totalSessions} / 1 sesja`,
-        };
-
-      case 'achievement_speed_hunter':
-        // Per-session pallets - shows current session pallet count
-        return {
-          current: Math.min(stats.palletsLoadedInSession || 0, 400),  // ✅ Use session pallets
-          total: 400,
-          percent: Math.min(((stats.palletsLoadedInSession || 0) / 400) * 100, 100),  // ✅ FIX percent calc
-          label: `${stats.palletsLoadedInSession || 0} / 400 palet w sesji`,
-        };
-
-      case 'achievement_consistency':
-        const avgScore = stats.totalSessions > 0
-          ? (stats.totalScore / stats.totalSessions)
-          : 0;
-        return {
-          current: avgScore,
-          total: 10,
-          percent: Math.min((avgScore / 8.5) * 100, 100),
-          label: `Średnia: ${avgScore.toFixed(2)} / 8.5`,
-        };
-
-      case 'achievement_night_owl':
-        return {
-          current: stats.nightShiftsCompleted || 0,
-          total: 20,
-          percent: Math.min(((stats.nightShiftsCompleted || 0) / 20) * 100, 100),
-          label: `${stats.nightShiftsCompleted || 0} / 20 zmian nocnych`,
-        };
-
-        case 'achievement_master_loader':
-          const currentLevel = stats.level || 0;  // ✅ Use level directly!
-          return {
-            current: currentLevel,
-            total: 50,
-            percent: Math.min((currentLevel / 50) * 100, 100),
-            label: `Poziom ${currentLevel} / 50`
-          };
-
-      case 'achievement_perfectionist':
-        return {
-          current: stats.perfectScores || 0,
-          total: 5,
-          percent: Math.min(((stats.perfectScores || 0) / 5) * 100, 100),
-          label: `${stats.perfectScores || 0} / 5 idealnych wyników`,
-        };
-
-      case 'achievement_pallets_1':
-        return {
-          current: stats.palletsLoaded || 0,
-          total: 1000,
-          percent: Math.min(((stats.palletsLoaded || 0) / 1000) * 100, 100),
-          label: `${stats.palletsLoaded || 0} / 1000 palet`,
-        };
-
-      case 'achievement_pallets_2':
-        return {
-          current: stats.palletsLoaded || 0,
-          total: 5000,
-          percent: Math.min(((stats.palletsLoaded || 0) / 5000) * 100, 100),
-          label: `${stats.palletsLoaded || 0} / 5000 palet`,
-        };
-
-      case 'achievement_pallets_3':
-        return {
-          current: stats.palletsLoaded || 0,
-          total: 10000,
-          percent: Math.min(((stats.palletsLoaded || 0) / 10000) * 100, 100),
-          label: `${stats.palletsLoaded || 0} / 10000 palet`,
-        };
-
-      case 'achievement_pallets_4':
-        return {
-          current: stats.palletsLoaded || 0,
-          total: 25000,
-          percent: Math.min(((stats.palletsLoaded || 0) / 25000) * 100, 100),
-          label: `${stats.palletsLoaded || 0} / 25000 palet`,
-        };
-
-      case 'achievement_pallets_5':
-        return {
-          current: stats.palletsLoaded || 0,
-          total: 50000,
-          percent: Math.min(((stats.palletsLoaded || 0) / 50000) * 100, 100),
-          label: `${stats.palletsLoaded || 0} / 50000 palet`,
-        };
-
-      case 'achievement_pallets_6':
-        return {
-          current: stats.palletsLoaded || 0,
-          total: 100000,
-          percent: Math.min(((stats.palletsLoaded || 0) / 100000) * 100, 100),
-          label: `${stats.palletsLoaded || 0} / 100000 palet`,
-        };
-
-      case 'achievement_marathon':
-        return {
-          current: stats.totalTimeWorked || 0,
-          total: 100,
-          percent: Math.min(((stats.totalTimeWorked || 0) / 100) * 100, 100),
-          label: `${(stats.totalTimeWorked || 0).toFixed(1)} / 100 godzin`,
-        };
-
-      default:
-        return { current: 0, total: 100, percent: 0, label: 'N/A' };
-    }
-  };
-
-  const progressData = getProgressData();
+  const progressData = achievement
+    ? getAchievementProgress(
+      achievement.id,
+      userStats,
+      isUnlocked ? [achievement.id] : []
+    )
+    : { current: 0, total: 100, percent: 0, label: 'N/A', isCompleted: false };
 
   if (!achievement) return null;
 
-    const renderIcon = (icon) => {
-      if (typeof icon === 'string') {
-        return <Text style={styles.achievementIcon}>{icon}</Text>;
-      }
+  const renderIcon = (icon) => {
+    if (typeof icon === 'string') {
+      return <Text style={styles.achievementIcon}>{icon}</Text>;
+    }
 
-      if (typeof icon === 'function' || (typeof icon === 'object' && icon?.render)) {
-        const IconComponent = icon;
-        return <IconComponent size={48} />;
-      }
+    if (typeof icon === 'function' || (typeof icon === 'object' && icon?.render)) {
+      const IconComponent = icon;
+      return <IconComponent size={48} />;
+    }
 
-      return null;
-    };
+    return null;
+  };
 
   return (
     <Modal

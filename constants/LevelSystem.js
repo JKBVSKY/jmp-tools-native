@@ -87,7 +87,7 @@ export const ACHIEVEMENTS = {
     name: 'Nocny Marek',
     icon: '🌙',
     description: 'Nocna zmiana? Standard. 🌙',
-    requirement: 'Ukończ 20 sesji między 21:45 - 06:00',
+    requirement: 'Ukończ 20 sesji między 22:00 - 06:00',
   },
   MASTER_LOADER: {
     id: 'achievement_master_loader',
@@ -172,56 +172,66 @@ const getAchievementStats = (userStats = {}) => {
   };
 };
 
-export const isAchievementUnlocked = (achievementId, userStats = {}) => {
+export const meetsAchievementRequirement = (achievementId, userStats = {}) => {
   const stats = getAchievementStats(userStats);
 
   switch (achievementId) {
     case ACHIEVEMENTS.FIRST_SHIFT.id:
       return stats.totalSessions >= 1;
-
     case ACHIEVEMENTS.SPEED_HUNTER.id:
       return stats.palletsLoadedInSession >= 400;
-
     case ACHIEVEMENTS.CONSISTENCY.id:
       return stats.averageScore >= 8.5;
-
     case ACHIEVEMENTS.NIGHT_OWL.id:
       return stats.nightShiftsCompleted >= 20;
-
     case ACHIEVEMENTS.MASTER_LOADER.id:
       return stats.level >= 50;
-
     case ACHIEVEMENTS.PERFECTIONIST.id:
       return stats.perfectScores >= 5;
-
     case ACHIEVEMENTS.PALLETS_1.id:
       return stats.palletsLoaded >= 1000;
-
     case ACHIEVEMENTS.PALLETS_2.id:
       return stats.palletsLoaded >= 5000;
-
     case ACHIEVEMENTS.PALLETS_3.id:
       return stats.palletsLoaded >= 10000;
-
     case ACHIEVEMENTS.PALLETS_4.id:
       return stats.palletsLoaded >= 25000;
-
     case ACHIEVEMENTS.PALLETS_5.id:
       return stats.palletsLoaded >= 50000;
-
     case ACHIEVEMENTS.PALLETS_6.id:
       return stats.palletsLoaded >= 100000;
-
     case ACHIEVEMENTS.MARATHON.id:
       return stats.totalTimeWorked >= 100;
-
     default:
       return false;
   }
 };
 
-export const getAchievementProgress = (achievementId, userStats = {}) => {
+export const isAchievementUnlocked = (
+  achievementId,
+  userStats = {},
+  alreadyUnlocked = []
+) => {
+  return (
+    alreadyUnlocked.includes(achievementId) ||
+    meetsAchievementRequirement(achievementId, userStats)
+  );
+};
+
+export const getAchievementProgress = (achievementId, userStats = {}, alreadyUnlocked = []) => {
   const stats = getAchievementStats(userStats);
+  const unlocked = isAchievementUnlocked(achievementId, userStats, alreadyUnlocked);
+
+  if (unlocked) {
+    return {
+      current: 1,
+      total: 1,
+      percent: 100,
+      label: 'Osiągnięcie odblokowane',
+      unlockedMessage: 'To osiągnięcie masz już zaliczone.',
+      isCompleted: true,
+    };
+  }
 
   switch (achievementId) {
     case ACHIEVEMENTS.FIRST_SHIFT.id:
@@ -334,18 +344,17 @@ export const getAchievementProgress = (achievementId, userStats = {}) => {
         total: 100,
         percent: 0,
         label: 'N/A',
+        isCompleted: false,
       };
   }
 };
 
 export const checkAchievements = (userStats, newScore, alreadyUnlocked = []) => {
-  const unlockedSet = new Set(alreadyUnlocked || []);
-
   return Object.values(ACHIEVEMENTS)
     .filter((achievement) => {
-      const unlockedNow = isAchievementUnlocked(achievement.id, userStats);
-      const wasAlreadyUnlocked = unlockedSet.has(achievement.id);
-      return unlockedNow && !wasAlreadyUnlocked;
+      const meetsRequirement = meetsAchievementRequirement(achievement.id, userStats);
+      const wasAlreadyUnlocked = alreadyUnlocked.includes(achievement.id);
+      return meetsRequirement && !wasAlreadyUnlocked;
     })
     .map((achievement) => achievement.id);
 };

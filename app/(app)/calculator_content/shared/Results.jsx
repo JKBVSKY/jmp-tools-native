@@ -63,6 +63,19 @@ export default function Results({
     return new Date(timestamp).toLocaleString();
   };
 
+  const isNightShiftSession = (startTimeValue) => {
+    if (!startTimeValue) return false;
+
+    const date = new Date(startTimeValue);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const totalMinutes = date.getHours() * 60 + date.getMinutes();
+    const nightStart = 22 * 60; // 22:00
+    const nightEnd = 6 * 60;    // 06:00
+
+    return totalMinutes >= nightStart || totalMinutes < nightEnd;
+  };
+
   // ✅ MAIN SAVE HANDLER - NOW WITH CORRECT ORDER!
   const handleSave = async () => {
     try {
@@ -75,11 +88,14 @@ export default function Results({
         );
       }
 
+      const wasNightShift = isNightShiftSession(startTime);
+
       const sessionData = {
         date: new Date(startTime).toISOString(),  // ✅ Safe conversion
         loadingTime,
         startTime,
         endTime,
+        nightShift: Boolean(wasNightShift),
         palletsLoaded,
         trucksCount,
         palletsRate: parseFloat(palletsRate),
@@ -111,7 +127,11 @@ export default function Results({
         palletsLoaded: (profile.stats.palletsLoaded || 0) + palletsLoaded,
         totalScore: (profile.stats.totalScore || 0) + sessionScore,
         bestScore: Math.max(profile.stats.bestScore || 0, sessionScore),
-        palletsLoadedInSession: palletsLoaded,  // ✅ ADD THIS - Save the session value
+        palletsLoadedInSession: palletsLoaded,
+        perfectScores:
+          (profile.stats.perfectScores || 0) + (sessionScore === 10 ? 1 : 0),
+        nightShiftsCompleted:
+          (profile.stats.nightShiftsCompleted || 0) + (wasNightShift ? 1 : 0),
       };
 
       console.log('📊 New Stats calculated:', newStats);
@@ -119,10 +139,7 @@ export default function Results({
       // ✅ STEP 4: Check achievements with NEW stats (BEFORE updating!)
       console.log('🔍 Checking achievements with NEW stats...');
       const newAchievements = checkAchievements(
-        {
-          ...newStats,
-          palletsLoadedInSession: palletsLoaded  // ✅ Add this line - pallets from THIS session
-        },
+        newStats,
         sessionScore,
         profile.achievements
       );
