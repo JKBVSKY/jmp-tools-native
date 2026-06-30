@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-06-30
+
+### Added
+- Added support for connected shops in truck create/edit flows, allowing users to assign two shops to a single transport when needed.
+- Added expandable advanced fields in the add/edit truck modals, making the forms cleaner by hiding less frequently used inputs until needed.
+- Added improved input focus behavior for the pallets field when the “in progress” switch is turned off.
+- Refactored the calculator flow into shared logic and layout, creating the foundation for a future picking section calculator.
+
+### Changed
+- Polished the UI across multiple components with updated paddings, card styles, button sizes, and small animation improvements.
+- Added `navBackground` styling to top headers and bottom action containers so they integrate better with the navigation areas.
+- Completely reworked `More.jsx` from a modal with a dropdown menu into a full component that presents menu actions as cards.
+- Redesigned the add/edit truck modals for a cleaner and more flexible interaction flow.
+- Reworked the achievements system core logic to improve calculation reliability and make achievement handling more consistent.
+- Updated `Profile.jsx` to fetch aggregated data directly from the database instead of relying on incremental local accumulation from session results.
+- Refactored truck-loading calculator flow so the architecture is now reusable for upcoming warehouse sections, especially picking.
+
+### Fixed
+- Fixed an issue where `startTime` could become negative.
+- Fixed a bug in the forced finish time adjustment modal that blocked users from selecting valid times.
+- Fixed achievement calculation and unlock logic so all achievements are now awarded correctly.
+- Fixed a stale XP remaining issue that could persist after a session ended with forced finish time logic.
+
 ## [0.8.0] - 2026-06-14
 
 ### Added

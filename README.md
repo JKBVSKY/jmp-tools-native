@@ -1,5 +1,5 @@
 # JMP-Tools-Native - Warehouse Performance Tracker
-![version](https://img.shields.io/badge/version-0.8.0-blue)
+![version](https://img.shields.io/badge/version-0.9.0-blue)
 
 A mobile app designed to help warehouse workers track, analyze, and improve their daily performance.
 
@@ -13,16 +13,14 @@ The app uses Firebase for authentication and Firestore for storing user sessions
 
 - 📊 Track and save daily work sessions
 - 📈 Analyze performance (daily / monthly / overall)
+- 📈 Fully functional statistics dashboard with detailed performance insights
+- 🏆 Leaderboards for comparing results
+- 🎨 Improved user interface
 - 🧮 Built-in calculation tools for warehouse tasks
-- 🏆 Level and achievement system for motivation
+- 🏅 Level and achievement system for motivation
 - 💾 Session history tracking
 - 📱 Mobile-first interface
 
-Planned features:
-
-- 🥇 Leaderboards
-- 👥 Worker comparison statistics
-- 📉 Advanced performance analytics
 
 ## Tech Stack
 
@@ -46,43 +44,55 @@ Other Tools
   <img src="screenshots/mockup.png" width="500"/>
 </p>
 
-### Session tracker (truck loading section)
+### Dashboard
 <p align="left">
-  <img src="screenshots/session_light.png" width="250"/>
-  <img src="screenshots/session_dark.png" width="250"/>
+  <img src="screenshots/dashboard.png" width="250"/>
+</p>
+
+### Leaderboards
+<p align="left">
+  <img src="screenshots/leaderboards.png" width="250"/>
 </p>
 
 ### Statistics
 <p align="left">
-  <img src="screenshots/statistics_1.png" width="250"/>
-  <img src="screenshots/statistics_2.png" width="250"/>
+  <img src="screenshots/statistics.png" width="250"/>
+</p>
+
+### Session tracker (truck loading section)
+<p align="left">
+  <img src="screenshots/session.png" width="250"/>
 </p>
 
 ### Tools
 <p align="left">
-  <img src="screenshots/tools_1.png" width="250"/>
+  <img src="screenshots/tools.png" width="250"/>
 </p>
 
 ### Profile
 <p align="left">
-  <img src="screenshots/profile_1.png" width="250"/>
+  <img src="screenshots/profile.png" width="250"/>
 </p>
 
 ## Project Status
 
 🚧 The project is currently under active development.
 
-Current version: **0.8.0**
+Current version: **0.9.0**
 
-Many new features and improvements are planned for upcoming releases.
+The latest update added leaderboards, improved the UI, and completed the statistics dashboard with visible performance data.
 
 ## Roadmap
 
-Planned improvements:
+### Next planned feature
+- Calculator for picking section
 
-- Leaderboard system
-- Improved statistics dashboard
-- Additional warehouse calculation tools
-- UI improvements
+### Future plans
+- English version of the app
+- Web version of the app for office workers
+- Add pallet locations and find them more easily in the app
+- Report truck damages for truck loaders
 - Exportable performance reports
 
+## Acknowledgements
+* Visual assets generated via [Device Frames](https://deviceframes.com/)
