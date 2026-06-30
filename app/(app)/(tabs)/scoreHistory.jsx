@@ -208,7 +208,7 @@ export default function ScoreHistory() {
               flexDirection: 'row',
               alignItems: 'center',
               justifyContent: 'space-between',
-              paddingHorizontal: 16,
+              paddingHorizontal: 24,
               paddingBottom: 16,
               backgroundColor: colors.navBackground,
               marginBottom: 16,
@@ -562,15 +562,16 @@ const styles = StyleSheet.create({
   header: {
     justifyContent: 'space-between',
     paddingVertical: 12,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
   },
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 24,
   },
   title: {
-    fontSize: 26,
+    fontSize: 28,
     fontWeight: 'bold',
+    marginBottom: 6,
   },
   toggleContainer: {
     flexDirection: 'row',
@@ -625,7 +626,7 @@ const styles = StyleSheet.create({
   },
   tableContainer: {
     flex: 1,
-    marginHorizontal: 16,
+    marginHorizontal: 24,
     marginBottom: 20,
     borderRadius: 16,
     padding: 16,
@@ -638,16 +639,13 @@ const styles = StyleSheet.create({
   },
   tableCard: {
     borderWidth: 1,
-    marginHorizontal: 8,
     borderRadius: 16,
   },
   tableTitle: {
-    marginHorizontal: 8,
     fontSize: 24,
     fontWeight: 'bold',
   },
   tableSubtitle: {
-    marginHorizontal: 8,
     marginBottom: 12,
   },
   tableHeader: {
@@ -675,7 +673,7 @@ const styles = StyleSheet.create({
   summaryContainer: {
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 16,
+    marginHorizontal: 24,
     marginBottom: 20,
     borderWidth: 1,
     elevation: 2,
@@ -685,19 +683,16 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   summaryTitle: {
-    marginHorizontal: 8,
     fontSize: 24,
     fontWeight: 'bold',
   },
   summarySubtitle: {
-    marginHorizontal: 8,
     marginBottom: 12,
   },
   summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'space-between',
-    marginHorizontal: 8,
   },
   summaryBox: {
     width: '31%',

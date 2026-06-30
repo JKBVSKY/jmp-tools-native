@@ -156,6 +156,9 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
         setLoadingTime(cappedLoadingTimeSeconds);
         setEndTime(forcedFinishTimestamp);
 
+        lastXPRewardTimeRef.current = forcedFinishTimestamp;
+        await AsyncStorage.removeItem('lastActiveSessionState');
+
         return true; // Forced finish was applied
     }, [calc.mode, calc.forcedFinishTime, startTime, calc.totalPausedTime, calc.trucks, calc.trucksHistory]);
 
@@ -191,11 +194,7 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
             console.log("✅ Session was auto-finished. Results will be shown.");
 
             // Transition to results screen
-            setTimeout(() => {
-                setEndTime(Date.now());
-                changeMode('results'); // Show results directly
-            }, 500);
-
+            changeMode('results');
             return;
         }
 
@@ -232,38 +231,17 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
             const xpPerMin = calculateXPPerMin(lastPalletsRate);
 
             // ✅ NEW SAFETY: Cap offline XP by deadline
-            let offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
-
-            // If there's a forced finish time, only award XP for time BEFORE it
-            if (forcedFinishTimestamp && lastXPTime < forcedFinishTimestamp) {
-                const allowedMinutes = Math.max(0, (forcedFinishTimestamp - lastXPTime) / 60000);
-                offlineXPEarned = Math.floor(allowedMinutes * xpPerMin);
-
-                console.log(`⏰ Capping offline XP by deadline: ${offlineXPEarned} XP`);
-            }
+            let offlineXPEarned = 0;
 
             if (xpPerMin > 0) {
-                const offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
+                offlineXPEarned = Math.floor(awayTimeMinutes * xpPerMin);
 
-                if (offlineXPEarned > 0) {
-                    console.log(`User was away for ${awayTimeMinutes.toFixed(1)} minutes. Awarding ${offlineXPEarned} offline XP.`);
-
-                    // Award the XP
-                    const result = await tryAwardXP(offlineXPEarned);
-                    setSessionXPEarned(prev => prev + offlineXPEarned);
-
-                    // ✅ RESET notification state BEFORE showing new one
-                    setNotificationState({ visible: false, xp: 0 });
-
-                    // ✅ Small delay to let React process the state change
-                    setTimeout(() => {
-                        setNotificationState({ visible: true, xp: offlineXPEarned });
-                    }, 100);
-
-                    if (result && result.leveledUp) {
-                        setLeveledUpMessage(`Welcome back! You leveled up to Level ${result.newLevel} while away!`);
-                        setTimeout(() => setLeveledUpMessage(null), 5000); // Longer duration for this special message
-                    }
+                if (forcedFinishTimestamp && lastXPTime < forcedFinishTimestamp) {
+                    const allowedMinutes = Math.max(
+                        0,
+                        (forcedFinishTimestamp - lastXPTime) / 60000
+                    );
+                    offlineXPEarned = Math.floor(allowedMinutes * xpPerMin);
                 }
             }
 
