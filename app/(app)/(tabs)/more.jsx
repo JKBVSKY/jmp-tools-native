@@ -83,14 +83,14 @@ export default function More() {
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Szukanie Towaru</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
-              // onPress={() => {
-              //   router.push('/misc/damageReport');
-              // }}
+              onPress={() => {
+                router.push('/misc/ReportsScreen');
+              }}
             >
-              <Ionicons name="warning" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
-              <Text style={[styles.cardText, { color: colors.textSecondary }]}>Zgłoś Uszkodzenia</Text>
+              <Ionicons name="warning" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.text }]}>Zgłoszenia</Text>
             </TouchableOpacity>
           </View>
         </View>

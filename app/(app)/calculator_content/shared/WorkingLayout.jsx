@@ -27,6 +27,7 @@ import { useWorkingLogic } from './useWorkingLogic';
 import TrucksList from '../truckLoading/TrucksList';
 import NewTransportModal from '../truckLoading/NewTransportModal';
 import EditTruckModal from '../truckLoading/EditTruckModal';
+import ReportModal from '../truckLoading/ReportModal';
 
 export default function WorkingLayout(props) {
     const {
@@ -103,6 +104,9 @@ export default function WorkingLayout(props) {
 
     const [showLevelUpPreview, setShowLevelUpPreview] = useState(false);
 
+    const [reportVisible, setReportVisible] = useState(false);
+    const [reportTruckNumber, setReportTruckNumber] = useState('');
+
     const handleFinishSession = () => {
         const now = Date.now();
         // write endTime + mode directly into context
@@ -163,56 +167,63 @@ export default function WorkingLayout(props) {
         const isExpanded = expandedTruckId === truck.id;
         const elapsedTime = truck.elapsedLoadingTime || 0;
 
+        const openReport = () => {
+            // prefill with this truck’s number if you want
+            setReportTruckNumber(String(truck.trailer || ''));
+            setReportVisible(true);
+        };
+
+        const closeReport = () => {
+            setReportVisible(false);
+        };
+
         return (
             <View>
                 <View key={truck.id} style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
-                    {/* LEFT SECTION: Truck ID */}
-                    <View style={[styles.truckIdSection, {
-                        backgroundColor: colors.cardBackground,
-                        borderWidth: 2,
-                        borderColor: colors.border,
-                    }]}>
-                        <Text style={{ marginRight: 8 }}>
-                            <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
-                        </Text>
-                        <Text style={[styles.truckId, { color: colors.iconColor }]}>#{truck.displayId}</Text>
-                    </View>
-
-                    {/* MIDDLE SECTION: Collapsible Info */}
+                    {/* LEFT SECTION: Truck header + expand */}
                     <TouchableOpacity
                         onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
-                        style={styles.truckInfoSection}
+                        style={[
+                            styles.truckHeaderSection,
+                            {
+                                backgroundColor: colors.cardBackground,
+                                borderWidth: 2,
+                                borderColor: colors.border,
+                            },
+                        ]}
+                        activeOpacity={0.8}
                     >
-                        {/* COLLAPSED VIEW - Always Visible */}
-                        <View style={styles.compactRow}>
-                            {/* Pallets */}
-                            <View style={styles.compactField}>
-                                <Text style={[styles.fieldLabel, { color: colors.text }]}>Palety:</Text>
-                                <Text
-                                    style={[
-                                        styles.fieldValue,
-                                        { color: truck.pallets ? colors.text : 'red' },
-                                    ]}
-                                >
-                                    {truck.pallets || 'WTRA'}
-                                </Text>
-                            </View>
-
-                            {/* Expand Icon */}
-                            <View style={styles.expandIcon}>
-                                <MaterialCommunityIcons
-                                    name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                                    size={20}
-                                    color={colors.text}
-                                />
-                            </View>
+                        <View style={styles.truckHeaderLeft}>
+                            <MaterialCommunityIcons
+                                name="shipping-pallet"
+                                size={24}
+                                color={colors.iconColor}
+                            />
+                            <Text style={[styles.truckId, { color: colors.iconColor }]}>
+                                {truck.pallets || 'WTRA'}
+                            </Text>
                         </View>
 
-
+                        <MaterialCommunityIcons
+                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                            size={20}
+                            color={colors.text}
+                        />
                     </TouchableOpacity>
 
                     {/* RIGHT SECTION: Action Buttons */}
                     <View style={styles.truckActionsRight}>
+                        <TouchableOpacity
+                            style={[styles.iconButton, { borderColor: colors.border }]}
+                            onPress={openReport}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialIcons name="report-problem" size={24} color={colors.text} />
+                        </TouchableOpacity>
+
+                        {/* Vertical divider */}
+                        <View style={{ width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
+
                         <TouchableOpacity
                             onPress={() => setEditingTruck(truck)}
                             style={[styles.iconButton, { borderColor: colors.border }]}
@@ -245,40 +256,61 @@ export default function WorkingLayout(props) {
                 <View>
                     {/* EXPANDED VIEW - Additional Details */}
                     {isExpanded && (
-                        <View style={[styles.expandedDetails, { borderColor: colors.breakLine }]}>
-                            {/* Shop Row*/}
-                            <View style={styles.detailRow}>
-                                <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep:</Text>
-                                <Text style={[styles.detailValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
-                            </View>
-
-                            {/* Shop 2 Row*/}
-                            {truck.secondShop && (
+                        <>
+                            <View style={[styles.expandedDetails, { borderColor: colors.breakLine }]}>
+                                {/* Shop Row*/}
                                 <View style={styles.detailRow}>
-                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep 2:</Text>
-                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.secondShop || '—'}</Text>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
                                 </View>
-                            )}
-                            {/* Gate Row */}
-                            <View style={styles.detailRow}>
-                                <Text style={[styles.detailLabel, { color: colors.text }]}>Brama:</Text>
-                                <Text style={[styles.detailValue, { color: colors.text }]}>{truck.gate || '—'}</Text>
-                            </View>
 
-                            {/* Trailer Row */}
-                            <View style={styles.detailRow}>
-                                <Text style={[styles.detailLabel, { color: colors.text }]}>Naczepa:</Text>
-                                <Text style={[styles.detailValue, { color: colors.text }]}>{truck.trailer || '—'}</Text>
-                            </View>
+                                {/* Shop 2 Row*/}
+                                {truck.secondShop && (
+                                    <View style={styles.detailRow}>
+                                        <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep 2:</Text>
+                                        <Text style={[styles.detailValue, { color: colors.text }]}>{truck.secondShop || '—'}</Text>
+                                    </View>
+                                )}
+                                {/* Gate Row */}
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Brama:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.gate || '—'}</Text>
+                                </View>
 
-                            {/* Full Elapsed Time Display */}
-                            <View style={styles.detailRow}>
-                                <Text style={[styles.detailLabel, { color: colors.text }]}>Całkowity Czas:</Text>
-                                <Text style={[styles.detailValue, { color: colors.text }]}>{formatElapsed(elapsedTime)}</Text>
+                                {/* Trailer Row */}
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Naczepa:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.trailer || '—'}</Text>
+                                </View>
+
+                                {/* Full Elapsed Time Display */}
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Całkowity Czas:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{formatElapsed(elapsedTime)}</Text>
+                                </View>
                             </View>
-                        </View>
+                            <View>
+                                {/* Truck ID */}
+                                {/* <View style={[styles.truckIdSection, {
+                                    backgroundColor: colors.cardBackground,
+                                    borderWidth: 2,
+                                    borderColor: colors.border,
+                                }]}>
+                                    <Text style={{ marginRight: 8 }}>
+                                        <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
+                                    </Text>
+                                    <Text style={[styles.truckId, { color: colors.iconColor }]}>#{truck.displayId}</Text>
+                                </View> */}
+                            </View>
+                        </>
                     )}
                 </View>
+                {/* REPORT MODAL */}
+                <ReportModal
+                    visible={reportVisible}
+                    onClose={closeReport}
+                    initialTruckNumber={reportTruckNumber}
+                />
             </View>
         );
     };
@@ -1287,5 +1319,19 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         gap: 8,
     },
+    truckHeaderSection: {
+        minWidth: 110,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
 
+    truckHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
 });

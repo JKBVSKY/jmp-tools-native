@@ -37,6 +37,7 @@ export default function AppLayout() {
           <Stack.Screen name="misc/scoreSimulator" options={{ title: 'Przeliczanie Średniej' }} />
           <Stack.Screen name="misc/timeConverter" options={{ title: 'Konwerter Czasu' }} />
           <Stack.Screen name="calculator_content/calculator" options={{ title: 'Załadunek' }} />
+          <Stack.Screen name="misc/ReportsScreen" options={{ title: 'Zgłoszenia' }} />
         </Stack>
       </View>
     </View>

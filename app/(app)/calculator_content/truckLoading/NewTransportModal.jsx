@@ -61,6 +61,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     onClose();
     setForm({ shop: "", secondShop: "", gate: "", trailer: "", pallets: "" });
     setPalletsInProgress(false);
+    setConnectedShops(false);
   };
 
   const isPalletsValid = form.pallets &&
