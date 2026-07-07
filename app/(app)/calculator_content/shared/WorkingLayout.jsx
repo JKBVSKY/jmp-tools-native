@@ -1,5 +1,5 @@
 // calculator_content/shared/WorkingLayout.jsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -28,6 +28,7 @@ import TrucksList from '../truckLoading/TrucksList';
 import NewTransportModal from '../truckLoading/NewTransportModal';
 import EditTruckModal from '../truckLoading/EditTruckModal';
 import ReportModal from '../truckLoading/ReportModal';
+import SessionDetailsModal from '../../modals/SessionDetailsModal';
 
 export default function WorkingLayout(props) {
     const {
@@ -49,6 +50,11 @@ export default function WorkingLayout(props) {
         loadingTime,
         forcedFinishTime,
         setForcedFinishTime,
+        palletsRateGoal,
+        palletsNeeded,
+        palletsLeft,
+        isOverGoal,
+        goalReachedUntilSeconds,
         palletsInputRef,
         setEditingTruck,
         editingTruck,
@@ -103,9 +109,70 @@ export default function WorkingLayout(props) {
     } = useWorkingLogic(props);
 
     const [showLevelUpPreview, setShowLevelUpPreview] = useState(false);
-
     const [reportVisible, setReportVisible] = useState(false);
     const [reportTruckNumber, setReportTruckNumber] = useState('');
+
+    // NEW: session info modal visibility
+    const [showSessionInfoModal, setShowSessionInfoModal] = useState(false);
+
+    // Helpers for palletsRate highlight
+    const getPalletsRateColor = (value) => {
+        if (value < 38) return '#F44336';     // red
+        if (value <= 48) return '#FF9800';    // orange
+        return '#4CAF50';                     // green
+    };
+
+    const [animatedRate, setAnimatedRate] = useState(palletsRate);
+    const [rateColor, setRateColor] = useState(
+        getPalletsRateColor(Number(palletsRate) || 0)
+    );
+
+    // Keep highlighted palletsRate fresh while modal is open
+    useEffect(() => {
+        const value = Number(palletsRate) || 0;
+        setAnimatedRate(palletsRate);
+        setRateColor(getPalletsRateColor(value));
+    }, [palletsRate]);
+
+    // Session details stats shown in the modal
+    const sessionStats = [
+        {
+            label: 'Czas ładowania',
+            value: loadingTime ? formatElapsed(loadingTime) : '00:00:00',
+        },
+        {
+            label: 'Palety załadowane',
+            value: palletsLoaded,
+        },
+        {
+            label: 'Dostawy ukończone',
+            value: trucksLoadedCount,
+        },
+        {
+            label: 'Planowany koniec',
+            value: forcedFinishTime
+                ? new Date(forcedFinishTime).toLocaleTimeString()
+                : 'Brak',
+        },
+        {
+            label: 'Twój cel',
+            value: `${palletsRateGoal} pal./godz`,
+        },
+        {
+            label: 'Ilość palet do załadowania',
+            value: palletsNeeded,
+        },
+        {
+            label: 'Pozostało palet do celu',
+            value: palletsLeft,
+        },
+        ...(isOverGoal && goalReachedUntilSeconds !== null
+            ? [{
+                label: 'Poniżej celu za',
+                value: formatElapsed(goalReachedUntilSeconds),
+            }]
+            : []),
+    ];
 
     const handleFinishSession = () => {
         const now = Date.now();
@@ -489,12 +556,24 @@ export default function WorkingLayout(props) {
                     </View>
                 ) : (
                     <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                        <Text style={[styles.gridTitle, { color: colors.text }]}>
-                            Sesja aktywna
-                        </Text>
-                        <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
-                            Twoje statystyki bieżącej sesji.
-                        </Text>
+                        <View style={styles.statsHeader}>
+                            <View>
+                                <Text style={[styles.gridTitle, { color: colors.text }]}>
+                                    Sesja aktywna
+                                </Text>
+                                <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+                                    Twoje statystyki bieżącej sesji.
+                                </Text>
+                            </View>
+                            <View>
+                                <TouchableOpacity
+                                    style={styles.infoButton}
+                                    onPress={() => setShowSessionInfoModal(true)}
+                                >
+                                    <Ionicons name="information-circle-outline" size={26} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
                         <View style={styles.statsGrid}>
 
                             {/* Card 1: Score */}
@@ -688,7 +767,7 @@ export default function WorkingLayout(props) {
                 <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
                     <View style={styles.tabHeader}>
                         <View style={{ flexDirection: 'column' }}>
-                            <Text style={[styles.gridTitle, { color: colors.text }]}>
+                            <Text style={[styles.gridTitle, { color: colors.text, paddingTop: 16, }]}>
                                 {activeTab === 0 ? "Transporty" : "Zakończone transporty"}
                             </Text>
                             <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
@@ -843,6 +922,16 @@ export default function WorkingLayout(props) {
                 </View>
             </Modal>
 
+            {/* Session details modal */}
+            <SessionDetailsModal
+                visible={showSessionInfoModal}
+                onClose={() => setShowSessionInfoModal(false)}
+                colors={colors}
+                rateColor={rateColor}
+                animatedRate={animatedRate}
+                sessionStats={sessionStats}
+            />
+
             <NewTransportModal
                 visible={showNewTransportModal}
                 onClose={() => setShowNewTransportModal(false)}
@@ -966,6 +1055,11 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         paddingHorizontal: 16,
     },
+    statsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingTop: 16,
+    },
     statsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
@@ -1069,7 +1163,6 @@ const styles = StyleSheet.create({
     gridTitle: {
         fontSize: 24,
         fontWeight: 'bold',
-        paddingTop: 16,
     },
     gridSubtitle: {
         fontSize: 15,
@@ -1104,6 +1197,9 @@ const styles = StyleSheet.create({
     btnOutlineText: {
         fontSize: 17,
         fontWeight: '800',
+    },
+    infoButton: {
+        paddingVertical: 6,
     },
     iconButton: {
         padding: 6,
@@ -1333,5 +1429,98 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
+    },
+    sessionInfoBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 24,
+    },
+    sessionInfoContentWrapper: {
+        width: '100%',
+        maxWidth: 420,
+        alignItems: 'center',
+    },
+    sessionInfoContainer: {
+        width: '100%',
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 2,
+    },
+    sessionInfoTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    sessionInfoDescription: {
+        fontSize: 14,
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    palletsRateHighlightContainer: {
+        position: 'relative',
+        overflow: 'hidden',
+        marginBottom: 24,
+        alignItems: 'center',
+        paddingVertical: 20,
+        paddingHorizontal: 18,
+        borderRadius: 20,
+        borderWidth: 1,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+    },
+    palletsRateGlowLayer: {
+        ...StyleSheet.absoluteFillObject,
+        overflow: 'hidden',
+    },
+    palletsRateGlowOrb: {
+        position: 'absolute',
+        borderRadius: 999,
+        opacity: 0.9,
+        filter: 'blur(12px)',
+    },
+    palletsRateHighlightLabel: {
+        fontSize: 14,
+        marginBottom: 8,
+        zIndex: 1,
+    },
+    palletsRateHighlightValue: {
+        fontSize: 56,
+        fontWeight: '800',
+        textAlign: 'center',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 16,
+        zIndex: 1,
+    },
+    sessionStatRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+    },
+    sessionStatLabel: {
+        fontSize: 14,
+    },
+    sessionStatValue: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    sessionInfoCloseButton: {
+        marginTop: 24,
+        alignSelf: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 10,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    sessionInfoCloseText: {
+        fontSize: 16,
+        fontWeight: '600',
     },
 });

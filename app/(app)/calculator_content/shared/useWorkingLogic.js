@@ -284,6 +284,20 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
     const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
     const xpForNextLevel = profile ? profile.level * 1000 : 1000;
     const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
+    const palletsRateGoal = profile?.palletsRateGoal ?? 48;
+    const effectiveEndTime = forcedFinishTime || Date.now();
+    const activeSessionSeconds = startTime
+        ? Math.max(0, Math.floor((effectiveEndTime - startTime - totalPausedTime) / 1000))
+        : 0;
+    const requiredPalletsByGoal = startTime && effectiveEndTime > startTime
+        ? Math.max(0, Math.ceil(palletsRateGoal * (activeSessionSeconds / 3600)))
+        : 0;
+    const palletsNeeded = requiredPalletsByGoal;
+    const palletsLeft = Math.max(0, palletsNeeded - palletsLoaded);
+    const isOverGoal = Number(palletsRate) >= palletsRateGoal;
+    const goalReachedUntilSeconds = isOverGoal && palletsLoaded > 0
+        ? Math.max(0, Math.floor((palletsLoaded / palletsRateGoal) * 3600 - loadingTime))
+        : null;
 
     // ============================================================================
     // SECTION 3: ALL useEffect HOOKS - AFTER STATE/REF INITIALIZATION
@@ -694,6 +708,11 @@ export function useWorkingLogic({ changeMode, startTime, endTime, loadingTime, s
         loadingTime,
         forcedFinishTime,
         setForcedFinishTime,
+        palletsRateGoal,
+        palletsNeeded,
+        palletsLeft,
+        isOverGoal,
+        goalReachedUntilSeconds,
 
         // UI state
         activeTab,
