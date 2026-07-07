@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0] - 2026-07-07
+
+### Added
+- Added a new active session modal with detailed information for a clearer overview of the current work session.
+- Added a reporting flow that allows users to create and submit reports directly from the app.
+- Added report management tools so users can review and organize their reports more easily.
+
 ## [0.9.0] - 2026-06-30
 
 ### Added
