@@ -51,6 +51,8 @@ export default function More() {
           <Text style={[styles.title, { color: colors.text }]}>Narzędzia</Text>
 
           <View style={styles.cardsGrid}>
+
+            {/* Kalkulator Średniej */}
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
@@ -62,6 +64,8 @@ export default function More() {
               <Ionicons name="calculator" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.text }]}>Kalkulator Średniej</Text>
             </TouchableOpacity>
+
+            {/* Przelicznik Czasu */}
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
@@ -72,16 +76,20 @@ export default function More() {
               <Ionicons name="time-outline" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.text }]}>Przelicznik Czasu</Text>
             </TouchableOpacity>
+
+            {/* Harmonogram */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
-              // onPress={() => {
-              //   router.push('/misc/goodsFinder');
-              // }}
+              onPress={() => {
+                router.push('/misc/ScheduleScreen');
+              }}
             >
-              <Ionicons name="search" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
-              <Text style={[styles.cardText, { color: colors.textSecondary }]}>Szukanie Towaru</Text>
+              <MaterialCommunityIcons name="timetable" size={24} color={colors.iconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.text }]}>Harmonogram</Text>
             </TouchableOpacity>
+
+            {/* Zgłoszenia */}
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
@@ -91,6 +99,18 @@ export default function More() {
             >
               <Ionicons name="warning" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.text }]}>Zgłoszenia</Text>
+            </TouchableOpacity>
+
+            {/* Szukanie Towaru */}
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
+              activeOpacity={0.8}
+            // onPress={() => {
+            //   router.push('/misc/goodsFinder');
+            // }}
+            >
+              <Ionicons name="search" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.textSecondary }]}>Szukanie Towaru</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -102,9 +122,9 @@ export default function More() {
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
               activeOpacity={0.8}
-              // onPress={() => {
-              //   router.push('/misc/settings');
-              // }}
+            // onPress={() => {
+            //   router.push('/misc/settings');
+            // }}
             >
               <Ionicons name="settings" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Ustawienia</Text>
@@ -112,9 +132,9 @@ export default function More() {
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
               activeOpacity={0.8}
-              // onPress={() => {
-              //   router.push('/misc/about');
-              // }}
+            // onPress={() => {
+            //   router.push('/misc/about');
+            // }}
             >
               <Ionicons name="information-circle" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>O aplikacji</Text>
@@ -122,9 +142,9 @@ export default function More() {
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
               activeOpacity={0.8}
-              // onPress={() => {
-              //   router.push('/misc/help');
-              // }}
+            // onPress={() => {
+            //   router.push('/misc/help');
+            // }}
             >
               <Ionicons name="help-circle" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Pomoc</Text>
