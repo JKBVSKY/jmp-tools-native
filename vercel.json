@@ -1,9 +1,0 @@
-{
-  "framework": null,
-  "buildCommand": "npx expo export -p web",
-  "outputDirectory": "dist",
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
-}

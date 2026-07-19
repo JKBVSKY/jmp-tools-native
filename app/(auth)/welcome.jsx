@@ -1,8 +1,8 @@
 import { View, Text, StyleSheet, Pressable, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../_context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import Spacer from '../../components/Spacer';
-import { useColors } from '../../_hooks/useColors';
+import { useColors } from '../../hooks/useColors';
 
 export default function Welcome() {
   const colors = useColors();

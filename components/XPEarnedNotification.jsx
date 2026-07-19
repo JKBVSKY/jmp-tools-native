@@ -1,7 +1,7 @@
 // components/XPEarnedNotification.jsx
 import React, { useEffect, useRef, memo } from 'react';
 import { Animated, View, Text, StyleSheet } from 'react-native';
-import { useColors } from '../_hooks/useColors';
+import { useColors } from '../hooks/useColors';
 
 export const XPEarnedNotification = memo(function XPEarnedNotification({ xpAmount, visible, onDismiss }) {
     // --- All Hooks must be called at the top ---

@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { View, Text, TextInput, StyleSheet, Pressable, Alert, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '../../_context/AuthContext';
-import { useColors } from '../../_hooks/useColors';
+import { useAuth } from '../../context/AuthContext';
+import { useColors } from '../../hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
-import DismissKeyboardView from '@/components/DismissKeyboardView';
+import DismissKeyboardView from '../../components/DismissKeyboardView';
 
 export default function Register() {
   const [name, setName] = useState('');
@@ -39,7 +39,7 @@ export default function Register() {
     setLoading(false);
 
     if (result.success) {
-      router.replace('/(app)');
+      router.replace('/');
     } else {
       Alert.alert('Rejestracja nieudana', result.error);
     }
