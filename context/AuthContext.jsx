@@ -1,0 +1,233 @@
+import { createContext, useContext, useState, useEffect } from 'react';
+import { Platform } from 'react-native';
+import { initializeApp } from 'firebase/app';
+import {
+  getAuth,
+  initializeAuth,
+  getReactNativePersistence,
+  createUserWithEmailAndPassword,
+  signInAnonymously,
+  signInWithEmailAndPassword,
+  signOut as firebaseSignOut,
+  onAuthStateChanged,
+  updateProfile,
+} from 'firebase/auth';
+import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
+import { getFirestore } from 'firebase/firestore';
+import { StorageManager } from '../utils/StorageManager';
+
+// Initialize Firebase
+const firebaseConfig = {
+  apiKey: 'AIzaSyBuNnY9wCtU18GidGUYxURm9lTIRM1uXws',
+  authDomain: 'jmp-tools.firebaseapp.com',
+  projectId: 'jmp-tools',
+  storageBucket: 'jmp-tools.firebasestorage.app',
+  messagingSenderId: '401798516907',
+  appId: '1:401798516907:web:8ba9bfd393e01c84c6e7ee',
+  measurementId: 'G-MSZZN9T73R',
+};
+
+const app = initializeApp(firebaseConfig);
+
+// IMPORTANT: different init for web vs native
+let auth;
+
+if (Platform.OS === 'web') {
+  // Web bundle of firebase/auth has its own persistence implementation
+  auth = getAuth(app);
+} else {
+  // Native: use AsyncStorage persistence
+  auth = initializeAuth(app, {
+    persistence: getReactNativePersistence(ReactNativeAsyncStorage),
+  });
+}
+
+export const db = getFirestore(app);
+
+const AuthContext = createContext({});
+
+export function useAuth() {
+  return useContext(AuthContext);
+}
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isGuest, setIsGuest] = useState(false);
+
+  const signUp = async (email, password, name) => {
+    try {
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      // Update user profile with name
+      await updateProfile(firebaseUser, { displayName: name });
+
+      const userData = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: name,
+        isGuest: false,
+      };
+
+      setUser(userData);
+      setIsGuest(false);
+
+      // Firebase automatically persists this login
+      console.log('✅ User signed up and auto-logged in:', email);
+      return { success: true };
+    } catch (error) {
+      let errorMessage = error.message;
+
+      // Friendly error messages
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Adres e-mail jest już używany. Spróbuj użyć innego adresu.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Hasło jest za słabe. Użyj co najmniej 6 znaków.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Nieprawidłowy adres e-mail.';
+      }
+
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  const signIn = async (email, password) => {
+    try {
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const firebaseUser = userCredential.user;
+
+      const userData = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: firebaseUser.displayName || firebaseUser.email,
+        isGuest: false,
+      };
+
+      setUser(userData);
+      setIsGuest(false);
+
+      // Firebase automatically persists this login
+      console.log('✅ User signed in:', email);
+      return { success: true };
+    } catch (error) {
+      let errorMessage = error.message;
+
+      // Friendly error messages
+      if (error.code === 'auth/user-not-found') {
+        errorMessage = 'Użytkownik nie został znaleziony. Sprawdź swoją pocztę e-mail.';
+      } else if (error.code === 'auth/wrong-password') {
+        errorMessage = 'Niewłaściwe hasło. Spróbuj ponownie.';
+      } else if (error.code === 'auth/invalid-email') {
+        errorMessage = 'Nieprawidłowy adres e-mail.';
+      }
+
+      return { success: false, error: errorMessage };
+    }
+  };
+
+  // KEY: This function checks if user is already logged in (persistent login)
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser) {
+          const userData = {
+            id: firebaseUser.uid,
+            email: firebaseUser.email,
+            name: firebaseUser.displayName || firebaseUser.email || 'Gość',
+            isGuest: firebaseUser.isAnonymous,
+          };
+
+          setUser(userData);
+          setIsGuest(firebaseUser.isAnonymous);
+
+          await StorageManager.setItem('user', JSON.stringify(userData));
+          await StorageManager.setItem('isGuest', firebaseUser.isAnonymous ? 'true' : 'false');
+        } else {
+          setUser(null);
+          setIsGuest(false);
+
+          await StorageManager.removeItem('user');
+          await StorageManager.removeItem('isGuest');
+        }
+      } catch (error) {
+        console.error('Auth restore error:', error);
+        setUser(null);
+        setIsGuest(false);
+      } finally {
+        setIsLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const continueAsGuest = async () => {
+    try {
+      const userCredential = await signInAnonymously(auth);
+      const firebaseUser = userCredential.user;
+
+      const guestUser = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email,
+        name: firebaseUser.displayName || 'Gość',
+        isGuest: true,
+      };
+
+      setUser(guestUser);
+      setIsGuest(true);
+
+      await StorageManager.setItem('user', JSON.stringify(guestUser));
+      await StorageManager.setItem('isGuest', 'true');
+
+      console.log('✅ Continuing as anonymous Firebase user:', firebaseUser.uid);
+      return { success: true };
+    } catch (error) {
+      console.error('Error starting anonymous session:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const signOut = async () => {
+    try {
+      await firebaseSignOut(auth);
+      setUser(null);
+      setIsGuest(false);
+
+      // Clear stored data
+      await StorageManager.removeItem('isGuest');
+      await StorageManager.removeItem('user');
+
+      console.log('✅ Signed out');
+
+      return { success: true };
+    } catch (error) {
+      console.error('Error signing out:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const updateUserName = (newName) => {
+    setUser((prev) =>
+      prev
+        ? {
+          ...prev,
+          name: newName,
+        }
+        : prev
+    );
+  };
+
+  const value = {
+    user,
+    isLoading,
+    isGuest,
+    signIn,
+    signUp,
+    signOut,
+    continueAsGuest,
+    updateUserName,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}

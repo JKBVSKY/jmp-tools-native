@@ -1,57 +1,66 @@
 {
   "expo": {
-    "scheme": "jmp-tools-native",
     "name": "JMP-Tools-Native",
-    "slug": "JMP-Tools-Native",
+    "slug": "jmp-tools-native",
     "version": "0.10.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
+    "scheme": "jmp-tools-native",
     "userInterfaceStyle": "automatic",
-    "splash": {
-      "image": "./assets/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.jmp.tools.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSCameraUsageDescription": "Camera access is required to scan text for the Schedule screen.",
+        "NSPhotoLibraryUsageDescription": "Photo library access is required to pick images for OCR."
       }
     },
     "android": {
+      "package": "com.jmp.tools.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/android-adaptive-foreground.png",
+        "backgroundColor": "#f2f2f2"
       },
-      "package": "com.jmp.tools.app"
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES"
+      ]
     },
     "web": {
-      "favicon": "./assets/icon.png",
-      "bundleInput": "index.web.js",
       "output": "static",
-      "backgroundColor": "#ffffff",
-      "themeColor": "#000000",
-      "config": {
-        "router": {
-          "origin": false
-        }
-      }
+      "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-router",
       [
-        "expo-secure-store",
+        "expo-splash-screen",
         {
-          "faceIDPermission": "Allow $(PRODUCT_NAME) to use Face ID.",
-          "onlyIncludeOnIos": true
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
         }
-      ]
+      ],
+      "expo-secure-store",
+      "@react-native-community/datetimepicker"
     ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "c0482ac8-dd67-4d2c-acb3-43e44322379e"
+        "projectId": "5493d705-925e-47bc-965b-941ecf17c0a3"
       }
     },
     "owner": "jacob711"

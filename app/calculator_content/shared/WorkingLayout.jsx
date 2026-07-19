@@ -1,0 +1,1526 @@
+// calculator_content/shared/WorkingLayout.jsx
+import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
+import {
+    Alert,
+    Animated,
+    Modal,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
+} from 'react-native';
+import Reanimated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { TabView } from 'react-native-tab-view';
+
+import ThemedCard from '../../../components/ThemedCard';
+import { XPEarnedNotification } from '../../../components/XPEarnedNotification';
+import { appConfirm } from '../../../utils/crossPlatformAlert';
+
+import SessionDetailsModal from '../../modals/SessionDetailsModal';
+import EditTruckModal from '../truckLoading/EditTruckModal';
+import NewTransportModal from '../truckLoading/NewTransportModal';
+import ReportModal from '../truckLoading/ReportModal';
+import AdjustTimeModal from './AdjustTimeModal';
+import PauseModal from './PauseModal';
+import { useWorkingLogic } from './useWorkingLogic';
+
+export default function WorkingLayout(props) {
+    const {
+        // context & colors
+        calc,
+        colors,
+
+        // computed values
+        startTime,
+        trucks,
+        trucksHistory,
+        palletsLoaded,
+        palletsRate,
+        trucksLoadedCount,
+        isPaused,
+        levelData,
+        xpForNextLevel,
+        levelProgress,
+        loadingTime,
+        forcedFinishTime,
+        setForcedFinishTime,
+        palletsRateGoal,
+        palletsNeeded,
+        palletsLeft,
+        isOverGoal,
+        goalReachedUntilSeconds,
+        palletsInputRef,
+        setEditingTruck,
+        editingTruck,
+        changeMode,
+
+        // UI state
+        activeTab,
+        setActiveTab,
+        showPauseModal,
+        setShowPauseModal,
+        showNewTransportModal,
+        setShowNewTransportModal,
+        showAdjustFinishTimeModal,
+        setShowAdjustFinishTimeModal,
+        showPalletsModal,
+        setShowPalletsModal,
+        palletsInput,
+        setPalletsInput,
+        pendingTruckId,
+        setPendingTruckId,
+        expandedTruckId,
+        setExpandedTruckId,
+        areSessionDetailsVisible,
+        setAreSessionDetailsVisible,
+
+        // XP / notification
+        currentXPPerMin,
+        sessionXPEarned,
+        showXPFloatingText,
+        floatingXPAmount,
+        leveledUpMessage,
+        notificationState,
+        setNotificationState,
+        floatingAnim,
+        detailsAnimatedStyle,
+
+        // handlers
+        addTruck,
+        handleSaveEdit,
+        handleSaveEditHistory,
+        handleTruckDone,
+        handleRemoveHistoryTruck,
+        handlePauseConfirm,
+        handleResume,
+        handleConfirmPallets,
+        formatElapsed,
+        formatTruckTime,
+
+        // extras you use in JSX
+        profile,
+        isWeb,
+    } = useWorkingLogic(props);
+
+    const [showLevelUpPreview, setShowLevelUpPreview] = useState(false);
+    const [reportVisible, setReportVisible] = useState(false);
+    const [reportTruckNumber, setReportTruckNumber] = useState('');
+    const insets = useSafeAreaInsets();
+
+    // NEW: session info modal visibility
+    const [showSessionInfoModal, setShowSessionInfoModal] = useState(false);
+
+    // Helpers for palletsRate highlight
+    const getPalletsRateColor = (value) => {
+        if (value < 38) return '#F44336';     // red
+        if (value <= 48) return '#FF9800';    // orange
+        return '#4CAF50';                     // green
+    };
+
+    const [animatedRate, setAnimatedRate] = useState(palletsRate);
+    const [rateColor, setRateColor] = useState(
+        getPalletsRateColor(Number(palletsRate) || 0)
+    );
+
+    // Keep highlighted palletsRate fresh while modal is open
+    useEffect(() => {
+        const value = Number(palletsRate) || 0;
+        setAnimatedRate(palletsRate);
+        setRateColor(getPalletsRateColor(value));
+    }, [palletsRate]);
+
+    // Session details stats shown in the modal
+    const sessionStats = [
+        {
+            label: 'Czas ładowania',
+            value: loadingTime ? formatElapsed(loadingTime) : '00:00:00',
+        },
+        {
+            label: 'Palety załadowane',
+            value: palletsLoaded,
+        },
+        {
+            label: 'Dostawy ukończone',
+            value: trucksLoadedCount,
+        },
+        {
+            label: 'Planowany koniec',
+            value: forcedFinishTime
+                ? new Date(forcedFinishTime).toLocaleTimeString()
+                : 'Brak',
+        },
+        {
+            label: 'Twój cel',
+            value: `${palletsRateGoal} pal./godz`,
+        },
+        {
+            label: 'Ilość palet do załadowania',
+            value: palletsNeeded,
+        },
+        {
+            label: 'Pozostało palet do celu',
+            value: palletsLeft,
+        },
+        ...(isOverGoal && goalReachedUntilSeconds !== null
+            ? [{
+                label: 'Poniżej celu za',
+                value: formatElapsed(goalReachedUntilSeconds),
+            }]
+            : []),
+    ];
+
+    const handleFinishSession = () => {
+        const now = Date.now();
+        // write endTime + mode directly into context
+        calc.updateState({
+            endTime: now,
+            mode: 'results',
+        });
+    };
+    // ============================================================================
+    // SECTION 5: RENDER FUNCTIONS (AFTER ALL HOOKS & HELPER FUNCTIONS)
+    // ============================================================================
+
+    // Define routes for TabView
+    const routes = [
+        { key: 'monitoring', title: 'Aktualne transporty' },
+        { key: 'history', title: 'Zakończone transporty' },
+    ];
+
+    const navigationState = {
+        index: activeTab,
+        routes,
+    };
+
+    const renderScene = ({ route }) => {
+        switch (route.key) {
+            case 'monitoring':
+                return (
+                    <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
+                        {trucks.length === 0 ? (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={[styles.emptyText, { color: colors.text }]}>Rozpocznij nowy transport.</Text>
+                            </View>
+                        ) : (
+                            trucks.map(truck => renderTruckItem(truck, false))
+                        )}
+                    </ScrollView>
+                );
+            case 'history':
+                return (
+                    <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
+                        {trucksHistory.length === 0 ? (
+                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                                <Text style={[styles.emptyText, { color: colors.text }]}>Brak historii transportów.</Text>
+                            </View>
+                        ) : (
+                            [...trucksHistory]
+                                .sort((a, b) => b.displayId - a.displayId)
+                                .map(truck => renderTruckItem(truck, true))
+                        )}
+                    </ScrollView>
+                );
+            default:
+                return null;
+        }
+    };
+    // ✅ NEW: Render truck item with collapsible design
+    const renderTruckItem = (truck, isHistory = false) => {
+        const isExpanded = expandedTruckId === truck.id;
+        const elapsedTime = truck.elapsedLoadingTime || 0;
+
+        const openReport = () => {
+            // prefill with this truck’s number if you want
+            setReportTruckNumber(String(truck.trailer || ''));
+            setReportVisible(true);
+        };
+
+        const closeReport = () => {
+            setReportVisible(false);
+        };
+
+        return (
+            <View>
+                <View key={truck.id} style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
+                    {/* LEFT SECTION: Truck header + expand */}
+                    <TouchableOpacity
+                        onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
+                        style={[
+                            styles.truckHeaderSection,
+                            {
+                                backgroundColor: colors.cardBackground,
+                                borderWidth: 2,
+                                borderColor: colors.border,
+                            },
+                        ]}
+                        activeOpacity={0.8}
+                    >
+                        <View style={styles.truckHeaderLeft}>
+                            <MaterialCommunityIcons
+                                name="shipping-pallet"
+                                size={24}
+                                color={colors.iconColor}
+                            />
+                            <Text style={[styles.truckId, { color: colors.iconColor }]}>
+                                {truck.pallets || 'WTRA'}
+                            </Text>
+                        </View>
+
+                        <MaterialCommunityIcons
+                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                            size={20}
+                            color={colors.text}
+                        />
+                    </TouchableOpacity>
+
+                    {/* RIGHT SECTION: Action Buttons */}
+                    <View style={styles.truckActionsRight}>
+                        <TouchableOpacity
+                            style={[styles.iconButton, { borderColor: colors.border }]}
+                            onPress={openReport}
+                            activeOpacity={0.8}
+                        >
+                            <MaterialIcons name="report-problem" size={24} color={colors.text} />
+                        </TouchableOpacity>
+
+                        {/* Vertical divider */}
+                        <View style={{ width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
+
+                        <TouchableOpacity
+                            onPress={() => setEditingTruck(truck)}
+                            style={[styles.iconButton, { borderColor: colors.border }]}
+                        >
+                            <MaterialCommunityIcons name="pencil" size={24} color={colors.text} />
+                        </TouchableOpacity>
+
+                        {/* Vertical divider */}
+                        <View style={{ width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
+
+                        {!isHistory && (
+                            <TouchableOpacity
+                                onPress={() => handleTruckDone(truck.id)}
+                                style={[styles.iconButton, { borderColor: colors.border }]}
+                            >
+                                <MaterialCommunityIcons name="check" size={24} color={colors.success || '#10b981'} />
+                            </TouchableOpacity>
+                        )}
+
+                        {isHistory && (
+                            <TouchableOpacity
+                                onPress={() => handleRemoveHistoryTruck(truck.id)}
+                                style={[styles.iconButton, { borderColor: colors.border }]}
+                            >
+                                <MaterialCommunityIcons name="delete" size={24} color={colors.error || '#ef4444'} />
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                </View>
+                <View>
+                    {/* EXPANDED VIEW - Additional Details */}
+                    {isExpanded && (
+                        <>
+                            <View style={[styles.expandedDetails, { borderColor: colors.breakLine }]}>
+                                {/* Shop Row*/}
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
+                                </View>
+
+                                {/* Shop 2 Row*/}
+                                {truck.secondShop && (
+                                    <View style={styles.detailRow}>
+                                        <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep 2:</Text>
+                                        <Text style={[styles.detailValue, { color: colors.text }]}>{truck.secondShop || '—'}</Text>
+                                    </View>
+                                )}
+                                {/* Gate Row */}
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Brama:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.gate || '—'}</Text>
+                                </View>
+
+                                {/* Trailer Row */}
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Naczepa:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.trailer || '—'}</Text>
+                                </View>
+
+                                {/* Full Elapsed Time Display */}
+                                <View style={styles.detailRow}>
+                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Całkowity Czas:</Text>
+                                    <Text style={[styles.detailValue, { color: colors.text }]}>{formatElapsed(elapsedTime)}</Text>
+                                </View>
+                            </View>
+                            <View>
+                                {/* Truck ID */}
+                                {/* <View style={[styles.truckIdSection, {
+                                    backgroundColor: colors.cardBackground,
+                                    borderWidth: 2,
+                                    borderColor: colors.border,
+                                }]}>
+                                    <Text style={{ marginRight: 8 }}>
+                                        <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
+                                    </Text>
+                                    <Text style={[styles.truckId, { color: colors.iconColor }]}>#{truck.displayId}</Text>
+                                </View> */}
+                            </View>
+                        </>
+                    )}
+                </View>
+                {/* REPORT MODAL */}
+                <ReportModal
+                    visible={reportVisible}
+                    onClose={closeReport}
+                    initialTruckNumber={reportTruckNumber}
+                />
+            </View>
+        );
+    };
+
+    // ============================================================================
+    // SECTION 6: MAIN RENDER
+    // ============================================================================
+
+    return (
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <ScrollView
+                style={{ flex: 1 }}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+            >
+                {/* ✅ LEVEL UP CELEBRATION */}
+                {(leveledUpMessage || showLevelUpPreview) ? (
+                    <Reanimated.View
+                        key="level-up-banner"
+                        entering={FadeInUp.springify().damping(14).stiffness(120)}
+                        exiting={FadeOutUp.duration(220)}
+                    >
+                        <View style={[styles.levelUpBanner, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
+                            <Text style={[styles.levelUpText, { color: colors.text }]}>Nowy poziom: {leveledUpMessage} !🎉</Text>
+                            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
+                        </View>
+                    </Reanimated.View>
+                ) : (
+                    // XP PROGRESS BAR - TOP OF SCREEN
+                    profile && (
+                        <Reanimated.View
+                            key="xp-card"
+                            entering={FadeInUp.springify().damping(14).stiffness(120)}
+                            exiting={FadeOutUp.duration(220)}
+                        >
+                            < ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                                <View>
+                                    <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
+                                </View>
+                                <View style={styles.progressContainer}>
+                                    <View
+                                        style={[
+                                            styles.progressBar,
+                                            {
+                                                backgroundColor: colors.inputBackground,
+                                                borderColor: colors.border,
+                                                borderWidth: 1,
+                                            },
+                                        ]}
+                                    >
+                                        <View
+                                            style={[
+                                                styles.progressFill,
+                                                { backgroundColor: colors.iconColor, width: `${Math.min(levelProgress, 100)}%` },
+                                            ]}
+                                        />
+                                    </View>
+                                    <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                                        {levelData?.currentXP} / {xpForNextLevel} XP
+                                    </Text>
+                                </View>
+                            </ThemedCard>
+                        </Reanimated.View>
+                    )
+                )}
+
+                {/* ADD THE NOTIFICATION COMPONENT HERE */}
+                <XPEarnedNotification
+                    visible={notificationState.visible}
+                    xpAmount={notificationState.xp}
+                    onDismiss={() => setNotificationState({ visible: false, xp: 0 })}
+                />
+
+                {/* ✅ FLOATING XP TEXT ANIMATION */}
+                {showXPFloatingText && (
+                    <Animated.View
+                        style={[
+                            styles.floatingXPText,
+                            {
+                                opacity: floatingAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [1, 0],
+                                }),
+                                transform: [
+                                    {
+                                        translateY: floatingAnim.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [0, -60],
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                    >
+                        <Text style={[styles.floatingXPValue, { color: colors.text }]}>+{floatingXPAmount} XP</Text>
+                    </Animated.View>
+                )}
+
+                {isWeb ? (
+                    <View style={styles.statsSection}>
+                        <View style={styles.statsGrid}>
+                            {/* Card 1: Elapsed Time */}
+                            <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
+                                <View style={styles.cardHeader}>
+                                    <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+                                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
+                                </View>
+                                <Text style={[styles.cardValue, { color: colors.text }]}>
+                                    {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
+                                </Text>
+                            </View>
+
+                            {/* Card 2: Pallets Loaded */}
+                            <TouchableOpacity
+                                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22%' }]}
+                                onPress={() => Alert.alert('Palety Załadowane', `${palletsLoaded}`)}
+                            >
+                                <View style={styles.cardHeader}>
+                                    <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Palety</Text>
+                                    <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
+                                </View>
+                                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
+                            </TouchableOpacity>
+
+                            {/* Card 3: Trucks Loaded */}
+                            <TouchableOpacity
+                                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22%' }]}
+                                onPress={() => Alert.alert('Dostawy załadowane', `${trucksLoadedCount}`)}
+                            >
+                                <View style={styles.cardHeader}>
+                                    <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Dostawy</Text>
+                                    <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
+                                </View>
+                                <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
+                            </TouchableOpacity>
+
+                            {/* Card 4: Rate (per hour) */}
+                            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '48%' }]}>
+                                <View style={styles.cardHeader}>
+                                    <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
+                                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/godz</Text>
+                                </View>
+                                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
+                            </View>
+
+                            {/* Card 5: Forced Finish Time */}
+                            <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '48%' }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
+                                <View style={styles.cardHeader}>
+                                    <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
+                                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
+                                </View>
+                                <Text style={[styles.cardValue, { color: colors.text }]}>
+                                    {forcedFinishTime
+                                        ? `${new Date(forcedFinishTime).toLocaleTimeString()}`
+                                        : 'Brak'}
+                                </Text>
+                            </TouchableOpacity>
+
+                            {calc.timeOfForcedFinish && (
+                                <View style={{
+                                    backgroundColor: '#fff3cd',
+                                    borderRadius: 12,
+                                    padding: 12,
+                                    marginBottom: 16,
+                                    borderLeftWidth: 4,
+                                    borderLeftColor: '#ff6b6b'
+                                }}>
+                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#cc5200' }}>
+                                        ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
+                                    </Text>
+                                </View>
+                            )}
+                        </View>
+                    </View>
+                ) : (
+                    <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                        <View style={styles.statsHeader}>
+                            <View>
+                                <Text style={[styles.gridTitle, { color: colors.text }]}>
+                                    Sesja aktywna
+                                </Text>
+                                <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+                                    Twoje statystyki bieżącej sesji.
+                                </Text>
+                            </View>
+                            <View>
+                                <TouchableOpacity
+                                    style={styles.infoButton}
+                                    onPress={() => setShowSessionInfoModal(true)}
+                                >
+                                    <Ionicons name="information-circle-outline" size={26} color={colors.text} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                        <View style={styles.statsGrid}>
+
+                            {/* Card 1: Score */}
+                            <View style={[styles.gridCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                                <Ionicons name="flash-outline" size={28}
+                                    style={[
+                                        styles.cardIcon,
+                                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                    ]}
+                                />
+                                <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                    Średnia aktualna
+                                </Text>
+                                <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 32, fontWeight: '600' }]}>
+                                    {palletsRate}
+                                </Text>
+                            </View>
+
+                            {/* Expand / collapse button */}
+                            <Pressable
+                                onPress={() => setAreSessionDetailsVisible(prev => !prev)}
+                                style={({ pressed }) => [
+                                    styles.expandButton,
+                                    {
+                                        backgroundColor: colors.cardInCardBackground,
+                                        borderColor: colors.border,
+                                        opacity: pressed ? 0.85 : 1,
+                                    },
+                                ]}
+                            >
+                                <View style={styles.expandButtonContent}>
+                                    <Text style={[styles.expandButtonText, { color: colors.cardTitle }]}>
+                                        {areSessionDetailsVisible ? 'Ukryj szczegóły sesji' : 'Pokaż szczegóły sesji'}
+                                    </Text>
+
+                                    <Ionicons
+                                        name={areSessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
+                                        size={20}
+                                        color={colors.grayIconColor}
+                                    />
+                                </View>
+                            </Pressable>
+
+                            {/* Hidden Cards */}
+                            <Animated.View
+                                pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}
+                                style={[
+                                    styles.expandableContent,
+                                    detailsAnimatedStyle,
+                                    !areSessionDetailsVisible && styles.expandableContentHidden,
+                                ]}
+                            >
+                                <View style={styles.statsGridHidden}>
+                                    {/* Card 2: Time */}
+                                    <View
+                                        style={[
+                                            styles.gridCard,
+                                            {
+                                                backgroundColor: colors.cardInCardBackground,
+                                                borderColor: colors.border,
+                                            },
+                                        ]}
+                                    >
+                                        <View style={styles.gridCardContent}>
+                                            <Ionicons
+                                                name="time-outline"
+                                                size={24}
+                                                style={[
+                                                    styles.cardIcon,
+                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                                ]}
+                                            />
+                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                                Czas
+                                            </Text>
+                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                                {loadingTime ? formatElapsed(loadingTime) : '00:00:00'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Card 3: Pallets */}
+                                    <View
+                                        style={[
+                                            styles.gridCard,
+                                            {
+                                                backgroundColor: colors.cardInCardBackground,
+                                                borderColor: colors.border,
+                                            },
+                                        ]}
+                                    >
+                                        <View style={styles.gridCardContent}>
+                                            <Ionicons
+                                                name="layers-outline"
+                                                size={28}
+                                                style={[
+                                                    styles.cardIcon,
+                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                                ]}
+                                            />
+                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                                Palety
+                                            </Text>
+                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                                {palletsLoaded}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Card 4: Truck loaded */}
+                                    <View
+                                        style={[
+                                            styles.gridCard,
+                                            {
+                                                backgroundColor: colors.cardInCardBackground,
+                                                borderColor: colors.border,
+                                            },
+                                        ]}
+                                    >
+                                        <View style={styles.gridCardContent}>
+                                            <MaterialCommunityIcons
+                                                name="truck-check-outline"
+                                                size={28}
+                                                style={[
+                                                    styles.cardIcon,
+                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                                ]}
+                                            />
+                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                                Dostawy
+                                            </Text>
+                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                                {trucksLoadedCount}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    {/* Card 5: Forced finish */}
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.gridCard,
+                                            {
+                                                backgroundColor: colors.cardInCardBackground,
+                                                borderColor: colors.border,
+                                            },
+                                        ]}
+                                        onPress={() => setShowAdjustFinishTimeModal(true)}
+                                    >
+                                        <View style={styles.gridCardContent}>
+                                            <MaterialIcons
+                                                name="alarm-off"
+                                                size={28}
+                                                style={[
+                                                    styles.cardIcon,
+                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                                ]}
+                                            />
+                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                                Koniec
+                                            </Text>
+                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                                {forcedFinishTime
+                                                    ? new Date(forcedFinishTime).toLocaleTimeString()
+                                                    : 'Brak'}
+                                            </Text>
+                                        </View>
+                                    </TouchableOpacity>
+
+                                    {calc.timeOfForcedFinish && (
+                                        <View
+                                            style={[
+                                                styles.autoFinishNotice,
+                                                {
+                                                    backgroundColor: colors.cardInCardBackground,
+                                                    borderColor: colors.border,
+                                                },
+                                            ]}
+                                        >
+                                            <Text style={[styles.autoFinishNoticeText, { color: colors.cardTitle }]}>
+                                                ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                            </Animated.View>
+                        </View>
+                    </View>
+                )}
+
+                {/* Trucks section */}
+                <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
+                    <View style={styles.tabHeader}>
+                        <View style={{ flexDirection: 'column' }}>
+                            <Text style={[styles.gridTitle, { color: colors.text, paddingTop: 16, }]}>
+                                {activeTab === 0 ? "Transporty" : "Zakończone transporty"}
+                            </Text>
+                            <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+                                {activeTab === 0 ? "Lista załadunków w trakcie" : "Lista ukończonych załadunków"}
+                            </Text>
+                        </View>
+                        <View style={[styles.tabDots, { flexDirection: 'row' }]}>
+                            <TouchableOpacity
+                                style={[styles.tabDot, activeTab === 0 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
+                            />
+                            <TouchableOpacity
+                                style={[styles.tabDot, activeTab === 1 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
+                            />
+                        </View>
+                        <TouchableOpacity
+                            style={[styles.btnOutline, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
+                            onPress={() => setShowNewTransportModal(true)}
+                        >
+                            <Ionicons name="add-outline" size={24} color={colors.outButText} />
+                        </TouchableOpacity>
+                    </View>
+
+                    <TabView
+                        navigationState={navigationState}
+                        renderScene={renderScene}
+                        onIndexChange={setActiveTab}
+                        renderTabBar={() => null} // Hide default tab bar since using custom dots
+                        style={{ minHeight: 100 }} // or another explicit height
+                    />
+                </View>
+            </ScrollView>
+            {/* Buttons */}
+            {
+                isPaused ? (
+                    // Paused - Resume button ONLY
+                    <View style={[styles.resumeButtonContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}>
+                        <TouchableOpacity
+                            style={[styles.btnResume, { backgroundColor: colors.butBackground }]}
+                            onPress={handleResume}
+                        >
+                            <Ionicons name="play" size={24} color={colors.butText} />
+                            <Text style={[styles.btnResumeText, { color: colors.butText }]}>Wznów</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    // Working -  Pause, Finish buttons
+                    <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}>
+
+                        <TouchableOpacity
+                            style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+                            onPress={() => setShowPauseModal(true)}
+                        >
+                            <Ionicons name="pause-outline" size={24} color={colors.butText} />
+                            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zatrzymaj</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={() =>
+                                appConfirm(
+                                    'Zakończ Sesję',
+                                    'Czy na pewno chcesz zakończyć tę sesję obliczeniową?',
+                                    handleFinishSession,
+                                )
+                            }
+                            style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+                        >
+                            <MaterialCommunityIcons name="flag-checkered" size={24} color={colors.butText} />
+                            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zakończ</Text>
+                        </TouchableOpacity>
+
+                        {/* <TouchableOpacity
+                            onPress={() => setShowLevelUpPreview(prev => !prev)}
+                            style={{
+                                padding: 12,
+                                borderRadius: 12,
+                                backgroundColor: colors.iconColor,
+                                marginBottom: 12,
+                            }}
+                        >
+                            <Text style={{ color: '#fff', fontWeight: '600' }}>
+                                Toggle animation preview
+                            </Text>
+                        </TouchableOpacity> */}
+                    </View>
+                )
+            }
+
+            {/* Modals */}
+            {/* Pallets in progress → ask for final number */}
+            <Modal
+                visible={showPalletsModal}
+                transparent
+                animationType="fade"
+                onRequestClose={() => {
+                    setShowPalletsModal(false);
+                    setPendingTruckId(null);
+                }}
+            >
+                <View style={styles.palletsModalBackdrop}>
+                    <View style={[styles.palletsModalContent, { backgroundColor: colors.cardBackground }]}>
+                        <Text style={[styles.palletsModalTitle, { color: colors.text }]}>
+                            Podaj liczbę palet!
+                        </Text>
+
+                        <Text style={[styles.palletsModalSubtitle, { color: colors.textSecondary }]}>
+                            Skończyłeś ładować ten transport, ale nie podałeś liczby palet. Wpisz liczbę palet (np. 12.75) i zatwierdź, aby zakończyć transport.
+                        </Text>
+
+                        <TextInput
+                            ref={palletsInputRef}
+                            style={[
+                                styles.palletsInput,
+                                { borderColor: colors.border, color: colors.text }
+                            ]}
+                            value={palletsInput}
+                            onChangeText={setPalletsInput}
+                            keyboardType="decimal-pad"
+                            placeholder="Np. 12.75"
+                            placeholderTextColor={colors.textSecondary}
+                        />
+
+                        <View style={styles.palletsButtonsRow}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setShowPalletsModal(false);
+                                    setPendingTruckId(null);
+                                    setPalletsInput("");
+                                }}
+                                style={[
+                                    styles.btnOutline,
+                                    {
+                                        borderColor: colors.outButBorder,
+                                        backgroundColor: colors.outButBackground
+                                    }
+                                ]}
+                            >
+                                <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>
+                                    Anuluj
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={handleConfirmPallets}
+                                style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+                            >
+                                <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>
+                                    OK
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Session details modal */}
+            <SessionDetailsModal
+                visible={showSessionInfoModal}
+                onClose={() => setShowSessionInfoModal(false)}
+                colors={colors}
+                rateColor={rateColor}
+                animatedRate={animatedRate}
+                sessionStats={sessionStats}
+            />
+
+            <NewTransportModal
+                visible={showNewTransportModal}
+                onClose={() => setShowNewTransportModal(false)}
+                onAdd={addTruck}
+            />
+
+            <EditTruckModal
+                visible={!!editingTruck}
+                truck={editingTruck}
+                onClose={() => setEditingTruck(null)}
+                onSave={activeTab === 0 ? handleSaveEdit : handleSaveEditHistory}
+            />
+
+            <PauseModal
+                visible={showPauseModal}
+                onClose={() => setShowPauseModal(false)}
+                onConfirm={handlePauseConfirm}
+            />
+
+            <AdjustTimeModal
+                visible={showAdjustFinishTimeModal}
+                onClose={() => setShowAdjustFinishTimeModal(false)}
+                onConfirm={(newForcedFinishTime) => {
+                    setForcedFinishTime(newForcedFinishTime);
+                    setShowAdjustFinishTimeModal(false);
+                }}
+                initialTime={forcedFinishTime}
+                type="finish"
+                startTime={startTime}
+            />
+        </View >
+    );
+}
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+        justifyContent: 'space-between',
+    },
+    scrollContent: {
+        flexGrow: 1,
+    },
+    levelCard: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginHorizontal: 24,
+        marginVertical: 16,
+        borderRadius: 16,
+        gap: 32,
+        borderWidth: 1,
+        elevation: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+    },
+    levelTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+    },
+    progressContainer: {
+        flex: 1,
+    },
+    progressBar: {
+        height: 10,
+        borderRadius: 5,
+        overflow: 'hidden',
+    },
+    progressFill: {
+        height: 10,
+        borderRadius: 5,
+    },
+    progressText: {
+        fontSize: 14,
+        textAlign: 'center',
+        marginTop: 5,
+    },
+    floatingXPText: {
+        position: 'absolute',
+        top: 200,
+        alignSelf: 'center',
+        zIndex: 1000,
+    },
+    floatingXPValue: {
+        fontSize: 24,
+        fontWeight: 'bold',
+        textShadowColor: 'rgba(0,0,0,0.3)',
+        textShadowOffset: { width: 1, height: 1 },
+        textShadowRadius: 2,
+    },
+    levelUpBanner: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 21,
+        marginHorizontal: 24,
+        marginVertical: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+        elevation: 0,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        gap: 10,
+    },
+    levelUpText: {
+        fontSize: 24,
+        fontWeight: 'bold',
+    },
+    statsSection: {
+        marginBottom: 16,
+        marginHorizontal: 24,
+        borderRadius: 16,
+        borderWidth: 1,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        paddingHorizontal: 16,
+    },
+    statsHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        paddingTop: 16,
+    },
+    statsGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+    },
+    gridCardWide: {
+        width: '100%',
+        padding: 16,
+        marginBottom: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    gridCardTitle: {
+        fontSize: 17,
+        fontWeight: '600',
+        marginBottom: 2,
+        marginTop: 2,
+    },
+    gridCardValue: {
+        fontSize: 22,
+        fontWeight: '800',
+    },
+    expandButton: {
+        width: '100%',
+        borderWidth: 1,
+        borderRadius: 16,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
+        marginTop: 0,
+        marginBottom: 12,
+    },
+    expandButtonContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+    },
+    expandButtonText: {
+        fontSize: 15,
+        fontWeight: '600',
+    },
+    expandableContent: {
+        width: '100%',
+        overflow: 'hidden',
+        marginTop: 8,
+    },
+    expandableContentHidden: {
+        height: 0,
+        opacity: 0,
+        marginTop: 0,
+    },
+    gridCard: {
+        width: '48%',
+        aspectRatio: 1,
+        padding: 16,
+        borderRadius: 16,
+        borderWidth: 1,
+    },
+    gridCardContent: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'flex-start',
+    },
+    statsGridHidden: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        gap: 12,
+        marginBottom: 16,
+    },
+    autoFinishNotice: {
+        width: '100%',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+        marginTop: 4,
+    },
+    autoFinishNoticeText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    infoContainer: {
+        flexGrow: 1,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(0,0,0,0.05)',
+        paddingHorizontal: 16,
+        paddingBottom: 16,
+        marginBottom: 16,
+        marginHorizontal: 24,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+    },
+    tabHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    gridTitle: {
+        fontSize: 24,
+        fontWeight: 'bold',
+    },
+    gridSubtitle: {
+        fontSize: 15,
+        paddingBottom: 12,
+    },
+    tabDots: {
+        flexDirection: 'row',
+        alignSelf: 'center',
+        gap: 8,
+        transform: [{ translateY: 0 }],
+    },
+    tabDot: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: '#ccc',
+    },
+    btnOutline: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        padding: 12,
+        borderRadius: 12,
+        gap: 6,
+        elevation: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 2,
+    },
+    btnOutlineText: {
+        fontSize: 17,
+        fontWeight: '800',
+    },
+    infoButton: {
+        paddingVertical: 6,
+    },
+    iconButton: {
+        padding: 6,
+        borderWidth: 2,
+        borderRadius: 8,
+    },
+    emptyText: {
+        textAlign: 'center',
+        color: '#666',
+        fontSize: 14,
+        paddingVertical: 40,
+    },
+    buttonsContainer: {
+        flexDirection: 'row',
+        gap: 8,
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        paddingTop: 16,
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+        borderTopWidth: 1,
+    },
+    btnPrimary: {
+        flex: 1,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        gap: 6,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    btnPrimaryText: {
+        fontSize: 15,
+        fontWeight: '500',
+        textTransform: 'uppercase',
+    },
+    resumeButtonContainer: {
+        flexDirection: 'row',
+        gap: 8,
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        paddingTop: 16,
+        paddingHorizontal: 24,
+        paddingVertical: 16,
+        borderTopWidth: 1,
+    },
+    btnResume: {
+        flex: 1,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingVertical: 10,
+        borderRadius: 20,
+        gap: 6,
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+    },
+    btnResumeText: {
+        fontSize: 15,
+        fontWeight: '500',
+        textTransform: 'uppercase',
+    },
+    // Truck List Section
+    trucksList: {
+        borderWidth: 1,
+        borderRadius: 12,
+    },
+    truckItem: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: 12,
+        minHeight: 60,
+        borderBottomWidth: 1,
+    },
+    truckId: {
+        fontWeight: '700',
+        fontSize: 15,
+        letterSpacing: 0.5,
+    },
+    truckIdSection: {
+        width: 'auto',
+        minWidth: 60,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingRight: 8,
+        paddingHorizontal: 10,
+        flexDirection: 'row',
+        gap: 2,
+        height: 50,
+        borderRadius: 10,
+        marginRight: 4,
+    },
+    truckInfoSection: {
+        flex: 1,
+        marginHorizontal: 8,
+    },
+    compactRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 6,
+        gap: 8,
+    },
+    compactField: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        flex: 1,
+    },
+    fieldLabel: {
+        fontSize: 12,
+        fontWeight: '600',
+        marginBottom: 2,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+
+    fieldValue: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+
+    timeValue: {
+        fontSize: 13,
+        fontWeight: 'bold',
+    },
+
+    expandIcon: {
+        padding: 4,
+        marginLeft: 4,
+    },
+
+    expandedDetails: {
+        marginTop: 12,
+        paddingLeft: 12,
+        paddingRight: 8,
+        paddingBottom: 12,
+        gap: 10,
+        borderBottomWidth: 1,
+    },
+
+    detailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 0,
+    },
+
+    detailLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        flex: 0.4,
+        letterSpacing: 1,
+        textTransform: 'uppercase',
+    },
+
+    detailValue: {
+        fontSize: 14,
+        fontWeight: '600',
+        flex: 0.6,
+        textAlign: 'right',
+    },
+
+    truckActionsRight: {
+        flexDirection: 'row',
+        gap: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 50,
+        paddingLeft: 8,
+    },
+    palletsModalBackdrop: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 16,
+    },
+    palletsModalContent: {
+        width: "100%",
+        maxWidth: 360,
+        borderRadius: 16,
+        padding: 20,
+    },
+    palletsModalTitle: {
+        fontSize: 18,
+        fontWeight: "700",
+        marginBottom: 8,
+    },
+    palletsModalSubtitle: {
+        fontSize: 13,
+        marginBottom: 12,
+    },
+    palletsInput: {
+        borderWidth: 1,
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        fontSize: 16,
+        marginBottom: 16,
+    },
+    palletsButtonsRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        gap: 8,
+    },
+    truckHeaderSection: {
+        minWidth: 110,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        borderRadius: 8,
+    },
+
+    truckHeaderLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    sessionInfoBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.45)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 24,
+    },
+    sessionInfoContentWrapper: {
+        width: '100%',
+        maxWidth: 420,
+        alignItems: 'center',
+    },
+    sessionInfoContainer: {
+        width: '100%',
+        borderRadius: 16,
+        padding: 16,
+        borderWidth: 2,
+    },
+    sessionInfoTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        marginBottom: 4,
+        textAlign: 'center',
+    },
+    sessionInfoDescription: {
+        fontSize: 14,
+        marginBottom: 16,
+        textAlign: 'center',
+    },
+    palletsRateHighlightContainer: {
+        position: 'relative',
+        overflow: 'hidden',
+        marginBottom: 24,
+        alignItems: 'center',
+        paddingVertical: 20,
+        paddingHorizontal: 18,
+        borderRadius: 20,
+        borderWidth: 1,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+    },
+    palletsRateGlowLayer: {
+        ...StyleSheet.absoluteFillObject,
+        overflow: 'hidden',
+    },
+    palletsRateGlowOrb: {
+        position: 'absolute',
+        borderRadius: 999,
+        opacity: 0.9,
+        filter: 'blur(12px)',
+    },
+    palletsRateHighlightLabel: {
+        fontSize: 14,
+        marginBottom: 8,
+        zIndex: 1,
+    },
+    palletsRateHighlightValue: {
+        fontSize: 56,
+        fontWeight: '800',
+        textAlign: 'center',
+        textShadowOffset: { width: 0, height: 0 },
+        textShadowRadius: 16,
+        zIndex: 1,
+    },
+    sessionStatRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 8,
+    },
+    sessionStatLabel: {
+        fontSize: 14,
+    },
+    sessionStatValue: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    sessionInfoCloseButton: {
+        marginTop: 24,
+        alignSelf: 'center',
+        paddingHorizontal: 24,
+        paddingVertical: 10,
+        borderRadius: 999,
+        borderWidth: 1,
+    },
+    sessionInfoCloseText: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+});
