@@ -16,6 +16,7 @@ import {
     orderBy,
     deleteDoc,
     doc,
+    updateDoc,
 } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useColors } from '../../hooks/useColors';
@@ -23,6 +24,23 @@ import { useAuth } from '../../context/AuthContext';
 import { getReportTypeLabel } from '../../constants/reportTypes';
 
 const ADMIN_EMAILS = ['jakub.jaskola7@gmail.com'];
+const REPORT_STATUSES = {
+    reported: 'reported',
+    submitted: 'submitted',
+    fixed: 'fixed',
+};
+
+const getValidStatus = (status) => {
+    if (
+        status === REPORT_STATUSES.reported ||
+        status === REPORT_STATUSES.submitted ||
+        status === REPORT_STATUSES.fixed
+    ) {
+        return status;
+    }
+
+    return REPORT_STATUSES.reported;
+};
 
 const formatTimestamp = (ts) => {
     if (!ts || !ts.toDate) return '';
@@ -50,6 +68,24 @@ const ReportsScreen = () => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+
+    const statusStyles = useMemo(
+        () => ({
+            [REPORT_STATUSES.reported]: {
+                label: 'Do zgłoszenia',
+                color: '#D64545',
+            },
+            [REPORT_STATUSES.submitted]: {
+                label: 'Przekazane',
+                color: '#E68A00',
+            },
+            [REPORT_STATUSES.fixed]: {
+                label: 'Naprawione',
+                color: '#2E9B57',
+            },
+        }),
+        []
+    );
 
     useEffect(() => {
         const q = query(
@@ -117,8 +153,23 @@ const ReportsScreen = () => {
         );
     };
 
+    const handleStatusChange = async (id, nextStatus) => {
+        if (!isAdmin) return;
+
+        try {
+            await updateDoc(doc(db, 'reports', id), {
+                status: getValidStatus(nextStatus),
+            });
+        } catch (e) {
+            console.log('Error updating report status:', e);
+            Alert.alert('Błąd', 'Nie udało się zaktualizować statusu zgłoszenia.');
+        }
+    };
+
     const renderItem = ({ item }) => {
         const reportTypeLabel = getReportTypeLabel(item.type);
+        const status = getValidStatus(item.status);
+        const statusConfig = statusStyles[status];
 
         return (<View
             style={[
@@ -134,6 +185,9 @@ const ReportsScreen = () => {
                     <Text style={[styles.truck, { color: colors.title }]}>
                         Ciężarówka: {item.truckNumber}
                     </Text>
+                    <Text style={[styles.statusText, { color: statusConfig.color }]}>
+                        Status: {statusConfig.label}
+                    </Text>
                     <Text style={[styles.type, { color: colors.textSecondary }]}>
                         Typ: {reportTypeLabel}
                     </Text>
@@ -146,6 +200,44 @@ const ReportsScreen = () => {
                         <Text style={[styles.timestamp, { color: colors.grayIconColor }]}>
                             {formatTimestamp(item.createdAt)}
                         </Text>
+                    )}
+
+                    {isAdmin && (
+                        <View style={styles.statusButtonsRow}>
+                            <TouchableOpacity
+                                onPress={() =>
+                                    handleStatusChange(item.id, REPORT_STATUSES.reported)
+                                }
+                                style={[
+                                    styles.statusButton,
+                                    { borderColor: '#D64545', backgroundColor: colors.cardBackground },
+                                ]}
+                            >
+                                <Text style={[styles.statusButtonText, { color: '#D64545' }]}>Reset</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() =>
+                                    handleStatusChange(item.id, REPORT_STATUSES.submitted)
+                                }
+                                style={[
+                                    styles.statusButton,
+                                    { borderColor: '#E68A00', backgroundColor: colors.cardBackground },
+                                ]}
+                            >
+                                <Text style={[styles.statusButtonText, { color: '#E68A00' }]}>Zgłoszone</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() =>
+                                    handleStatusChange(item.id, REPORT_STATUSES.fixed)
+                                }
+                                style={[
+                                    styles.statusButton,
+                                    { borderColor: '#2E9B57', backgroundColor: colors.cardBackground },
+                                ]}
+                            >
+                                <Text style={[styles.statusButtonText, { color: '#2E9B57' }]}>Naprawione</Text>
+                            </TouchableOpacity>
+                        </View>
                     )}
                 </View>
 
@@ -254,6 +346,11 @@ const styles = StyleSheet.create({
         marginTop: 4,
         fontSize: 13,
     },
+    statusText: {
+        marginTop: 4,
+        fontSize: 13,
+        fontWeight: '700',
+    },
     desc: {
         marginTop: 6,
         fontSize: 14,
@@ -270,6 +367,22 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
     },
     deleteText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    statusButtonsRow: {
+        marginTop: 10,
+        flexDirection: 'row',
+        justifyContent: 'flex-start',
+        gap: 8,
+    },
+    statusButton: {
+        borderWidth: 1,
+        borderRadius: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+    },
+    statusButtonText: {
         fontSize: 12,
         fontWeight: '700',
     },
