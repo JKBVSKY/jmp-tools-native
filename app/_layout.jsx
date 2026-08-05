@@ -9,6 +9,7 @@ import { CalculatorProvider } from '../context/CalculatorContext';
 import { ThemeProvider, useThemeContext } from '../context/ThemeContext';
 import { UserProfileProvider } from '../context/UserProfileContext';
 import { useColors } from '../hooks/useColors';
+import CalculatorHeaderTitle from './calculator_content/shared/CalculatorHeaderTitle';
 
 // inside app/_layout.jsx
 function RootNavigator() {
@@ -56,6 +57,16 @@ function RootNavigator() {
         <Stack.Screen
           name="misc/ReportsScreen"
           options={{ title: 'Zgłoszenia', headerShown: true }}
+        />
+        <Stack.Screen
+          name="calculator_content/calculator"
+          options={{
+            headerShown: true,
+            headerTitle: () => <CalculatorHeaderTitle />,
+            headerTitleAlign: 'left',
+            headerBackTitleVisible: false,
+            headerStyle: { backgroundColor: colors.navBackground, height: 102 },
+          }}
         />
       </Stack>
     </>

@@ -16,7 +16,7 @@ import { useResponsive } from '../../hooks/useResponsive';
 const calculateAggregateStats = (sessions = []) => {
   const totalSessions = sessions.length;
   const totalTimeSeconds = sessions.reduce(
-    (sum, s) => sum + (Number(s.loadingTime) || 0),
+    (sum, s) => sum + (Number(s.sessionTime ?? s.loadingTime) || 0),
     0
   );
   const totalPallets = sessions.reduce(

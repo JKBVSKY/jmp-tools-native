@@ -1,9 +1,8 @@
-// calculator_content/shared/WorkingLayout.jsx
+// calculator_content/shared/TruckWorkingLayout.jsx
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import {
     Alert,
-    Animated,
     Modal,
     Pressable,
     ScrollView,
@@ -12,14 +11,10 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    Animated,
 } from 'react-native';
-import Reanimated, { FadeInUp, FadeOutUp } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TabView } from 'react-native-tab-view';
-
-import ThemedCard from '../../../components/ThemedCard';
-import { XPEarnedNotification } from '../../../components/XPEarnedNotification';
-import { appConfirm } from '../../../utils/crossPlatformAlert';
 
 import SessionDetailsModal from '../../modals/SessionDetailsModal';
 import EditTruckModal from '../truckLoading/EditTruckModal';
@@ -27,9 +22,11 @@ import NewTransportModal from '../truckLoading/NewTransportModal';
 import ReportModal from '../truckLoading/ReportModal';
 import AdjustTimeModal from './AdjustTimeModal';
 import PauseModal from './PauseModal';
-import { useWorkingLogic } from './useWorkingLogic';
+import SessionActionBar from './SessionActionBar';
+import SessionXPHeader from './SessionXPHeader';
+import { useTruckLogic } from './useTruckLogic';
 
-export default function WorkingLayout(props) {
+export default function TruckWorkingLayout(props) {
     const {
         // context & colors
         calc,
@@ -46,7 +43,7 @@ export default function WorkingLayout(props) {
         levelData,
         xpForNextLevel,
         levelProgress,
-        loadingTime,
+        sessionTime,
         forcedFinishTime,
         setForcedFinishTime,
         palletsRateGoal,
@@ -105,9 +102,8 @@ export default function WorkingLayout(props) {
         // extras you use in JSX
         profile,
         isWeb,
-    } = useWorkingLogic(props);
+    } = useTruckLogic(props);
 
-    const [showLevelUpPreview, setShowLevelUpPreview] = useState(false);
     const [reportVisible, setReportVisible] = useState(false);
     const [reportTruckNumber, setReportTruckNumber] = useState('');
     const insets = useSafeAreaInsets();
@@ -138,7 +134,7 @@ export default function WorkingLayout(props) {
     const sessionStats = [
         {
             label: 'Czas ładowania',
-            value: loadingTime ? formatElapsed(loadingTime) : '00:00:00',
+            value: sessionTime ? formatElapsed(sessionTime) : '00:00:00',
         },
         {
             label: 'Palety załadowane',
@@ -394,89 +390,20 @@ export default function WorkingLayout(props) {
                 showsVerticalScrollIndicator={false}
                 keyboardShouldPersistTaps="handled"
             >
-                {/* ✅ LEVEL UP CELEBRATION */}
-                {(leveledUpMessage || showLevelUpPreview) ? (
-                    <Reanimated.View
-                        key="level-up-banner"
-                        entering={FadeInUp.springify().damping(14).stiffness(120)}
-                        exiting={FadeOutUp.duration(220)}
-                    >
-                        <View style={[styles.levelUpBanner, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
-                            <Text style={[styles.levelUpText, { color: colors.text }]}>Nowy poziom: {leveledUpMessage} !🎉</Text>
-                            <Ionicons name="star" size={24} style={{ color: colors.iconColor }} />
-                        </View>
-                    </Reanimated.View>
-                ) : (
-                    // XP PROGRESS BAR - TOP OF SCREEN
-                    profile && (
-                        <Reanimated.View
-                            key="xp-card"
-                            entering={FadeInUp.springify().damping(14).stiffness(120)}
-                            exiting={FadeOutUp.duration(220)}
-                        >
-                            < ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                                <View>
-                                    <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
-                                </View>
-                                <View style={styles.progressContainer}>
-                                    <View
-                                        style={[
-                                            styles.progressBar,
-                                            {
-                                                backgroundColor: colors.inputBackground,
-                                                borderColor: colors.border,
-                                                borderWidth: 1,
-                                            },
-                                        ]}
-                                    >
-                                        <View
-                                            style={[
-                                                styles.progressFill,
-                                                { backgroundColor: colors.iconColor, width: `${Math.min(levelProgress, 100)}%` },
-                                            ]}
-                                        />
-                                    </View>
-                                    <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-                                        {levelData?.currentXP} / {xpForNextLevel} XP
-                                    </Text>
-                                </View>
-                            </ThemedCard>
-                        </Reanimated.View>
-                    )
-                )}
-
-                {/* ADD THE NOTIFICATION COMPONENT HERE */}
-                <XPEarnedNotification
-                    visible={notificationState.visible}
-                    xpAmount={notificationState.xp}
-                    onDismiss={() => setNotificationState({ visible: false, xp: 0 })}
+                <SessionXPHeader
+                    colors={colors}
+                    profile={profile}
+                    levelData={levelData}
+                    xpForNextLevel={xpForNextLevel}
+                    levelProgress={levelProgress}
+                    leveledUpMessage={leveledUpMessage}
+                    showXPFloatingText={showXPFloatingText}
+                    floatingAnim={floatingAnim}
+                    floatingXPAmount={floatingXPAmount}
+                    notificationState={notificationState}
+                    setNotificationState={setNotificationState}
+                    showProgressCard={false}
                 />
-
-                {/* ✅ FLOATING XP TEXT ANIMATION */}
-                {showXPFloatingText && (
-                    <Animated.View
-                        style={[
-                            styles.floatingXPText,
-                            {
-                                opacity: floatingAnim.interpolate({
-                                    inputRange: [0, 1],
-                                    outputRange: [1, 0],
-                                }),
-                                transform: [
-                                    {
-                                        translateY: floatingAnim.interpolate({
-                                            inputRange: [0, 1],
-                                            outputRange: [0, -60],
-                                        }),
-                                    },
-                                ],
-                            },
-                        ]}
-                    >
-                        <Text style={[styles.floatingXPValue, { color: colors.text }]}>+{floatingXPAmount} XP</Text>
-                    </Animated.View>
-                )}
 
                 {isWeb ? (
                     <View style={styles.statsSection}>
@@ -488,7 +415,7 @@ export default function WorkingLayout(props) {
                                     <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
                                 </View>
                                 <Text style={[styles.cardValue, { color: colors.text }]}>
-                                    {loadingTime ? formatElapsed(loadingTime) : "00:00:00"}
+                                    {sessionTime ? formatElapsed(sessionTime) : "00:00:00"}
                                 </Text>
                             </View>
 
@@ -538,7 +465,7 @@ export default function WorkingLayout(props) {
                                 </Text>
                             </TouchableOpacity>
 
-                            {calc.timeOfForcedFinish && (
+                            {forcedFinishTime && (
                                 <View style={{
                                     backgroundColor: '#fff3cd',
                                     borderRadius: 12,
@@ -548,7 +475,7 @@ export default function WorkingLayout(props) {
                                     borderLeftColor: '#ff6b6b'
                                 }}>
                                     <Text style={{ fontSize: 12, fontWeight: '600', color: '#cc5200' }}>
-                                        ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
+                                        ⏰ Auto-finish at {new Date(forcedFinishTime).toLocaleTimeString()}
                                     </Text>
                                 </View>
                             )}
@@ -650,7 +577,7 @@ export default function WorkingLayout(props) {
                                                 Czas
                                             </Text>
                                             <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                                {loadingTime ? formatElapsed(loadingTime) : '00:00:00'}
+                                                {sessionTime ? formatElapsed(sessionTime) : '00:00:00'}
                                             </Text>
                                         </View>
                                     </View>
@@ -742,7 +669,7 @@ export default function WorkingLayout(props) {
                                         </View>
                                     </TouchableOpacity>
 
-                                    {calc.timeOfForcedFinish && (
+                                    {forcedFinishTime && (
                                         <View
                                             style={[
                                                 styles.autoFinishNotice,
@@ -753,7 +680,7 @@ export default function WorkingLayout(props) {
                                             ]}
                                         >
                                             <Text style={[styles.autoFinishNoticeText, { color: colors.cardTitle }]}>
-                                                ⏰ Auto-finish at {new Date(calc.timeOfForcedFinish).toLocaleTimeString()}
+                                                ⏰ Auto-finish at {new Date(forcedFinishTime).toLocaleTimeString()}
                                             </Text>
                                         </View>
                                     )}
@@ -799,61 +726,16 @@ export default function WorkingLayout(props) {
                     />
                 </View>
             </ScrollView>
-            {/* Buttons */}
-            {
-                isPaused ? (
-                    // Paused - Resume button ONLY
-                    <View style={[styles.resumeButtonContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}>
-                        <TouchableOpacity
-                            style={[styles.btnResume, { backgroundColor: colors.butBackground }]}
-                            onPress={handleResume}
-                        >
-                            <Ionicons name="play" size={24} color={colors.butText} />
-                            <Text style={[styles.btnResumeText, { color: colors.butText }]}>Wznów</Text>
-                        </TouchableOpacity>
-                    </View>
-                ) : (
-                    // Working -  Pause, Finish buttons
-                    <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}>
-
-                        <TouchableOpacity
-                            style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
-                            onPress={() => setShowPauseModal(true)}
-                        >
-                            <Ionicons name="pause-outline" size={24} color={colors.butText} />
-                            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zatrzymaj</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() =>
-                                appConfirm(
-                                    'Zakończ Sesję',
-                                    'Czy na pewno chcesz zakończyć tę sesję obliczeniową?',
-                                    handleFinishSession,
-                                )
-                            }
-                            style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
-                        >
-                            <MaterialCommunityIcons name="flag-checkered" size={24} color={colors.butText} />
-                            <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>Zakończ</Text>
-                        </TouchableOpacity>
-
-                        {/* <TouchableOpacity
-                            onPress={() => setShowLevelUpPreview(prev => !prev)}
-                            style={{
-                                padding: 12,
-                                borderRadius: 12,
-                                backgroundColor: colors.iconColor,
-                                marginBottom: 12,
-                            }}
-                        >
-                            <Text style={{ color: '#fff', fontWeight: '600' }}>
-                                Toggle animation preview
-                            </Text>
-                        </TouchableOpacity> */}
-                    </View>
-                )
-            }
+            <SessionActionBar
+                isPaused={isPaused}
+                onResume={handleResume}
+                onPause={() => setShowPauseModal(true)}
+                onFinish={handleFinishSession}
+                colors={colors}
+                bottomInset={insets.bottom}
+                finishConfirmTitle="Zakończ Sesję"
+                finishConfirmMessage="Czy na pewno chcesz zakończyć tę sesję obliczeniową?"
+            />
 
             {/* Modals */}
             {/* Pallets in progress → ask for final number */}

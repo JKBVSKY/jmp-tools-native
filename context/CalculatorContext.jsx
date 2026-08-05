@@ -4,11 +4,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const CalculatorContext = createContext();
 
 export function CalculatorProvider({ children, storageKey = 'calculatorState', type = 'truck-loading' }) {
-  const [state, setState] = useState({
+  const getInitialState = (sessionType = type) => ({
     mode: 'init',
     startTime: null,
     endTime: null,
-    loadingTime: 0,
+    sessionTime: 0,
     totalPausedTime: 0,
     isPaused: false,
     pauseStart: null,
@@ -20,8 +20,51 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
     trailerNum: 0,
     forcedFinishTime: null,
     sessionStatus: 'active',
-    sessionType: type,
+    sessionType,
+    // Picking-specific state
+    subsection: '',
+    boxesCount: 0,
+    ordersCount: 0,
+    boxesRateGoal: 0,
+    pickingSubsectionGoals: {},
+    pickingSubsectionStats: {},
+    activePickingSubsection: null,
+    activePickingStartedAt: null,
     isRestored: false,
+  });
+
+  const normalizeStateShape = (rawState = {}) => {
+    const next = { ...rawState };
+
+    if (typeof next.sessionTime !== 'number') {
+      next.sessionTime = Number(next.loadingTime) || 0;
+    }
+
+    if ('loadingTime' in next) {
+      delete next.loadingTime;
+    }
+
+    if (!next.pickingSubsectionStats || typeof next.pickingSubsectionStats !== 'object' || Array.isArray(next.pickingSubsectionStats)) {
+      next.pickingSubsectionStats = {};
+    }
+
+    if (!next.pickingSubsectionGoals || typeof next.pickingSubsectionGoals !== 'object' || Array.isArray(next.pickingSubsectionGoals)) {
+      next.pickingSubsectionGoals = {};
+    }
+
+    if (!('activePickingSubsection' in next)) {
+      next.activePickingSubsection = null;
+    }
+
+    if (!('activePickingStartedAt' in next)) {
+      next.activePickingStartedAt = null;
+    }
+
+    return next;
+  };
+
+  const [state, setState] = useState({
+    ...getInitialState(type),
   });
 
 
@@ -40,7 +83,8 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
       const savedState = await AsyncStorage.getItem(storageKey);
       if (savedState) {
         const parsedState = JSON.parse(savedState);
-        setState(prev => ({ ...parsedState, isRestored: true }));
+        const normalized = normalizeStateShape(parsedState);
+        setState(prev => ({ ...prev, ...normalized, isRestored: true }));
         return parsedState;
       }
       setState(prev => ({ ...prev, isRestored: true }));
@@ -54,25 +98,11 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
   const clearState = async () => {
     try {
       await AsyncStorage.removeItem(storageKey);
-      setState({
-        mode: 'init',
-        startTime: null,
-        endTime: null,
-        loadingTime: 0,
-        totalPausedTime: 0,
-        isPaused: false,
-        pauseStart: null,
-        trucks: [],
-        trucksHistory: [],
-        nextTruckId: 1,
-        shopNum: 0,
-        gateNum: 0,
-        trailerNum: 0,
-        forcedFinishTime: null,
+      setState(prev => ({
+        ...getInitialState(prev.sessionType || type),
         sessionStatus: 'cleared',
-        sessionType: type,
         isRestored: true,
-      });
+      }));
     } catch (error) {
       console.error('Failed to clear calculator state:', error);
     }
@@ -81,7 +111,15 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
   // Update state and auto-save
   const updateState = (updates) => {
     setState(prev => {
-      const newState = { ...prev, ...updates };
+      const normalizedUpdates = { ...updates };
+      if ('loadingTime' in normalizedUpdates && !('sessionTime' in normalizedUpdates)) {
+        normalizedUpdates.sessionTime = normalizedUpdates.loadingTime;
+      }
+      if ('loadingTime' in normalizedUpdates) {
+        delete normalizedUpdates.loadingTime;
+      }
+
+      const newState = { ...prev, ...normalizedUpdates };
       saveState(newState);
       return newState;
     });

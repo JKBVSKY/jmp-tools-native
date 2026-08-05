@@ -17,7 +17,7 @@ export default function SessionModal({ visible, onClose, onOptionSelect, options
     const handleOptionPress = (opt) => {
         if (opt.route) {
             // Option with route - navigate
-            onOptionSelect(opt.route);
+            onOptionSelect(opt);
         } else {
             // Placeholder option - show coming soon message
             Alert.alert('Niedostępne', 'Dostępne wkrótce...', [{ text: 'OK' }]);

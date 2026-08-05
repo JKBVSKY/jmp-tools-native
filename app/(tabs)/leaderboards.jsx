@@ -130,7 +130,7 @@ export default function Leaderboards() {
         };
 
         current.totalPallets += parseFloat(session.palletsLoaded) || 0;
-        current.totalTime += parseFloat(session.loadingTime) || 0;
+        current.totalTime += parseFloat(session.sessionTime ?? session.loadingTime) || 0;
         current.sessionsCount += 1;
 
         grouped.set(userId, current);

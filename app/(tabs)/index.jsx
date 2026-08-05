@@ -22,7 +22,7 @@ import SessionModal from '../modals/SessionModal';
 // inside app/(tabs)/index.jsx
 const calculateSummary = (sessionsArray) => {
   const totalPallets = sessionsArray.reduce((sum, s) => sum + (parseFloat(s.palletsLoaded) || 0), 0);
-  const totalTime = sessionsArray.reduce((sum, s) => sum + (parseFloat(s.loadingTime) || 0), 0);
+  const totalTime = sessionsArray.reduce((sum, s) => sum + (parseFloat(s.sessionTime ?? s.loadingTime) || 0), 0);
   const averageRate = totalTime > 0 ? totalPallets / (totalTime / 3600) : 0;
   return { totalPallets, totalTime, averageRate };
 };
@@ -164,7 +164,7 @@ export default function Dashboard() {
         };
 
         current.totalPallets += parseFloat(session.palletsLoaded) || 0;
-        current.totalTime += parseFloat(session.loadingTime) || 0;
+        current.totalTime += parseFloat(session.sessionTime ?? session.loadingTime) || 0;
         current.sessionsCount += 1;
 
         grouped.set(sessionUserId, current);
@@ -222,10 +222,18 @@ export default function Dashboard() {
     router.push('/(auth)/register');
   };
 
-  const handleSessionOptionSelect = (route) => {
+  const handleSessionOptionSelect = (option) => {
     setSessionModalVisible(false);
-    if (route) {
-      router.push(route);
+    if (option?.key === 'zaladunek') {
+      calc.updateState({ sessionType: 'truck-loading' });
+    }
+
+    if (option?.key === 'kompletacja') {
+      calc.updateState({ sessionType: 'picking' });
+    }
+
+    if (option?.route) {
+      router.push(option.route);
     }
   };
 
@@ -673,7 +681,7 @@ export default function Dashboard() {
         onOptionSelect={handleSessionOptionSelect}
         options={[
           { key: 'zaladunek', label: 'Załadunek', route: '/calculator_content/calculator', icon: 'flash' },
-          { key: 'kompletacja', label: 'Kompletacja', icon: 'layers' },
+          { key: 'kompletacja', label: 'Kompletacja', route: '/calculator_content/calculator', icon: 'layers' },
           { key: 'wsparcie', label: 'Wsparcie', icon: 'help-circle' },
           { key: 'owijarki', label: 'Owijarki', icon: 'settings' },
         ]}

@@ -477,7 +477,7 @@ export default function ScoreHistory() {
                               {formatDate(session.date)}
                             </Text>
                             <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
-                              {formatTime(session.loadingTime)}
+                              {formatTime(Number(session.sessionTime ?? session.loadingTime) || 0)}
                             </Text>
                             <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
                               {session.palletsLoaded}
@@ -545,7 +545,7 @@ export default function ScoreHistory() {
 export const calculateSummary = (sessionsArray) => {
   if (!sessionsArray || sessionsArray.length === 0) return null;
 
-  const totalTime = sessionsArray.reduce((sum, s) => sum + s.loadingTime, 0);
+  const totalTime = sessionsArray.reduce((sum, s) => sum + (Number(s.sessionTime ?? s.loadingTime) || 0), 0);
   const totalPallets = sessionsArray.reduce((sum, s) => sum + s.palletsLoaded, 0);
   const totalTrucks = sessionsArray.reduce((sum, s) => sum + s.trucksCount, 0);
   const averageRate =

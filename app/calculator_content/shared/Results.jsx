@@ -17,7 +17,7 @@ import { appAlert, appConfirm } from '../../../utils/crossPlatformAlert';
 
 
 export default function Results({
-  loadingTime,
+  sessionTime,
   startTime,
   endTime,
   trucksHistory,
@@ -34,7 +34,7 @@ export default function Results({
 
   const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
   const trucksCount = trucksHistory.length;
-  const palletsRate = loadingTime > 0 ? (palletsLoaded / (loadingTime / 3600)).toFixed(2) : '0.00';
+  const palletsRate = sessionTime > 0 ? (palletsLoaded / (sessionTime / 3600)).toFixed(2) : '0.00';
 
   const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
@@ -91,7 +91,7 @@ export default function Results({
 
       const sessionData = {
         date: new Date(startTime).toISOString(),  // ✅ Safe conversion
-        loadingTime,
+        sessionTime,
         startTime,
         endTime,
         nightShift: Boolean(wasNightShift),
@@ -122,7 +122,7 @@ export default function Results({
       // ✅ STEP 3: Calculate NEW stats (BEFORE checking achievements!)
       const newStats = {
         totalSessions: (profile.stats.totalSessions || 0) + 1,
-        totalTimeWorked: (profile.stats.totalTimeWorked || 0) + (loadingTime / 3600),
+        totalTimeWorked: (profile.stats.totalTimeWorked || 0) + (sessionTime / 3600),
         palletsLoaded: (profile.stats.palletsLoaded || 0) + palletsLoaded,
         totalScore: (profile.stats.totalScore || 0) + sessionScore,
         bestScore: Math.max(profile.stats.bestScore || 0, sessionScore),
@@ -292,7 +292,7 @@ export default function Results({
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas</Text>
                 </View>
-                <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(loadingTime)}</Text>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(sessionTime)}</Text>
               </ThemedCard>
 
               {/* Card 3: Pallets Loaded */}

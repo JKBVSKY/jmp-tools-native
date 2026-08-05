@@ -12,9 +12,22 @@ import { getAutoForcedFinishTime } from '../../../utils/timeUtils';
 import AdjustTimeModal from "./AdjustTimeModal";
 import Clock from "./Clock";
 
-export default function Init({ changeMode, setStartTime, startTime, forcedFinishTime, setForcedFinishTime, calcUpdateState }) {
+const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
+
+export default function Init({
+  changeMode,
+  setStartTime,
+  startTime,
+  forcedFinishTime,
+  setForcedFinishTime,
+  calcUpdateState,
+  onStartSession,
+  sessionType = 'truck-loading',
+  initialPickingSubsection = '',
+}) {
   const [showAdjustStartTimeModal, setShowAdjustStartTimeModal] = useState(false);
   const [showAdjustFinishTimeModal, setShowAdjustFinishTimeModal] = useState(false);
+  const [selectedPickingSubsection, setSelectedPickingSubsection] = useState(initialPickingSubsection || '');
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [averageRate, setAverageRate] = useState('0.00');
@@ -51,9 +64,28 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
     loadAverageRate();
   }, []);
 
+  useEffect(() => {
+    setSelectedPickingSubsection(initialPickingSubsection || '');
+  }, [initialPickingSubsection, sessionType]);
+
+  const isPickingSession = sessionType === 'picking';
+  const isPickingStartAllowed = !isPickingSession || Boolean(selectedPickingSubsection);
+
   const handleStart = () => {
+    if (isPickingSession && !selectedPickingSubsection) {
+      return;
+    }
+
+    if (onStartSession) {
+      onStartSession({
+        initialPickingSubsection: isPickingSession ? selectedPickingSubsection : '',
+      });
+      return;
+    }
+
     calcUpdateState({  // ✅ Use the prop passed from Calculator
       sessionStatus: 'active',
+      subsection: isPickingSession ? selectedPickingSubsection : '',
     });
     changeMode("working");
   };
@@ -111,6 +143,33 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
               <Ionicons name="time-outline" size={20} style={{ color: colors.outButText }} />
               <Text style={[styles.adjustButtonText, { color: colors.outButText }]}>Dostosuj Czas</Text>
             </TouchableOpacity>
+
+            {isPickingSession && (
+              <View style={[styles.pickingSectionCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}> 
+                <Text style={[styles.pickingSectionTitle, { color: colors.cardTitle }]}>Pierwsza podsekcja</Text>
+                <Text style={[styles.pickingSectionHint, { color: colors.textSecondary }]}>Wybierz podsekcję, od której zaczynasz pracę.</Text>
+                <View style={styles.pickingChipsWrap}>
+                  {PICKING_SUBSECTIONS.map((item) => {
+                    const isActive = selectedPickingSubsection === item;
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        onPress={() => setSelectedPickingSubsection(item)}
+                        style={[
+                          styles.pickingChip,
+                          {
+                            backgroundColor: isActive ? colors.butBackground : colors.inputBackground,
+                            borderColor: isActive ? colors.butBackground : colors.border,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.pickingChipText, { color: isActive ? colors.butText : colors.text }]}>{item}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            )}
           </View>
         </View>
 
@@ -120,9 +179,9 @@ export default function Init({ changeMode, setStartTime, startTime, forcedFinish
       {/* Buttons */}
       <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}>
         <TouchableOpacity
-          style={[styles.startButton, { backgroundColor: colors.butBackground, opacity: forcedFinishTime ? 1 : 0.5 }]}
+          style={[styles.startButton, { backgroundColor: colors.butBackground, opacity: (forcedFinishTime && isPickingStartAllowed) ? 1 : 0.5 }]}
           onPress={handleStart}
-          disabled={!forcedFinishTime}
+          disabled={!forcedFinishTime || !isPickingStartAllowed}
         >
           <Ionicons name="play" size={24} color="white" style={[styles.playIcon, { color: colors.butText }]} />
           <Text style={[styles.startButtonText, { color: colors.butText }]}>Rozpocznij Pracę</Text>
@@ -272,6 +331,37 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     marginBottom: 16,
+  },
+  pickingSectionCard: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+    marginTop: 12,
+  },
+  pickingSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  pickingSectionHint: {
+    fontSize: 13,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  pickingChipsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  pickingChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  pickingChipText: {
+    fontSize: 13,
+    fontWeight: '700',
   },
   bottomDiv: {
     alignItems: 'center',
