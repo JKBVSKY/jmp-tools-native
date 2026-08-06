@@ -1,7 +1,7 @@
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { addDoc, collection } from 'firebase/firestore';
-import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
+import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ThemedCard from '../../../components/ThemedCard';
@@ -13,6 +13,7 @@ import { db } from '../../../firebase/config';
 import { useAutoHorizontalScroll } from '../../../hooks/useAutoHorizontalScroll';
 import { useBackgroundXP } from '../../../hooks/useBackgroundXP';
 import { useColors } from '../../../hooks/useColors';
+import AdjustTimeModal from './AdjustTimeModal';
 import { appAlert, appConfirm } from '../../../utils/crossPlatformAlert';
 
 
@@ -29,12 +30,34 @@ export default function Results({
   const { user } = useAuth();
   const userId = user?.id; // uid from AuthContext
   const [isSaving, setIsSaving] = useState(false);
+  const initialPalletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
+  const initialTrucksCount = trucksHistory.length;
+  const [editedPalletsLoaded, setEditedPalletsLoaded] = useState(initialPalletsLoaded);
+  const [editedTrucksCount, setEditedTrucksCount] = useState(initialTrucksCount);
+  const [editedStartTime, setEditedStartTime] = useState(startTime);
+  const [editedEndTime, setEditedEndTime] = useState(endTime);
+  const [activeTimeModal, setActiveTimeModal] = useState(null);
+  const [isPalletsModalVisible, setIsPalletsModalVisible] = useState(false);
+  const [isTrucksModalVisible, setIsTrucksModalVisible] = useState(false);
+  const [palletsInput, setPalletsInput] = useState(String(initialPalletsLoaded));
+  const [trucksInput, setTrucksInput] = useState(String(initialTrucksCount));
 
   const CARD_SIZE = 140;
 
-  const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
-  const trucksCount = trucksHistory.length;
-  const palletsRate = sessionTime > 0 ? (palletsLoaded / (sessionTime / 3600)).toFixed(2) : '0.00';
+  useEffect(() => {
+    setEditedStartTime(startTime);
+    setEditedEndTime(endTime);
+    setEditedPalletsLoaded(initialPalletsLoaded);
+    setEditedTrucksCount(initialTrucksCount);
+    setPalletsInput(String(initialPalletsLoaded));
+    setTrucksInput(String(initialTrucksCount));
+  }, [startTime, endTime, initialPalletsLoaded, initialTrucksCount]);
+
+  const recalculatedSessionTime = Math.floor((editedEndTime - editedStartTime) / 1000);
+  const hasInvalidTimeRange =
+    !editedStartTime || !editedEndTime || Number.isNaN(recalculatedSessionTime) || recalculatedSessionTime <= 0;
+  const effectiveSessionTime = hasInvalidTimeRange ? 0 : recalculatedSessionTime;
+  const palletsRate = effectiveSessionTime > 0 ? (editedPalletsLoaded / (effectiveSessionTime / 3600)).toFixed(2) : '0.00';
 
   const { syncPendingXP } = useBackgroundXP(awardXP, true);
 
@@ -59,7 +82,10 @@ export default function Results({
   };
 
   const formatDate = (timestamp) => {
-    return new Date(timestamp).toLocaleString();
+    if (!timestamp) return '--';
+    const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return '--';
+    return date.toLocaleString();
   };
 
   const isNightShiftSession = (startTimeValue) => {
@@ -78,6 +104,11 @@ export default function Results({
   // ✅ MAIN SAVE HANDLER - NOW WITH CORRECT ORDER!
   const handleSave = async () => {
     try {
+      if (hasInvalidTimeRange) {
+        appAlert('Błąd', 'Nieprawidłowy zakres czasu. Ustaw poprawny czas rozpoczęcia i zakończenia.');
+        return;
+      }
+
       setIsSaving(true);
       // ✅ STEP 1: Sync cached XP as BATCH
       const syncResult = await syncPendingXP();
@@ -87,16 +118,16 @@ export default function Results({
         );
       }
 
-      const wasNightShift = isNightShiftSession(startTime);
+      const wasNightShift = isNightShiftSession(editedStartTime);
 
       const sessionData = {
-        date: new Date(startTime).toISOString(),  // ✅ Safe conversion
-        sessionTime,
-        startTime,
-        endTime,
+        date: new Date(editedStartTime).toISOString(),  // ✅ Safe conversion
+        sessionTime: effectiveSessionTime,
+        startTime: editedStartTime,
+        endTime: editedEndTime,
         nightShift: Boolean(wasNightShift),
-        palletsLoaded,
-        trucksCount,
+        palletsLoaded: editedPalletsLoaded,
+        trucksCount: editedTrucksCount,
         palletsRate: parseFloat(palletsRate),
         score: sessionScore,
         trucks: trucksHistory,
@@ -122,11 +153,11 @@ export default function Results({
       // ✅ STEP 3: Calculate NEW stats (BEFORE checking achievements!)
       const newStats = {
         totalSessions: (profile.stats.totalSessions || 0) + 1,
-        totalTimeWorked: (profile.stats.totalTimeWorked || 0) + (sessionTime / 3600),
-        palletsLoaded: (profile.stats.palletsLoaded || 0) + palletsLoaded,
+        totalTimeWorked: (profile.stats.totalTimeWorked || 0) + (effectiveSessionTime / 3600),
+        palletsLoaded: (profile.stats.palletsLoaded || 0) + editedPalletsLoaded,
         totalScore: (profile.stats.totalScore || 0) + sessionScore,
         bestScore: Math.max(profile.stats.bestScore || 0, sessionScore),
-        palletsLoadedInSession: palletsLoaded,
+        palletsLoadedInSession: editedPalletsLoaded,
         perfectScores:
           (profile.stats.perfectScores || 0) + (sessionScore === 10 ? 1 : 0),
         nightShiftsCompleted:
@@ -215,6 +246,38 @@ export default function Results({
     );
   };
 
+  const handleConfirmPallets = () => {
+    const parsed = parseInt(palletsInput, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      appAlert('Błąd', 'Podaj poprawną liczbę palet (0 lub więcej).');
+      return;
+    }
+
+    setEditedPalletsLoaded(parsed);
+    setIsPalletsModalVisible(false);
+  };
+
+  const handleTimeConfirm = (value) => {
+    if (activeTimeModal === 'start') {
+      setEditedStartTime(value);
+    }
+    if (activeTimeModal === 'finish') {
+      setEditedEndTime(value);
+    }
+    setActiveTimeModal(null);
+  };
+
+  const handleConfirmTrucks = () => {
+    const parsed = parseInt(trucksInput, 10);
+    if (Number.isNaN(parsed) || parsed < 0) {
+      appAlert('Błąd', 'Podaj poprawną liczbę dostaw (0 lub więcej).');
+      return;
+    }
+
+    setEditedTrucksCount(parsed);
+    setIsTrucksModalVisible(false);
+  };
+
   //AutoHorizontalScroll Configuration
   const {
     scrollRef,
@@ -245,7 +308,6 @@ export default function Results({
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          <Text style={[styles.title, { color: colors.title }]}>Sesja Zakończona! ✓</Text>
 
           {/* Score Display */}
           <View style={[styles.scoreCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -292,24 +354,48 @@ export default function Results({
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas</Text>
                 </View>
-                <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(sessionTime)}</Text>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{formatTime(effectiveSessionTime)}</Text>
               </ThemedCard>
 
               {/* Card 3: Pallets Loaded */}
               <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE }]}>
-                <MaterialCommunityIcons name="cube-send" size={28} color={colors.grayIconColor} />
+                <View style={styles.statCardTopRow}>
+                  <MaterialCommunityIcons name="cube-send" size={28} color={colors.grayIconColor} />
+                  <Pressable
+                    onPress={() => {
+                      setPalletsInput(String(editedPalletsLoaded));
+                      setIsPalletsModalVisible(true);
+                    }}
+                    style={[styles.inlineIconEditButton, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={12} color={colors.textSecondary} />
+                    <Text style={[styles.inlineEditText, { color: colors.textSecondary }]}>Edytuj</Text>
+                  </Pressable>
+                </View>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Palety</Text>
                 </View>
-                <Text style={[styles.cardValue, { color: colors.title }]}>{palletsLoaded}</Text>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{editedPalletsLoaded}</Text>
               </ThemedCard>
               {/* Card 4: Trucks Loaded */}
               <ThemedCard style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE }]}>
-                <MaterialCommunityIcons name="truck" size={28} color={colors.grayIconColor} />
+                <View style={styles.statCardTopRow}>
+                  <MaterialCommunityIcons name="truck" size={28} color={colors.grayIconColor} />
+                  <Pressable
+                    onPress={() => {
+                      setTrucksInput(String(editedTrucksCount));
+                      setIsTrucksModalVisible(true);
+                    }}
+                    style={[styles.inlineIconEditButton, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
+                  >
+                    <MaterialCommunityIcons name="pencil" size={12} color={colors.textSecondary} />
+                    <Text style={[styles.inlineEditText, { color: colors.textSecondary }]}>Edytuj</Text>
+                  </Pressable>
+                </View>
                 <View style={styles.cardHeader}>
                   <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Dostawy</Text>
                 </View>
-                <Text style={[styles.cardValue, { color: colors.title }]}>{trucksCount}</Text>
+                <Text style={[styles.cardValue, { color: colors.title }]}>{editedTrucksCount}</Text>
               </ThemedCard>
             </Animated.ScrollView>
           </View>
@@ -319,12 +405,32 @@ export default function Results({
             <Text style={[styles.detailsTitle, { color: colors.title }]}>Szczegóły Sesji</Text>
             <View style={[styles.detailRow, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Rozpoczęto o:</Text>
-              <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(startTime)}</Text>
+              <View style={styles.detailValueWithEdit}>
+                <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(editedStartTime)}</Text>
+                <Pressable
+                  onPress={() => setActiveTimeModal('start')}
+                  style={[styles.timeEditButton, { borderColor: colors.border, backgroundColor: colors.cardInCardBackground }]}
+                >
+                  <MaterialCommunityIcons name="pencil" size={14} color={colors.textSecondary} />
+                </Pressable>
+              </View>
             </View>
             <View style={styles.detailRow}>
               <Text style={[styles.detailLabel, { color: colors.textSecondary }]}>Zakończono o:</Text>
-              <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(endTime)}</Text>
+              <View style={styles.detailValueWithEdit}>
+                <Text style={[styles.detailValue, { color: colors.title }]}>{formatDate(editedEndTime)}</Text>
+                <Pressable
+                  onPress={() => setActiveTimeModal('finish')}
+                  style={[styles.timeEditButton, { borderColor: colors.border, backgroundColor: colors.cardInCardBackground }]}
+                >
+                  <MaterialCommunityIcons name="pencil" size={14} color={colors.textSecondary} />
+                </Pressable>
+              </View>
             </View>
+
+            {hasInvalidTimeRange && (
+              <Text style={[styles.validationText, { color: colors.error || '#ef4444' }]}>Czas zakończenia musi być późniejszy niż rozpoczęcia.</Text>
+            )}
           </View>
 
           {/* <ScrollView style={styles.scrollView}>
@@ -356,7 +462,7 @@ export default function Results({
               },
             ]}
             onPress={handleSave}
-            disabled={isSaving}
+            disabled={isSaving || hasInvalidTimeRange}
           >
             <MaterialCommunityIcons name="check" size={24} color={colors.butText} />
             <Text style={[styles.buttonText, { color: colors.butText }]}>Zapisz Sesję</Text>
@@ -380,6 +486,103 @@ export default function Results({
           </Pressable>
         </View>
       </View>
+
+      <AdjustTimeModal
+        visible={activeTimeModal === 'start'}
+        onClose={() => setActiveTimeModal(null)}
+        onConfirm={handleTimeConfirm}
+        initialTime={editedStartTime}
+        type="start"
+      />
+
+      <AdjustTimeModal
+        visible={activeTimeModal === 'finish'}
+        onClose={() => setActiveTimeModal(null)}
+        onConfirm={handleTimeConfirm}
+        initialTime={editedEndTime}
+        type="finish"
+        startTime={editedStartTime}
+      />
+
+      <Modal
+        visible={isPalletsModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsPalletsModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={[styles.palletsModal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+              <Text style={[styles.palletsModalTitle, { color: colors.title }]}>Edytuj liczbę palet</Text>
+              <TextInput
+                value={palletsInput}
+                onChangeText={(value) => setPalletsInput(value.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={colors.textSecondary}
+                style={[styles.palletsInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                autoFocus
+              />
+
+              <View style={styles.palletsModalButtons}>
+                <Pressable
+                  onPress={() => setIsPalletsModalVisible(false)}
+                  style={[styles.modalButton, { borderColor: colors.border, backgroundColor: colors.cardInCardBackground }]}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.textSecondary }]}>Anuluj</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleConfirmPallets}
+                  style={[styles.modalButton, { borderColor: colors.butBorder, backgroundColor: colors.butBackground }]}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.butText }]}>Zapisz</Text>
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={isTrucksModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsTrucksModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+            <View style={[styles.palletsModal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+              <Text style={[styles.palletsModalTitle, { color: colors.title }]}>Edytuj liczbę dostaw</Text>
+              <TextInput
+                value={trucksInput}
+                onChangeText={(value) => setTrucksInput(value.replace(/[^0-9]/g, ''))}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={colors.textSecondary}
+                style={[styles.palletsInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+                autoFocus
+              />
+
+              <View style={styles.palletsModalButtons}>
+                <Pressable
+                  onPress={() => setIsTrucksModalVisible(false)}
+                  style={[styles.modalButton, { borderColor: colors.border, backgroundColor: colors.cardInCardBackground }]}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.textSecondary }]}>Anuluj</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={handleConfirmTrucks}
+                  style={[styles.modalButton, { borderColor: colors.butBorder, backgroundColor: colors.butBackground }]}
+                >
+                  <Text style={[styles.modalButtonText, { color: colors.butText }]}>Zapisz</Text>
+                </Pressable>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </View>
+      </Modal>
     </View >
   );
 }
@@ -394,12 +597,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     justifyContent: 'space-between',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    padding: 24,
-    textAlign: 'center',
+    paddingTop: 16,
   },
   scoreCard: {
     borderRadius: 24,
@@ -477,6 +675,11 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
   },
+  statCardTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
   cardLabel: {
     fontSize: 17,
     fontWeight: '600',
@@ -512,9 +715,40 @@ const styles = StyleSheet.create({
   detailLabel: {
     fontSize: 14,
   },
+  detailValueWithEdit: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
+  },
+  timeEditButton: {
+    borderWidth: 1,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineIconEditButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 999,
+  },
+  inlineEditText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  validationText: {
+    marginTop: 8,
+    fontSize: 13,
+    fontWeight: '600',
   },
   trucksBox: {
     borderWidth: 0,
@@ -582,5 +816,47 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 10,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  palletsModal: {
+    width: '100%',
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
+  },
+  palletsModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 12,
+  },
+  palletsInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 20,
+    fontWeight: '600',
+    marginBottom: 16,
+  },
+  palletsModalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+  },
+  modalButton: {
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  modalButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
