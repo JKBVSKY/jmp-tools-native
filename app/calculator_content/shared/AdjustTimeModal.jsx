@@ -7,8 +7,8 @@ import {
   TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
-  Alert,
 } from "react-native";
 import { useColors } from '../../../hooks/useColors';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ import { getFinishTimeRange, isFinishTimeValid } from '../../../utils/timeUtils'
 
 export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTime, type = 'start', startTime = null }) {
   const colors = useColors();
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
 
   // Define content based on type
   const getModalContent = () => {
@@ -67,6 +68,29 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
       setValidationError('');
     }
   }, [initialTime, visible]);
+
+  useEffect(() => {
+    if (!visible) {
+      setKeyboardHeight(0);
+      return;
+    }
+
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+    const showSub = Keyboard.addListener(showEvent, (e) => {
+      setKeyboardHeight(e.endCoordinates?.height || 0);
+    });
+
+    const hideSub = Keyboard.addListener(hideEvent, () => {
+      setKeyboardHeight(0);
+    });
+
+    return () => {
+      showSub.remove();
+      hideSub.remove();
+    };
+  }, [visible]);
 
   // Handle "Now" button - set to current time
   const handleSetNow = () => {
@@ -215,7 +239,16 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+        <KeyboardAvoidingView
+          style={[
+            styles.keyboardAvoidingContainer,
+            Platform.OS === 'android' && keyboardHeight > 0
+              ? { paddingBottom: keyboardHeight }
+              : null,
+          ]}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}
+        >
           <View style={styles.modalContainer}>
             <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
               <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
@@ -369,6 +402,13 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  keyboardAvoidingContainer: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
   },
   modalContainer: {
     width: '90%',

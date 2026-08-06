@@ -35,7 +35,6 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   const [connectedShops, setConnectedShops] = useState(false);
 
   // Refs
-  const scrollViewRef = useRef(null);
   const palletsInputRef = useRef(null);
   const shopInputRef = useRef(null);
   const secondShopInputRef = useRef(null);
@@ -152,20 +151,19 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
       transparent={true}
       onRequestClose={handleClose}
     >
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={{ flex: 1, width: '100%', justifyContent: 'center', alignItems: 'center' }}
-        >
-          <ScrollView
-            ref={scrollViewRef}
-            style={{ width: '100%' }}
-            contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', alignItems: 'center' }}
-            scrollEnabled={true}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
-              <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.overlay}
+      >
+        <View style={styles.modalViewport}>
+          <View style={[styles.modalContainer, { backgroundColor: colors.background }]}>
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={[styles.modalContent, { backgroundColor: colors.background }] }>
 
                 {/* Title */}
                 <Text style={[styles.title, { color: colors.text }]}>
@@ -379,15 +377,15 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                           : { color: colors.disabledText || '#999' },
                       ]}
                     >
-                      Dodaj Transport
+                      Dodaj
                     </Text>
                   </TouchableOpacity>
                 </View>
               </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </View>
+            </ScrollView>
+          </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
@@ -399,11 +397,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  modalViewport: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 24,
+  },
   modalContainer: {
     borderRadius: 16,
     width: '90%',
     maxWidth: 400,
-    maxHeight: '80%',
+    maxHeight: '100%',
+  },
+  modalScrollView: {
+    width: '100%',
+  },
+  modalScrollContent: {
+    flexGrow: 1,
   },
   modalContent: {
     borderRadius: 16,
