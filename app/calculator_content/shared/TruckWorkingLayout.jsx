@@ -241,8 +241,8 @@ export default function TruckWorkingLayout(props) {
         };
 
         return (
-            <View>
-                <View key={truck.id} style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
+            <View key={truck.id}>
+                <View style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
                     {/* LEFT SECTION: Truck header + expand */}
                     <TouchableOpacity
                         onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
@@ -669,7 +669,7 @@ export default function TruckWorkingLayout(props) {
                                         </View>
                                     </TouchableOpacity>
 
-                                    {forcedFinishTime && (
+                                    {/* {forcedFinishTime && (
                                         <View
                                             style={[
                                                 styles.autoFinishNotice,
@@ -680,10 +680,10 @@ export default function TruckWorkingLayout(props) {
                                             ]}
                                         >
                                             <Text style={[styles.autoFinishNoticeText, { color: colors.cardTitle }]}>
-                                                ⏰ Auto-finish at {new Date(forcedFinishTime).toLocaleTimeString()}
+                                                ⏰ Koniec o {new Date(forcedFinishTime).toLocaleTimeString()}
                                             </Text>
                                         </View>
-                                    )}
+                                    )} */}
                                 </View>
                             </Animated.View>
                         </View>
@@ -850,6 +850,7 @@ export default function TruckWorkingLayout(props) {
 
 const styles = StyleSheet.create({
     container: {
+        paddingTop: 16,
         flex: 1,
         justifyContent: 'space-between',
     },
