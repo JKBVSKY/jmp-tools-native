@@ -145,6 +145,48 @@ export const ACHIEVEMENTS = {
     description: 'Tego wyniku nie da się przebić. Można go tylko podziwiać.',
     requirement: 'Załaduj w sumie 100 000 palet.',
   },
+  PICKING_BOXES_1: {
+    id: 'achievement_picking_boxes_1',
+    name: 'Pierwszy Tysiącznik+',
+    icon: '📥',
+    description: 'Pierwszy próg kompletacji zaliczony.',
+    requirement: 'Skompletuj w sumie 2 000 paczek.',
+  },
+  PICKING_BOXES_2: {
+    id: 'achievement_picking_boxes_2',
+    name: 'Łowca Paczek',
+    icon: '📦',
+    description: 'Tempo rośnie, wynik robi się konkretny.',
+    requirement: 'Skompletuj w sumie 25 000 paczek.',
+  },
+  PICKING_BOXES_3: {
+    id: 'achievement_picking_boxes_3',
+    name: 'Mocny Picker',
+    icon: '🛒',
+    description: 'Stabilna i mocna regularność na sekcji kompletacji.',
+    requirement: 'Skompletuj w sumie 50 000 paczek.',
+  },
+  PICKING_BOXES_4: {
+    id: 'achievement_picking_boxes_4',
+    name: 'Architekt Kompletacji',
+    icon: '🏗️',
+    description: 'Setki tysięcy paczek to już poziom eksperta.',
+    requirement: 'Skompletuj w sumie 125 000 paczek.',
+  },
+  PICKING_BOXES_5: {
+    id: 'achievement_picking_boxes_5',
+    name: 'Dowódca Alejek',
+    icon: '🎯',
+    description: 'Potwierdzony status lidera kompletacji.',
+    requirement: 'Skompletuj w sumie 250 000 paczek.',
+  },
+  PICKING_BOXES_6: {
+    id: 'achievement_picking_boxes_6',
+    name: 'Legenda Kompletacji',
+    icon: '👑',
+    description: 'Pół miliona paczek. Wynik, obok którego nie da się przejść obojętnie.',
+    requirement: 'Skompletuj w sumie 500 000 paczek.',
+  },
   MARATHON: {
     id: 'achievement_marathon',
     name: 'Maratończyk',
@@ -168,6 +210,7 @@ const getAchievementStats = (userStats = {}) => {
     level: userStats.level || 0,
     perfectScores: userStats.perfectScores || 0,
     palletsLoaded: userStats.palletsLoaded || 0,
+    pickingTotalBoxes: userStats.pickingTotalBoxes || 0,
     totalTimeWorked: userStats.totalTimeWorked || 0,
   };
 };
@@ -200,6 +243,18 @@ export const meetsAchievementRequirement = (achievementId, userStats = {}) => {
       return stats.palletsLoaded >= 50000;
     case ACHIEVEMENTS.PALLETS_6.id:
       return stats.palletsLoaded >= 100000;
+    case ACHIEVEMENTS.PICKING_BOXES_1.id:
+      return stats.pickingTotalBoxes >= 2000;
+    case ACHIEVEMENTS.PICKING_BOXES_2.id:
+      return stats.pickingTotalBoxes >= 25000;
+    case ACHIEVEMENTS.PICKING_BOXES_3.id:
+      return stats.pickingTotalBoxes >= 50000;
+    case ACHIEVEMENTS.PICKING_BOXES_4.id:
+      return stats.pickingTotalBoxes >= 125000;
+    case ACHIEVEMENTS.PICKING_BOXES_5.id:
+      return stats.pickingTotalBoxes >= 250000;
+    case ACHIEVEMENTS.PICKING_BOXES_6.id:
+      return stats.pickingTotalBoxes >= 500000;
     case ACHIEVEMENTS.MARATHON.id:
       return stats.totalTimeWorked >= 100;
     default:
@@ -328,6 +383,54 @@ export const getAchievementProgress = (achievementId, userStats = {}, alreadyUnl
         total: 100000,
         percent: Math.min((stats.palletsLoaded / 100000) * 100, 100),
         label: `${stats.palletsLoaded} / 100000 palet`,
+      };
+
+    case ACHIEVEMENTS.PICKING_BOXES_1.id:
+      return {
+        current: stats.pickingTotalBoxes,
+        total: 2000,
+        percent: Math.min((stats.pickingTotalBoxes / 2000) * 100, 100),
+        label: `${stats.pickingTotalBoxes} / 2000 paczek`,
+      };
+
+    case ACHIEVEMENTS.PICKING_BOXES_2.id:
+      return {
+        current: stats.pickingTotalBoxes,
+        total: 25000,
+        percent: Math.min((stats.pickingTotalBoxes / 25000) * 100, 100),
+        label: `${stats.pickingTotalBoxes} / 25000 paczek`,
+      };
+
+    case ACHIEVEMENTS.PICKING_BOXES_3.id:
+      return {
+        current: stats.pickingTotalBoxes,
+        total: 50000,
+        percent: Math.min((stats.pickingTotalBoxes / 50000) * 100, 100),
+        label: `${stats.pickingTotalBoxes} / 50000 paczek`,
+      };
+
+    case ACHIEVEMENTS.PICKING_BOXES_4.id:
+      return {
+        current: stats.pickingTotalBoxes,
+        total: 125000,
+        percent: Math.min((stats.pickingTotalBoxes / 125000) * 100, 100),
+        label: `${stats.pickingTotalBoxes} / 125000 paczek`,
+      };
+
+    case ACHIEVEMENTS.PICKING_BOXES_5.id:
+      return {
+        current: stats.pickingTotalBoxes,
+        total: 250000,
+        percent: Math.min((stats.pickingTotalBoxes / 250000) * 100, 100),
+        label: `${stats.pickingTotalBoxes} / 250000 paczek`,
+      };
+
+    case ACHIEVEMENTS.PICKING_BOXES_6.id:
+      return {
+        current: stats.pickingTotalBoxes,
+        total: 500000,
+        percent: Math.min((stats.pickingTotalBoxes / 500000) * 100, 100),
+        label: `${stats.pickingTotalBoxes} / 500000 paczek`,
       };
 
     case ACHIEVEMENTS.MARATHON.id:

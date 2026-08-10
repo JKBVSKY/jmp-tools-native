@@ -1,11 +1,17 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { addDoc, collection } from 'firebase/firestore';
+import React, { useMemo, useState } from 'react';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 
+import { ACHIEVEMENTS, calculateLevelFromXP, calculateXPFromScore, checkAchievements } from '../../../constants/LevelSystem';
+import { useAuth } from '../../../context/AuthContext';
 import { useCalculator } from '../../../context/CalculatorContext';
+import { useUserProfile } from '../../../context/UserProfileContext';
+import { db } from '../../../firebase/config';
+import { useBackgroundXP } from '../../../hooks/useBackgroundXP';
 import { useColors } from '../../../hooks/useColors';
-import { appConfirm } from '../../../utils/crossPlatformAlert';
+import { appAlert, appConfirm } from '../../../utils/crossPlatformAlert';
 import { PICKING_SUBSECTIONS } from './usePickingLogic';
 
 const formatElapsed = (seconds) => {
@@ -30,6 +36,11 @@ export default function PickingResults({
   const calc = useCalculator();
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const userId = user?.id;
+  const { profile, awardXP, updateStats, unlockAchievement } = useUserProfile();
+  const { syncPendingXP } = useBackgroundXP(awardXP, true);
+  const [isSaving, setIsSaving] = useState(false);
 
   const normalizedStats = (() => {
     if (pickingSubsectionStats && typeof pickingSubsectionStats === 'object') {
@@ -83,6 +94,199 @@ export default function PickingResults({
     })
     .filter(Boolean);
 
+  const totals = useMemo(() => {
+    return subsectionEntries.reduce(
+      (acc, item) => {
+        acc.boxes += Number(item.boxesCount || 0);
+        acc.orders += Number(item.ordersCount || 0);
+        acc.time += Number(item.sessionTime || 0);
+        return acc;
+      },
+      { boxes: 0, orders: 0, time: 0 }
+    );
+  }, [subsectionEntries]);
+
+  const effectiveSessionTime = Math.max(0, Number(sessionTime || totals.time || 0));
+  const boxesRate = effectiveSessionTime > 0
+    ? totals.boxes / (effectiveSessionTime / 3600)
+    : 0;
+
+  const calculateSubsectionScore = (entry) => {
+    const subsectionGoal = Number(entry.boxesRateGoal || 0);
+    const subsectionRate = Number(entry.boxesRate || 0);
+
+    if (subsectionGoal <= 0) {
+      const capped = Math.max(1, Math.min(10, subsectionRate / 6));
+      return Number(capped.toFixed(1));
+    }
+
+    const ratio = subsectionRate / subsectionGoal;
+    const score = Math.max(1, Math.min(10, ratio * 10));
+    return Number(score.toFixed(1));
+  };
+
+  const calculateSessionScore = () => {
+    if (subsectionEntries.length === 0) {
+      return 1;
+    }
+
+    const weightedScoreSum = subsectionEntries.reduce((sum, entry) => {
+      const weight = Math.max(1, Number(entry.sessionTime || 0));
+      return sum + calculateSubsectionScore(entry) * weight;
+    }, 0);
+
+    const totalWeight = subsectionEntries.reduce(
+      (sum, entry) => sum + Math.max(1, Number(entry.sessionTime || 0)),
+      0
+    );
+
+    if (totalWeight <= 0) {
+      return 1;
+    }
+
+    return Number((weightedScoreSum / totalWeight).toFixed(1));
+  };
+
+  const sessionScore = calculateSessionScore();
+
+  const isNightShiftSession = (startTimeValue) => {
+    if (!startTimeValue) return false;
+
+    const date = new Date(startTimeValue);
+    if (Number.isNaN(date.getTime())) return false;
+
+    const totalMinutes = date.getHours() * 60 + date.getMinutes();
+    const nightStart = 22 * 60;
+    const nightEnd = 6 * 60;
+
+    return totalMinutes >= nightStart || totalMinutes < nightEnd;
+  };
+
+  const handleSave = async () => {
+    if (!userId) {
+      appAlert('Błąd', 'Brak zalogowanego użytkownika - nie można zapisać historii.');
+      return;
+    }
+
+    if (!profile) {
+      appAlert('Błąd', 'Profil użytkownika nie jest gotowy. Spróbuj ponownie za chwilę.');
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+
+      const syncResult = await syncPendingXP();
+      if (syncResult && syncResult.synced > 0) {
+        console.log(
+          `✅ Synced ${syncResult.synced} cached actions (+${syncResult.totalXP} XP total)`
+        );
+      }
+
+      const wasNightShift = isNightShiftSession(startTime);
+      const sessionPayload = {
+        sessionType: 'picking',
+        date: new Date(startTime || Date.now()).toISOString(),
+        startTime: startTime || null,
+        endTime: endTime || null,
+        sessionTime: effectiveSessionTime,
+        nightShift: Boolean(wasNightShift),
+        picking: {
+          subsectionEntries,
+          totalBoxes: totals.boxes,
+          totalOrders: totals.orders,
+          averageBoxesRate: Number(boxesRate.toFixed(2)),
+          score: sessionScore,
+        },
+      };
+
+      const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
+      await addDoc(sessionsRef, sessionPayload);
+
+      const xpEarned = calculateXPFromScore(sessionScore);
+      const xpResult = await awardXP(xpEarned);
+
+      if (!xpResult) {
+        appAlert('Błąd', 'Nie udało się przyznać XP za sesję kompletacji.');
+        return;
+      }
+
+      const currentStats = profile.stats || {};
+      const newStats = {
+        totalSessions: (currentStats.totalSessions || 0) + 1,
+        totalTimeWorked: (currentStats.totalTimeWorked || 0) + (effectiveSessionTime / 3600),
+        totalScore: (currentStats.totalScore || 0) + sessionScore,
+        bestScore: Math.max(currentStats.bestScore || 0, sessionScore),
+        perfectScores: (currentStats.perfectScores || 0) + (sessionScore === 10 ? 1 : 0),
+        nightShiftsCompleted: (currentStats.nightShiftsCompleted || 0) + (wasNightShift ? 1 : 0),
+        pickingTotalSessions: (currentStats.pickingTotalSessions || 0) + 1,
+        pickingTotalTimeWorked: (currentStats.pickingTotalTimeWorked || 0) + (effectiveSessionTime / 3600),
+        pickingTotalBoxes: (currentStats.pickingTotalBoxes || 0) + totals.boxes,
+        pickingTotalOrders: (currentStats.pickingTotalOrders || 0) + totals.orders,
+        pickingBestRate: Math.max(currentStats.pickingBestRate || 0, boxesRate),
+        pickingTotalScore: (currentStats.pickingTotalScore || 0) + sessionScore,
+        pickingBestScore: Math.max(currentStats.pickingBestScore || 0, sessionScore),
+        pickingBoxesInSession: totals.boxes,
+      };
+
+      const achievementsStats = {
+        ...newStats,
+        level: xpResult.newLevel,
+        totalXP: xpResult.newTotalXP,
+      };
+
+      const newAchievements = checkAchievements(
+        achievementsStats,
+        sessionScore,
+        profile.achievements || []
+      );
+
+      await updateStats(newStats);
+
+      for (const achievementId of newAchievements) {
+        const success = await unlockAchievement(achievementId);
+        if (success) {
+          const achievementDetails = Object.values(ACHIEVEMENTS).find((a) => a.id === achievementId);
+          if (achievementDetails) {
+            console.log(`🏆 Achievement unlocked: ${achievementDetails.name}`);
+          }
+        }
+      }
+
+      let message = `🎯 Sesja kompletacji zapisana!\n+${xpEarned} XP zdobytych`;
+
+      if (newAchievements.length > 0) {
+        const achievementNames = newAchievements
+          .map((id) => Object.values(ACHIEVEMENTS).find((a) => a.id === id)?.name)
+          .filter(Boolean)
+          .join(', ');
+        message += `\n🏆 Osiągnięcie${newAchievements.length > 1 ? 's' : ''} odblokowane: ${achievementNames}`;
+      }
+
+      if (xpResult.leveledUp) {
+        appAlert(
+          '🎉 Level Up!',
+          `Gratulacje! Zdobyłeś poziom ${xpResult.newLevel}!\n\n${message}`,
+          handleFinish
+        );
+      } else {
+        const levelData = calculateLevelFromXP(xpResult.newTotalXP);
+        const progressText = `Postęp do Poziomu ${xpResult.newLevel + 1}: ${levelData.currentXP} / ${levelData.xpToNextLevel} XP`;
+
+        appAlert(
+          '⭐ Sesja zapisana!',
+          `${message}\n\n${progressText}`,
+          handleFinish
+        );
+      }
+    } catch (error) {
+      console.error('❌ Error saving picking session:', error);
+      appAlert('Błąd', `Nie udało się zapisać sesji: ${error.message}`);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleFinish = async () => {
     await calc.clearState();
     calc.updateState({ mode: 'init' });
@@ -101,12 +305,24 @@ export default function PickingResults({
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {isSaving && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color={colors.iconColor} />
+          <Text style={{ color: '#fff', marginTop: 8 }}>Zapisywanie...</Text>
+        </View>
+      )}
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={[styles.title, { color: colors.title }]}>Sesja kompletacji zakończona</Text>
 
         <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
           <Text style={[styles.label, { color: colors.textSecondary }]}>Czas sesji</Text>
           <Text style={[styles.value, { color: colors.text }]}>{formatElapsed(sessionTime)}</Text>
+        </View>
+
+        <View style={[styles.card, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Ocena sesji</Text>
+          <Text style={[styles.value, { color: colors.text }]}>{sessionScore.toFixed(1)} / 10.0</Text>
+          <Text style={[styles.subValue, { color: colors.textSecondary }]}>+{calculateXPFromScore(sessionScore)} XP</Text>
         </View>
 
         {subsectionEntries.length === 0 ? (
@@ -156,9 +372,13 @@ export default function PickingResults({
           <Text style={[styles.buttonText, { color: colors.outButText }]}>Odrzuć</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={[styles.button, { backgroundColor: colors.butBackground }]} onPress={handleFinish}>
+        <TouchableOpacity
+          style={[styles.button, { backgroundColor: colors.butBackground }]}
+          onPress={handleSave}
+          disabled={isSaving}
+        >
           <Ionicons name="checkmark-circle-outline" size={20} color={colors.butText} />
-          <Text style={[styles.buttonText, { color: colors.butText }]}>Zakończ</Text>
+          <Text style={[styles.buttonText, { color: colors.butText }]}>Zapisz sesję</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -237,5 +457,16 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 16,
     fontWeight: '700',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
 });
