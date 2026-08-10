@@ -91,7 +91,7 @@ export const ACHIEVEMENTS = {
   },
   MASTER_LOADER: {
     id: 'achievement_master_loader',
-    name: 'Mistrz Ładowania',
+    name: 'Mistrz Magazynu',
     icon: '👑',
     description: 'Poziom 50. Status: legenda hali.',
     requirement: 'Zdobądź poziom 50',

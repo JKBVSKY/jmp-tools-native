@@ -651,7 +651,7 @@ export default function Profile() {
                   numberOfLines={2}
                   ellipsizeMode="tail"
                 >
-                  {achievement.name}
+                  {achievement.name.replace('Mistrz Ładowania', 'Mistrz Magazynu')}
                 </Text>
               </Pressable>
             ))}
