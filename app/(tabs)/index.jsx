@@ -1,8 +1,9 @@
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { collection, collectionGroup, getDocs, orderBy, query, where } from 'firebase/firestore';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
@@ -17,6 +18,8 @@ import { db } from '../../firebase/config';
 import { useAutoHorizontalScroll } from '../../hooks/useAutoHorizontalScroll';
 import { useColors } from '../../hooks/useColors';
 import SessionModal from '../modals/SessionModal';
+
+const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
 
 
 // inside app/(tabs)/index.jsx
@@ -68,6 +71,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isSessionModalVisible, setSessionModalVisible] = useState(false);
   const [rank, setRank] = useState('-');
+  const [pickingRanks, setPickingRanks] = useState({});
+  const [selectedPickingSubsection, setSelectedPickingSubsection] = useState(null);
+  const [dashboardSectionsOrder, setDashboardSectionsOrder] = useState('truck-first');
+  const [dashboardSectionsVisibility, setDashboardSectionsVisibility] = useState('both');
   const userId = user?.id;
 
   const CARD_SIZE = 140;
@@ -99,8 +106,128 @@ export default function Dashboard() {
     return month === currentMonth.month && year === currentMonth.year;
   });
 
-  const summary = calculateSummary(sessionsForMonth);
+  const truckSessionsForMonth = sessionsForMonth.filter((s) => s.sessionType !== 'picking');
+  const pickingSessionsForMonth = sessionsForMonth.filter((s) => s.sessionType === 'picking');
+
+  const summary = calculateSummary(truckSessionsForMonth);
+
+  const pickingStatsBySubsection = useMemo(() => {
+    const base = PICKING_SUBSECTIONS.reduce((acc, subsection) => {
+      acc[subsection] = {
+        subsection,
+        boxesCount: 0,
+        sessionTime: 0,
+        ordersCount: 0,
+        boxesRate: 0,
+      };
+      return acc;
+    }, {});
+
+    pickingSessionsForMonth.forEach((session) => {
+      const entries = Array.isArray(session.picking?.subsectionEntries)
+        ? session.picking.subsectionEntries
+        : [];
+
+      entries.forEach((entry) => {
+        const subsection = entry?.subsection;
+        if (!subsection || !base[subsection]) return;
+
+        base[subsection].boxesCount += Number(entry.boxesCount || 0);
+        base[subsection].sessionTime += Number(entry.sessionTime || 0);
+        base[subsection].ordersCount += Number(entry.ordersCount || 0);
+      });
+    });
+
+    Object.keys(base).forEach((subsection) => {
+      const subsectionStats = base[subsection];
+      subsectionStats.boxesRate = subsectionStats.sessionTime > 0
+        ? subsectionStats.boxesCount / (subsectionStats.sessionTime / 3600)
+        : 0;
+    });
+
+    return base;
+  }, [pickingSessionsForMonth]);
+
+  const pickingDefaultSubsection = useMemo(() => {
+    let best = PICKING_SUBSECTIONS[0];
+    let bestTime = -1;
+
+    PICKING_SUBSECTIONS.forEach((subsection) => {
+      const sessionTime = Number(pickingStatsBySubsection[subsection]?.sessionTime || 0);
+      if (sessionTime > bestTime) {
+        best = subsection;
+        bestTime = sessionTime;
+      }
+    });
+
+    return best;
+  }, [pickingStatsBySubsection]);
+
+  useEffect(() => {
+    if (!selectedPickingSubsection) {
+      setSelectedPickingSubsection(pickingDefaultSubsection);
+      return;
+    }
+
+    if (!PICKING_SUBSECTIONS.includes(selectedPickingSubsection)) {
+      setSelectedPickingSubsection(pickingDefaultSubsection);
+    }
+  }, [pickingDefaultSubsection, selectedPickingSubsection]);
+
+  const activePickingSubsection = selectedPickingSubsection || pickingDefaultSubsection;
+  const activePickingStats = pickingStatsBySubsection[activePickingSubsection] || {
+    boxesCount: 0,
+    sessionTime: 0,
+    ordersCount: 0,
+    boxesRate: 0,
+  };
+
+  const activePickingRank = pickingRanks[activePickingSubsection] || '-';
   const monthBounds = getMonthBounds();
+
+  useEffect(() => {
+    const loadDashboardPreferences = async () => {
+      try {
+        const [storedOrder, storedVisibility] = await Promise.all([
+          AsyncStorage.getItem('dashboardSectionsOrder'),
+          AsyncStorage.getItem('dashboardSectionsVisibility'),
+        ]);
+
+        if (storedOrder === 'truck-first' || storedOrder === 'picking-first') {
+          setDashboardSectionsOrder(storedOrder);
+        }
+
+        if (storedVisibility === 'both' || storedVisibility === 'truck' || storedVisibility === 'picking') {
+          setDashboardSectionsVisibility(storedVisibility);
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard preferences:', error);
+      }
+    };
+
+    loadDashboardPreferences();
+  }, []);
+
+  const handleSwapDashboardSections = async () => {
+    const nextOrder = dashboardSectionsOrder === 'truck-first' ? 'picking-first' : 'truck-first';
+    setDashboardSectionsOrder(nextOrder);
+
+    try {
+      await AsyncStorage.setItem('dashboardSectionsOrder', nextOrder);
+    } catch (error) {
+      console.error('Failed to persist dashboard sections order:', error);
+    }
+  };
+
+  const handleSetDashboardSectionsVisibility = async (nextVisibility) => {
+    setDashboardSectionsVisibility(nextVisibility);
+
+    try {
+      await AsyncStorage.setItem('dashboardSectionsVisibility', nextVisibility);
+    } catch (error) {
+      console.error('Failed to persist dashboard sections visibility:', error);
+    }
+  };
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -146,6 +273,7 @@ export default function Dashboard() {
       );
 
       const grouped = new Map();
+      const pickingGrouped = new Map();
 
       sessionsSnapshot.forEach((sessionDoc) => {
         const ownerRef = sessionDoc.ref.parent.parent;
@@ -156,6 +284,35 @@ export default function Dashboard() {
         }
 
         const session = sessionDoc.data();
+
+        if (session.sessionType === 'picking') {
+          const entries = Array.isArray(session.picking?.subsectionEntries)
+            ? session.picking.subsectionEntries
+            : [];
+
+          entries.forEach((entry) => {
+            const subsection = entry?.subsection;
+            if (!subsection) return;
+
+            if (!pickingGrouped.has(subsection)) {
+              pickingGrouped.set(subsection, new Map());
+            }
+
+            const subsectionMap = pickingGrouped.get(subsection);
+            const subsectionCurrent = subsectionMap.get(sessionUserId) || {
+              userId: sessionUserId,
+              totalUnits: 0,
+              totalTime: 0,
+            };
+
+            subsectionCurrent.totalUnits += Number(entry.boxesCount || 0);
+            subsectionCurrent.totalTime += Number(entry.sessionTime || 0);
+            subsectionMap.set(sessionUserId, subsectionCurrent);
+          });
+
+          return;
+        }
+
         const current = grouped.get(sessionUserId) || {
           userId: sessionUserId,
           totalPallets: 0,
@@ -202,9 +359,49 @@ export default function Dashboard() {
 
       const currentUserEntry = ranked.find((entry) => entry.userId === userId);
       setRank(currentUserEntry ? `${currentUserEntry.place}.` : '-');
+
+      const nextPickingRanks = {};
+
+      PICKING_SUBSECTIONS.forEach((subsection) => {
+        const subsectionMap = pickingGrouped.get(subsection);
+        if (!subsectionMap) {
+          nextPickingRanks[subsection] = '-';
+          return;
+        }
+
+        const rankedSubsection = Array.from(subsectionMap.values())
+          .map((entry) => {
+            const averageRate = entry.totalTime > 0
+              ? entry.totalUnits / (entry.totalTime / 3600)
+              : 0;
+
+            return {
+              ...entry,
+              averageRate,
+            };
+          })
+          .filter((entry) => entry.averageRate > 0)
+          .sort((a, b) => {
+            if (b.averageRate !== a.averageRate) {
+              return b.averageRate - a.averageRate;
+            }
+
+            if (b.totalUnits !== a.totalUnits) {
+              return b.totalUnits - a.totalUnits;
+            }
+
+            return a.userId.localeCompare(b.userId);
+          });
+
+        const userIndex = rankedSubsection.findIndex((entry) => entry.userId === userId);
+        nextPickingRanks[subsection] = userIndex >= 0 ? `${userIndex + 1}.` : '-';
+      });
+
+      setPickingRanks(nextPickingRanks);
     } catch (error) {
       console.error('Failed to load rank:', error);
       setRank('-');
+      setPickingRanks({});
     }
   }, [monthBounds.endIso, monthBounds.startIso, profile, user, userId]);
 
@@ -274,11 +471,232 @@ export default function Dashboard() {
     idleToResumeMs: 5000,
   });
 
+  const {
+    scrollRef: pickingScrollRef,
+    handleLayout: handlePickingLayout,
+    handleContentSizeChange: handlePickingContentSizeChange,
+    handleUserInteraction: handlePickingUserInteraction,
+    handleMomentumScrollEnd: handlePickingMomentumScrollEnd,
+    handleScrollEndDrag: handlePickingScrollEndDrag,
+  } = useAutoHorizontalScroll({
+    speed: 20,
+    pauseAtEdgesMs: 2000,
+    idleToResumeMs: 5000,
+  });
+
   const handleAvatarPress = () => {
     router.push('/(app)/(tabs)/profile');
   };
 
   const avatarUri = profile?.photoURL || 'https://via.placeholder.com/150/cccccc/ffffff?text=Avatar';
+
+  const truckSummarySection = (
+    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}> 
+        Załadunek
+      </Text>
+      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}> 
+        Podsumowanie Twojej aktywności w tym miesiącu
+      </Text>
+      <View style={styles.statsGrid}>
+        <ThemedCard
+          style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
+        >
+          <Ionicons
+            name="flash-outline"
+            size={28}
+            style={[
+              styles.cardIcon,
+              { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+            ]}
+          />
+          <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+            Średnia miesięczna
+          </Text>
+          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}> 
+            {summary.averageRate.toFixed(2)} pal/h
+          </Text>
+        </ThemedCard>
+
+        <Animated.ScrollView
+          ref={scrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          onLayout={handleLayout}
+          onContentSizeChange={handleContentSizeChange}
+          onTouchStart={handleUserInteraction}
+          onScrollBeginDrag={handleUserInteraction}
+          onScrollEndDrag={handleScrollEndDrag}
+          onMomentumScrollEnd={handleMomentumScrollEnd}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.horizontalCardsContent}
+        >
+          <ThemedCard
+            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
+          >
+            <Ionicons
+              name="layers-outline"
+              size={28}
+              style={[
+                styles.cardIcon,
+                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+              ]}
+            />
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+              Palety
+            </Text>
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}> 
+              {summary.totalPallets}
+            </Text>
+          </ThemedCard>
+          <ThemedCard
+            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
+          >
+            <Ionicons
+              name="trophy-outline"
+              size={28}
+              style={[
+                styles.cardIcon,
+                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+              ]}
+            />
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+              Ranking
+            </Text>
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{rank}</Text>
+          </ThemedCard>
+          <ThemedCard
+            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
+          >
+            <Ionicons
+              name="time-outline"
+              size={28}
+              style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
+            />
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+              Czas
+            </Text>
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}> 
+              {formatTime(summary.totalTime)}
+            </Text>
+          </ThemedCard>
+        </Animated.ScrollView>
+      </View>
+    </View>
+  );
+
+  const pickingSummarySection = (
+    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}> 
+        Kompletacja
+      </Text>
+      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}> 
+        Podsumowanie Twojej aktywności w tym miesiącu
+      </Text>
+
+      <View style={styles.pickingSubsectionSelector}>
+        {PICKING_SUBSECTIONS.map((subsection) => {
+          const isActive = activePickingSubsection === subsection;
+          return (
+            <Pressable
+              key={subsection}
+              onPress={() => setSelectedPickingSubsection(subsection)}
+              style={[
+                styles.subsectionChip,
+                {
+                  borderColor: isActive ? colors.butBorder : colors.border,
+                  backgroundColor: isActive ? colors.butBackground : colors.cardInCardBackground,
+                },
+              ]}
+            >
+              <Text style={{ color: isActive ? colors.butText : colors.text, fontWeight: '700' }}>{subsection}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View style={styles.statsGrid}>
+        <ThemedCard
+          style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
+        >
+          <Ionicons
+            name="flash-outline"
+            size={28}
+            style={[
+              styles.cardIcon,
+              { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+            ]}
+          />
+          <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+            Średnia miesięczna ({activePickingSubsection})
+          </Text>
+          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}> 
+            {activePickingStats.boxesRate.toFixed(2)} pacz/h
+          </Text>
+        </ThemedCard>
+
+        <Animated.ScrollView
+          ref={pickingScrollRef}
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          onLayout={handlePickingLayout}
+          onContentSizeChange={handlePickingContentSizeChange}
+          onTouchStart={handlePickingUserInteraction}
+          onScrollBeginDrag={handlePickingUserInteraction}
+          onScrollEndDrag={handlePickingScrollEndDrag}
+          onMomentumScrollEnd={handlePickingMomentumScrollEnd}
+          scrollEventThrottle={16}
+          contentContainerStyle={styles.horizontalCardsContent}
+        >
+          <ThemedCard
+            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE }]}
+          >
+            <Ionicons
+              name="cube-outline"
+              size={28}
+              style={[
+                styles.cardIcon,
+                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+              ]}
+            />
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Paczki</Text>
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}> 
+              {activePickingStats.boxesCount.toFixed(2)}
+            </Text>
+          </ThemedCard>
+
+          <ThemedCard
+            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE }]}
+          >
+            <Ionicons
+              name="trophy-outline"
+              size={28}
+              style={[
+                styles.cardIcon,
+                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+              ]}
+            />
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Ranking</Text>
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{activePickingRank}</Text>
+          </ThemedCard>
+
+          <ThemedCard
+            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE }]}
+          >
+            <Ionicons
+              name="time-outline"
+              size={28}
+              style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
+            />
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Czas</Text>
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}> 
+              {formatTime(activePickingStats.sessionTime)}
+            </Text>
+          </ThemedCard>
+        </Animated.ScrollView>
+      </View>
+    </View>
+  );
 
   return (
     <ThemedView style={styles.container}>
@@ -541,100 +959,83 @@ export default function Dashboard() {
                 </View>
               </ThemedCard>
 
-              {/* Monthly Summary */}
-              <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}>
-                  Załadunek
-                </Text>
-                <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
-                  Podsumowanie Twojej aktywności w tym miesiącu
-                </Text>
-                <View style={styles.statsGrid}>
-                  <ThemedCard
-                    style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
-                  >
-                    <Ionicons
-                      name="flash-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Średnia miesięczna
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}>
-                      {summary.averageRate.toFixed(2)} pal/h
-                    </Text>
-                  </ThemedCard>
+              <View style={[styles.dashboardOrderRow, { marginHorizontal: 24 }]}> 
 
-                  {/* HORIZONTAL CARDS */}
-                  <Animated.ScrollView
-                    ref={scrollRef}
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    onLayout={handleLayout}
-                    onContentSizeChange={handleContentSizeChange}
-                    onTouchStart={handleUserInteraction}
-                    onScrollBeginDrag={handleUserInteraction}
-                    onScrollEndDrag={handleScrollEndDrag}
-                    onMomentumScrollEnd={handleMomentumScrollEnd}
-                    scrollEventThrottle={16}
-                    contentContainerStyle={styles.horizontalCardsContent}
+                <View style={styles.visibilityRow}>
+                  <Pressable
+                    onPress={() => handleSetDashboardSectionsVisibility('both')}
+                    style={[
+                      styles.visibilityChip,
+                      {
+                        borderColor: dashboardSectionsVisibility === 'both' ? colors.butBorder : colors.border,
+                        backgroundColor: dashboardSectionsVisibility === 'both' ? colors.butBackground : colors.cardBackground,
+                      },
+                    ]}
                   >
-                    <ThemedCard
-                      style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
-                    >
-                      <Ionicons
-                        name="layers-outline"
-                        size={28}
-                        style={[
-                          styles.cardIcon,
-                          { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                        ]}
-                      />
-                      <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                        Palety
-                      </Text>
-                      <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
-                        {summary.totalPallets}
-                      </Text>
-                    </ThemedCard>
-                    <ThemedCard
-                      style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
-                    >
-                      <Ionicons
-                        name="trophy-outline"
-                        size={28}
-                        style={[
-                          styles.cardIcon,
-                          { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                        ]}
-                      />
-                      <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                        Ranking
-                      </Text>
-                      <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{rank}</Text>
-                    </ThemedCard>
-                    <ThemedCard
-                      style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
-                    >
-                      <Ionicons
-                        name="time-outline"
-                        size={28}
-                        style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
-                      />
-                      <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                        Czas
-                      </Text>
-                      <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
-                        {formatTime(summary.totalTime)}
-                      </Text>
-                    </ThemedCard>
-                  </Animated.ScrollView>
+                    <Text style={{ color: dashboardSectionsVisibility === 'both' ? colors.butText : colors.text, fontWeight: '700' }}>
+                      Obie
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => handleSetDashboardSectionsVisibility('truck')}
+                    style={[
+                      styles.visibilityChip,
+                      {
+                        borderColor: dashboardSectionsVisibility === 'truck' ? colors.butBorder : colors.border,
+                        backgroundColor: dashboardSectionsVisibility === 'truck' ? colors.butBackground : colors.cardBackground,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: dashboardSectionsVisibility === 'truck' ? colors.butText : colors.text, fontWeight: '700' }}>
+                      Załadunek
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={() => handleSetDashboardSectionsVisibility('picking')}
+                    style={[
+                      styles.visibilityChip,
+                      {
+                        borderColor: dashboardSectionsVisibility === 'picking' ? colors.butBorder : colors.border,
+                        backgroundColor: dashboardSectionsVisibility === 'picking' ? colors.butBackground : colors.cardBackground,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: dashboardSectionsVisibility === 'picking' ? colors.butText : colors.text, fontWeight: '700' }}>
+                      Kompletacja
+                    </Text>
+                  </Pressable>
+                  
+                {dashboardSectionsVisibility === 'both' && (
+                  <Pressable
+                    onPress={handleSwapDashboardSections}
+                    style={[styles.swapOrderButton, { borderColor: colors.outButBorder, backgroundColor: colors.outButBackground }]}
+                  >
+                    <Ionicons name="swap-vertical-outline" size={18} color={colors.outButText} />
+                    <Text style={{ color: colors.outButText, fontWeight: '700' }}>Zamień kolejność sekcji</Text>
+                  </Pressable>
+                )}
                 </View>
               </View>
+
+              {dashboardSectionsVisibility === 'truck' && truckSummarySection}
+
+              {dashboardSectionsVisibility === 'picking' && pickingSummarySection}
+
+              {dashboardSectionsVisibility === 'both' && (dashboardSectionsOrder === 'truck-first' ? (
+                <>
+                  {truckSummarySection}
+                  <View style={styles.summarySectionSpacer} />
+                  {pickingSummarySection}
+                </>
+              ) : (
+                <>
+                  {pickingSummarySection}
+                  <View style={styles.summarySectionSpacer} />
+                  {truckSummarySection}
+                </>
+              ))}
             </View>
           </ScrollView>
 
@@ -792,6 +1193,47 @@ const styles = StyleSheet.create({
   },
   statsGrid: {
     marginHorizontal: 4,
+  },
+  summarySectionSpacer: {
+    height: 16,
+  },
+  dashboardOrderRow: {
+    marginBottom: 12,
+    gap: 8,
+  },
+  swapOrderButton: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  visibilityRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  visibilityChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  pickingSubsectionSelector: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginHorizontal: 4,
+    marginBottom: 12,
+  },
+  subsectionChip: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   horizontalCardsContent: {
     gap: 12,
