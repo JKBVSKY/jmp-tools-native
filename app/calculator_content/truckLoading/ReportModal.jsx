@@ -15,9 +15,11 @@ import { db } from '../../../firebase/config';
 import { useColors } from '../../../hooks/useColors';
 import { MaterialIcons } from '@expo/vector-icons';
 import { REPORT_TYPES } from '../../../constants/reportTypes';
+import { useAuth } from '../../../context/AuthContext';
 
 const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
     const colors = useColors();
+    const { user } = useAuth();
 
     const [truckNumber, setTruckNumber] = useState(initialTruckNumber);
     const [reportType, setReportType] = useState('');
@@ -98,11 +100,22 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
         setError(null);
 
         try {
+            const reporterName = user?.name || user?.email || 'Gość';
+            const reporterInitials = reporterName
+                .split(/\s+/)
+                .filter(Boolean)
+                .slice(0, 2)
+                .map((part) => part[0]?.toUpperCase() || '')
+                .join('') || 'G';
+
             await addDoc(collection(db, 'reports'), {
                 truckNumber: truckNumber.trim(),
                 type: reportType,
                 description: description.trim() || null,
                 createdAt: serverTimestamp(),
+                reporterId: user?.id || null,
+                reporterName,
+                reporterInitials,
             });
 
             setSaving(false);

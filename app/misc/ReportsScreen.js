@@ -22,6 +22,7 @@ import { db } from '../../firebase/config';
 import { useColors } from '../../hooks/useColors';
 import { useAuth } from '../../context/AuthContext';
 import { getReportTypeLabel } from '../../constants/reportTypes';
+import ReportModal from '../calculator_content/truckLoading/ReportModal';
 
 const ADMIN_EMAILS = ['jakub.jaskola7@gmail.com'];
 const REPORT_STATUSES = {
@@ -40,6 +41,18 @@ const getValidStatus = (status) => {
     }
 
     return REPORT_STATUSES.reported;
+};
+
+const getInitials = (value) => {
+    if (!value) return 'G';
+
+    const parts = String(value).trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'G';
+
+    return parts
+        .slice(0, 2)
+        .map((part) => part[0]?.toUpperCase() || '')
+        .join('') || 'G';
 };
 
 const formatTimestamp = (ts) => {
@@ -68,6 +81,9 @@ const ReportsScreen = () => {
     const [reports, setReports] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [activeTab, setActiveTab] = useState('all');
+    const [reportVisible, setReportVisible] = useState(false);
+    const [reportTruckNumber, setReportTruckNumber] = useState('');
 
     const statusStyles = useMemo(
         () => ({
@@ -114,20 +130,37 @@ const ReportsScreen = () => {
 
     const filteredReports = useMemo(() => {
         const queryText = search.trim().toLowerCase();
-        if (!queryText) return reports;
+        const searchedReports = queryText
+            ? reports.filter((item) => {
+                const truckStr = String(item.truckNumber || '').toLowerCase();
+                const typeStr = getReportTypeLabel(item.type).toLowerCase();
+                const descStr = String(item.description || '').toLowerCase();
+                const reporterNameStr = String(item.reporterName || '').toLowerCase();
 
-        return reports.filter((item) => {
-            const truckStr = String(item.truckNumber || '').toLowerCase();
-            const typeStr = getReportTypeLabel(item.type).toLowerCase();
-            const descStr = String(item.description || '').toLowerCase();
+                return (
+                    truckStr.includes(queryText) ||
+                    typeStr.includes(queryText) ||
+                    descStr.includes(queryText) ||
+                    reporterNameStr.includes(queryText)
+                );
+            })
+            : reports;
 
-            return (
-                truckStr.includes(queryText) ||
-                typeStr.includes(queryText) ||
-                descStr.includes(queryText)
-            );
-        });
-    }, [reports, search]);
+        if (activeTab === 'mine' && !queryText) {
+            return searchedReports.filter((item) => item.reporterId === user?.id);
+        }
+
+        return searchedReports;
+    }, [reports, search, activeTab, user?.id]);
+
+    const openReport = () => {
+        setReportTruckNumber(search.trim());
+        setReportVisible(true);
+    };
+
+    const closeReport = () => {
+        setReportVisible(false);
+    };
 
     const handleDelete = (id) => {
         if (!isAdmin) return;
@@ -171,6 +204,9 @@ const ReportsScreen = () => {
         const status = getValidStatus(item.status);
         const statusConfig = statusStyles[status];
 
+        const reporterName = item.reporterName || 'Gość';
+        const reporterInitials = item.reporterInitials || getInitials(reporterName);
+
         return (<View
             style={[
                 styles.item,
@@ -196,6 +232,15 @@ const ReportsScreen = () => {
                             {item.description}
                         </Text>
                     ) : null}
+<View style={styles.reporterRow}>
+                        <View style={[styles.avatar, { backgroundColor: colors.butBackground }]}> 
+                            <Text style={[styles.avatarText, { color: colors.butText }]}>{reporterInitials}</Text>
+                        </View>
+                        <Text style={[styles.reporterText, { color: colors.textSecondary }]}> 
+                            Zgłoszono przez: {reporterName}
+                        </Text>
+                    </View>
+
                     {item.createdAt && (
                         <Text style={[styles.timestamp, { color: colors.grayIconColor }]}>
                             {formatTimestamp(item.createdAt)}
@@ -267,6 +312,11 @@ const ReportsScreen = () => {
 
     return (
         <View style={[styles.container, { backgroundColor: colors.background }]}>
+            <ReportModal
+                visible={reportVisible}
+                onClose={closeReport}
+                initialTruckNumber={reportTruckNumber}
+            />
             <FlatList
                 data={filteredReports}
                 keyExtractor={(item) => item.id}
@@ -278,27 +328,84 @@ const ReportsScreen = () => {
                     </Text>
                 }
                 ListHeaderComponent={
-                    <View
-                        style={[
-                            styles.searchWrapper,
-                            {
-                                backgroundColor: colors.cardBackground,
-                                borderColor: colors.inputBorder,
-                            },
-                        ]}
-                    >
-                        <TextInput
-                            value={search}
-                            onChangeText={setSearch}
-                            placeholder="Szukaj po numerze, typie, opisie..."
-                            placeholderTextColor={colors.phText}
-                            style={[
-                                styles.searchInput,
-                                {
-                                    color: colors.text,
-                                },
-                            ]}
-                        />
+                    <View style={styles.headerContent}>
+                        <View style={styles.tabsRow}>
+                            <TouchableOpacity
+                                onPress={() => setActiveTab('all')}
+                                style={[
+                                    styles.tabButton,
+                                    activeTab === 'all' && {
+                                        backgroundColor: colors.butBackground,
+                                        borderColor: colors.butBorder,
+                                    },
+                                    { borderColor: colors.border },
+                                ]}
+                            >
+                                <Text style={[
+                                    styles.tabText,
+                                    { color: activeTab === 'all' ? colors.butText : colors.textSecondary },
+                                ]}>
+                                    Wszystkie zgłoszenia
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => setActiveTab('mine')}
+                                style={[
+                                    styles.tabButton,
+                                    activeTab === 'mine' && {
+                                        backgroundColor: colors.butBackground,
+                                        borderColor: colors.butBorder,
+                                    },
+                                    { borderColor: colors.border },
+                                ]}
+                            >
+                                <Text style={[
+                                    styles.tabText,
+                                    { color: activeTab === 'mine' ? colors.butText : colors.textSecondary },
+                                ]}>
+                                    Twoje zgłoszenia
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.headerActions}>
+                            <View
+                                style={[
+                                    styles.searchWrapper,
+                                    {
+                                        backgroundColor: colors.cardBackground,
+                                        borderColor: colors.inputBorder,
+                                    },
+                                ]}
+                            >
+                                <TextInput
+                                    value={search}
+                                    onChangeText={setSearch}
+                                    placeholder="Szukaj po numerze, typie, opisie..."
+                                    placeholderTextColor={colors.phText}
+                                    style={[
+                                        styles.searchInput,
+                                        {
+                                            color: colors.text,
+                                        },
+                                    ]}
+                                />
+                            </View>
+
+                            <TouchableOpacity
+                                onPress={openReport}
+                                style={[
+                                    styles.reportButton,
+                                    {
+                                        backgroundColor: colors.butBackground,
+                                        borderColor: colors.butBorder,
+                                    },
+                                ]}
+                            >
+                                <Text style={[styles.reportButtonText, { color: colors.butText }]}>Zgłoś</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 }
                 keyboardShouldPersistTaps="handled"
@@ -317,15 +424,49 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
     },
+    headerContent: {
+        marginBottom: 12,
+    },
+    tabsRow: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 10,
+    },
+    tabButton: {
+        flex: 1,
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingVertical: 8,
+        alignItems: 'center',
+    },
+    tabText: {
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    headerActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     searchWrapper: {
+        flex: 1,
         borderWidth: 1,
         borderRadius: 12,
         paddingHorizontal: 12,
         paddingVertical: 8,
-        marginBottom: 12,
     },
     searchInput: {
         fontSize: 14,
+    },
+    reportButton: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+    },
+    reportButtonText: {
+        fontSize: 13,
+        fontWeight: '600',
     },
     item: {
         borderWidth: 1,
@@ -354,6 +495,27 @@ const styles = StyleSheet.create({
     desc: {
         marginTop: 6,
         fontSize: 14,
+    },
+    reporterRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 6,
+        gap: 8,
+    },
+    avatar: {
+        width: 24,
+        height: 24,
+        borderRadius: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    avatarText: {
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    reporterText: {
+        fontSize: 12,
+        flexShrink: 1,
     },
     timestamp: {
         marginTop: 6,
