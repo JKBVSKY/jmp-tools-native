@@ -15,99 +15,15 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { Stack } from 'expo-router';
-import {
-  addDoc,
-  collection,
-  doc,
-  getDocs,
-  onSnapshot,
-  orderBy,
-  query,
-  updateDoc,
-  writeBatch,
-} from 'firebase/firestore';
+import { addDoc, collection, doc, getDocs, writeBatch } from 'firebase/firestore';
 import MlkitOcr from 'react-native-mlkit-ocr';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase/config';
 import { useColors } from '../../hooks/useColors';
+import { StorageManager } from '../../utils/StorageManager';
 
 const ADMIN_EMAILS = ['jakub.jaskola7@gmail.com'];
-
-const IGNORED_COLUMN_KEYWORDS = [
-  'sklep',
-  'godz',
-  'calak',
-  'palety',
-  'brama',
-  'pasy',
-  'laczenia',
-  'lacz',
-];
-
-const toAscii = (value) =>
-  String(value || '')
-    .replace(/[ąĄ]/g, 'a')
-    .replace(/[ćĆ]/g, 'c')
-    .replace(/[ęĘ]/g, 'e')
-    .replace(/[łŁ]/g, 'l')
-    .replace(/[ńŃ]/g, 'n')
-    .replace(/[óÓ]/g, 'o')
-    .replace(/[śŚ]/g, 's')
-    .replace(/[żŻźŹ]/g, 'z');
-
-const normalizeOcrLine = (line) =>
-  toAscii(line)
-    .toLowerCase()
-    .replace(/\|/g, ' ')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-
-const normalizeForHeaderMatch = (line) =>
-  normalizeOcrLine(line)
-    .replace(/\s+/g, '')
-    .replace(/0/g, 'o')
-    .replace(/1/g, 'l')
-    .replace(/5/g, 's');
-
-const formatTimestamp = (value) => {
-  if (!value) return '';
-  const date = value.toDate ? value.toDate() : new Date(value);
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(
-    date.getHours()
-  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
-};
-
-const isLikelyLp = (value) => {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return false;
-  return num >= 1000 && num <= 9990 && num % 10 === 0;
-};
-
-const isLikelyNextLp = (currentLp, candidate) => {
-  const curr = Number(currentLp);
-  const next = Number(candidate);
-  if (!Number.isFinite(curr) || !Number.isFinite(next)) return false;
-
-  // LP in this sheet usually increases by 10 row-by-row.
-  return isLikelyLp(candidate) && next - curr === 10;
-};
-
-const shouldIgnoreLine = (normalizedLine) => {
-  if (!normalizedLine) return true;
-
-  if (normalizedLine.includes('lp') && normalizedLine.includes('nr')) {
-    return true;
-  }
-
-  return IGNORED_COLUMN_KEYWORDS.some((keyword) => normalizedLine.includes(keyword));
-};
-
-const extractNumericTokens = (line) => {
-  const matches = String(line || '').match(/\d{3,5}/g);
-  return matches || [];
-};
+const LOCAL_SCHEDULE_KEY_PREFIX = 'scheduleItemsLocalV2';
 
 const toFiniteNumber = (...values) => {
   for (const value of values) {
@@ -241,249 +157,124 @@ const groupEntriesIntoRows = (entries) => {
     .filter(Boolean);
 };
 
-const buildLeftBandText = (blocks) => {
+const extractNumberTokens = (text) => {
+  const matches = String(text || '').match(/\d+/g);
+  return matches || [];
+};
+
+const buildNrScanFromBlocks = (blocks) => {
   const entries = flattenOcrEntries(blocks);
   if (!entries.length) {
     return {
       rawText: '',
       parserText: '',
-      leftBandText: '',
-      leftBandInfo: 'Brak wpisow OCR.',
+      nrNumbers: [],
+      info: 'Brak wpisow OCR.',
     };
   }
+
+  const rows = groupEntriesIntoRows(entries);
+  const nrNumbers = [];
+
+  rows.forEach((rowText) => {
+    const rowNumbers = extractNumberTokens(rowText);
+    rowNumbers.forEach((token) => nrNumbers.push(token));
+  });
 
   const rawText = entries.map((entry) => entry.text).filter(Boolean).join('\n');
 
-  const positionableEntries = entries.filter((entry) => Number.isFinite(entry.x));
-  const numericPositionableEntries = positionableEntries.filter((entry) =>
-    extractNumericTokens(entry.text).length > 0 && !shouldIgnoreLine(normalizeOcrLine(entry.text))
-  );
-
-  let leftBandEntries = entries;
-  let leftBandInfo = 'Brak danych pozycyjnych - fallback do pelnego OCR.';
-
-  if (numericPositionableEntries.length >= 2) {
-    const xs = numericPositionableEntries.map((entry) => entry.x);
-    const minX = Math.min(...xs);
-    const maxX = Math.max(...xs);
-    const span = Math.max(1, maxX - minX);
-    const leftBandMaxX = minX + span * 0.5;
-
-    leftBandEntries = entries.filter(
-      (entry) => !Number.isFinite(entry.x) || entry.x <= leftBandMaxX
-    );
-    leftBandInfo = `Left band x<=${leftBandMaxX.toFixed(1)} (min=${minX.toFixed(1)}, max=${maxX.toFixed(1)})`;
-  }
-
-  const parserRows = groupEntriesIntoRows(leftBandEntries);
-  const parserText = parserRows.join('\n');
-
   return {
     rawText,
-    parserText,
-    leftBandText: parserText,
-    leftBandInfo,
+    parserText: nrNumbers.join('\n'),
+    nrNumbers,
+    info: `Znaleziono ${nrNumbers.length} numerow NR.`,
   };
 };
 
-const parseScheduleText = (text) => {
-  if (!text) return { rows: [], debug: [] };
+const formatTimestamp = (value) => {
+  if (!value) return '';
+  const date = value.toDate ? value.toDate() : new Date(value);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(
+    date.getHours()
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+};
 
-  const lines = text
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+const toInteger = (value) => {
+  const trimmed = String(value ?? '').trim();
+  if (!trimmed) return null;
+  const parsed = Number(trimmed);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.floor(parsed);
+};
 
-  const headerIndex = lines.findIndex((line) => {
-    const normalized = normalizeForHeaderMatch(line);
-    return normalized.includes('lp') && normalized.includes('nr');
-  });
+const normalizeScheduleItems = (items) => {
+  if (!Array.isArray(items)) return [];
 
-  const dataLines = headerIndex >= 0 ? lines.slice(headerIndex + 1) : lines;
-  const rows = [];
-  const debug = [];
-  let pendingLp = null;
-  let pendingSource = '';
-  let lastAcceptedLp = null;
+  return items.map((item, index) => ({
+    id: String(item?.id || `local-${Date.now()}-${index}`),
+    lp: String(item?.lp ?? ''),
+    nr: String(item?.nr ?? ''),
+    createdAt: item?.createdAt ? new Date(item.createdAt) : new Date(),
+  }));
+};
 
-  const pushUncertainMissingNr = (lpValue, source) => {
+const buildRowsFromLpRange = (lpStartValue, lpEndValue, nrNumbers) => {
+  const start = toInteger(lpStartValue);
+  const end = toInteger(lpEndValue);
+
+  if (start === null || end === null) {
+    return { rows: [], error: 'Uzupełnij wartości początku i końca LP.' };
+  }
+
+  if (start < 0 || end < 0) {
+    return { rows: [], error: 'LP nie może być ujemne.' };
+  }
+
+  if (end < start) {
+    return { rows: [], error: 'Ostatni LP musi być większy lub równy pierwszemu LP.' };
+  }
+
+  const rangeCount = end - start + 1;
+  const rowCount = Math.max(rangeCount, nrNumbers.length);
+  const timestampSeed = Date.now();
+
+  const rows = Array.from({ length: rowCount }, (_, index) => ({
+    id: `scanned-${timestampSeed}-${index}`,
+    lp: index < rangeCount ? String(start + index) : '',
+    nr: index < nrNumbers.length ? String(nrNumbers[index]) : '',
+    createdAt: new Date(),
+  }));
+
+  return { rows, error: '' };
+};
+
+const getNormalizedLpValue = (value) => String(value ?? '').trim();
+
+const findDuplicateLpValues = (scheduleItems) => {
+  const counts = new Map();
+
+  scheduleItems.forEach((item) => {
+    const lpValue = getNormalizedLpValue(item?.lp);
     if (!lpValue) return;
-    rows.push({
-      lp: lpValue,
-      nr: '',
-      createdAt: new Date(),
-      uncertain: true,
-      uncertainReason: 'Brak NR w OCR. Uzupełnij ręcznie.',
-    });
-    debug.push(`! Brak NR dla LP ${lpValue} <- ${source}`);
-  };
-
-  for (let i = 0; i < dataLines.length; i += 1) {
-    const rawLine = dataLines[i];
-    const cleaned = rawLine.replace(/\|/g, ' ').replace(/\s+/g, ' ').trim();
-    const normalized = normalizeOcrLine(cleaned);
-
-    if (shouldIgnoreLine(normalized)) {
-      continue;
-    }
-
-    const numericTokens = extractNumericTokens(cleaned);
-    if (!numericTokens.length) continue;
-
-    const hasLetters = /[a-zA-Z]/.test(toAscii(cleaned));
-    const lpCandidate = numericTokens.find((token) => isLikelyLp(token));
-
-    if (pendingLp && numericTokens.length >= 2) {
-      const firstToken = numericTokens[0];
-      const secondToken = numericTokens[1];
-      const lineStartsWithNextLp = isLikelyNextLp(pendingLp, firstToken);
-      const secondTokenLooksLikeNr = secondToken && !isLikelyLp(secondToken);
-
-      // Example:
-      // pending: 2090
-      // current line: 2100 1307
-      // This means previous LP is missing NR, but current line is a complete new row.
-      if (lineStartsWithNextLp && secondTokenLooksLikeNr) {
-        pushUncertainMissingNr(pendingLp, pendingSource || cleaned);
-        pendingLp = null;
-        pendingSource = '';
-      }
-    }
-
-    if (pendingLp && numericTokens.length >= 1) {
-      const nrFromPending = numericTokens[0];
-
-      // If next token looks like next LP, do not pair LP->LP as LP/NR.
-      if (isLikelyNextLp(pendingLp, nrFromPending)) {
-        pushUncertainMissingNr(pendingLp, pendingSource || cleaned);
-        pendingLp = nrFromPending;
-        pendingSource = cleaned;
-        continue;
-      }
-
-      rows.push({
-        lp: pendingLp,
-        nr: nrFromPending,
-        createdAt: new Date(),
-        uncertain: true,
-        uncertainReason: 'Scalono LP i NR z dwoch osobnych linii OCR.',
-      });
-      debug.push(`~ ${pendingLp} + ${nrFromPending} (merge)`);
-      lastAcceptedLp = pendingLp;
-      pendingLp = null;
-      pendingSource = '';
-      continue;
-    }
-
-    if (numericTokens.length >= 2) {
-      const lp = lpCandidate || numericTokens[0];
-      const lpIndex = numericTokens.indexOf(lp);
-      const nr = numericTokens[lpIndex + 1] || numericTokens.find((token) => token !== lp) || '';
-
-      if (!lp || !nr) continue;
-
-      // If OCR gave two sequential LP-like values, treat as missing NR for first LP.
-      if (isLikelyNextLp(lp, nr)) {
-        pushUncertainMissingNr(lp, cleaned);
-        pendingLp = nr;
-        pendingSource = cleaned;
-        continue;
-      }
-
-      const lpBreaksSequence =
-        lastAcceptedLp && isLikelyLp(lp) ? Number(lp) - Number(lastAcceptedLp) > 20 : false;
-
-      const uncertain = !isLikelyLp(lp) || hasLetters || lpBreaksSequence;
-      rows.push({
-        lp,
-        nr,
-        createdAt: new Date(),
-        uncertain,
-        uncertainReason: uncertain ? 'Wiersz zawiera dodatkowy tekst lub nietypowy uklad OCR.' : '',
-      });
-      lastAcceptedLp = isLikelyLp(lp) ? lp : lastAcceptedLp;
-      if (uncertain) {
-        debug.push(`? ${lp} ${nr} <- ${cleaned}`);
-      }
-      continue;
-    }
-
-    if (numericTokens.length === 1 && isLikelyLp(numericTokens[0])) {
-      pendingLp = numericTokens[0];
-      pendingSource = cleaned;
-      continue;
-    }
-
-    if (numericTokens.length === 1 && pendingLp) {
-      rows.push({
-        lp: pendingLp,
-        nr: numericTokens[0],
-        createdAt: new Date(),
-        uncertain: true,
-        uncertainReason: 'Scalono LP i NR z dwoch osobnych linii OCR.',
-      });
-      debug.push(`~ ${pendingLp} + ${numericTokens[0]} (merge)`);
-      pendingLp = null;
-      pendingSource = '';
-      continue;
-    }
-  }
-
-  if (pendingLp) {
-    pushUncertainMissingNr(pendingLp, pendingSource);
-  }
-
-  const dedupedRows = [];
-  const seen = new Set();
-  for (const row of rows) {
-    const key = `${row.lp}-${row.nr}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    dedupedRows.push(row);
-  }
-
-  // Second-pass cleanup: if NR looks like an LP value from this same scan,
-  // prefer empty NR over a likely wrong LP->NR assignment.
-  const lpValues = new Set(
-    dedupedRows
-      .map((row) => String(row.lp || '').trim())
-      .filter((value) => value.length > 0)
-  );
-
-  const sanitizedRows = dedupedRows.map((row, index) => {
-    const nrValue = String(row.nr || '').trim();
-    if (!nrValue) return row;
-
-    const nrLooksLikeLp = isLikelyLp(nrValue);
-    if (!nrLooksLikeLp) return row;
-
-    const nrIsKnownLp = lpValues.has(nrValue) && nrValue !== String(row.lp || '').trim();
-
-    const prevLp = index > 0 ? String(dedupedRows[index - 1]?.lp || '').trim() : '';
-    const nextLp = index < dedupedRows.length - 1 ? String(dedupedRows[index + 1]?.lp || '').trim() : '';
-    const nrNearNeighbourLp =
-      (prevLp && Math.abs(Number(nrValue) - Number(prevLp)) <= 20) ||
-      (nextLp && Math.abs(Number(nrValue) - Number(nextLp)) <= 20);
-
-    const shouldClearNr = nrIsKnownLp || nrNearNeighbourLp;
-    if (!shouldClearNr) return row;
-
-    debug.push(`! Wyczyszczono podejrzane NR=${nrValue} dla LP=${row.lp} (wyglada jak LP)`);
-
-    return {
-      ...row,
-      nr: '',
-      uncertain: true,
-      uncertainReason: 'NR wyglada jak wartosc LP. Wyczyszczono do recznej weryfikacji.',
-    };
+    counts.set(lpValue, (counts.get(lpValue) || 0) + 1);
   });
 
-  return { rows: sanitizedRows, debug };
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([lpValue]) => lpValue)
+    .sort((left, right) => Number(left) - Number(right));
+};
+
+const getLocalScheduleKey = (userId) => {
+  const safeUserId = String(userId || 'guest').replace(/[^a-zA-Z0-9._-]/g, '_');
+  return `${LOCAL_SCHEDULE_KEY_PREFIX}_${safeUserId}`;
 };
 
 export default function ScheduleScreen() {
   const colors = useColors();
   const { user, isGuest } = useAuth();
+
   const [items, setItems] = useState([]);
   const [searchText, setSearchText] = useState('');
   const [loading, setLoading] = useState(true);
@@ -493,35 +284,63 @@ export default function ScheduleScreen() {
   const [parseDebug, setParseDebug] = useState([]);
   const [rawPreviewVisible, setRawPreviewVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSharing, setIsSharing] = useState(false);
+
+  const [verificationMode, setVerificationMode] = useState('scan');
+  const [scannedNrNumbers, setScannedNrNumbers] = useState([]);
+  const [lpStartInput, setLpStartInput] = useState('1');
+  const [lpEndInput, setLpEndInput] = useState('');
+  const [rangeError, setRangeError] = useState('');
 
   const isAdmin = !!user?.email && !isGuest && ADMIN_EMAILS.includes(user.email.toLowerCase());
   const scheduleCollection = user ? collection(db, 'users', user.id, 'scheduleItems') : null;
+  const localStorageKey = getLocalScheduleKey(user?.id);
+
+  const suggestedLpEnd = useMemo(() => {
+    const start = toInteger(lpStartInput);
+    if (start === null || scannedNrNumbers.length === 0) return '';
+    return String(start + scannedNrNumbers.length - 1);
+  }, [lpStartInput, scannedNrNumbers]);
+
+  const persistLocalItems = async (nextItems) => {
+    const serializable = nextItems.map((item, index) => ({
+      id: String(item?.id || `local-${Date.now()}-${index}`),
+      lp: String(item?.lp ?? ''),
+      nr: String(item?.nr ?? ''),
+      createdAt: item?.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
+    }));
+    await StorageManager.setItem(localStorageKey, JSON.stringify(serializable));
+  };
 
   useEffect(() => {
-    if (!scheduleCollection) {
-      setLoading(false);
-      return;
-    }
+    let cancelled = false;
 
-    const q = query(scheduleCollection, orderBy('createdAt', 'desc'));
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const data = snapshot.docs.map((docItem) => ({
-          id: docItem.id,
-          ...docItem.data(),
-        }));
-        setItems(data);
-        setLoading(false);
-      },
-      (error) => {
-        console.log('Schedule subscription error:', error);
-        setLoading(false);
+    const loadLocalItems = async () => {
+      setLoading(true);
+      try {
+        const raw = await StorageManager.getItem(localStorageKey);
+        if (cancelled) return;
+        if (!raw) {
+          setItems([]);
+          return;
+        }
+
+        const parsed = JSON.parse(raw);
+        setItems(normalizeScheduleItems(parsed));
+      } catch (error) {
+        console.error('Load local schedule error:', error);
+        if (!cancelled) setItems([]);
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
-  }, [scheduleCollection]);
+    loadLocalItems();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [localStorageKey]);
 
   const filteredItems = useMemo(() => {
     const queryText = searchText.trim().toLowerCase();
@@ -545,51 +364,28 @@ export default function ScheduleScreen() {
     });
   }, [items, searchText]);
 
-  const hasEmptyVerificationFields = useMemo(
-    () => verificationItems.some((item) => !String(item.lp || '').trim() || !String(item.nr || '').trim()),
-    [verificationItems]
-  );
-
   const updateItemField = (id, field, value) => {
-    setItems((prev) => prev.map((item) => (item.id === id ? { ...item, [field]: value } : item)));
-  };
-
-  const saveInlineItem = async (item) => {
-    if (!isAdmin || !user || !item?.id) return;
-
-    try {
-      await updateDoc(doc(db, 'users', user.id, 'scheduleItems', item.id), {
-        lp: item.lp,
-        nr: item.nr,
-      });
-    } catch (error) {
-      console.error('Inline item save error:', error);
-      Alert.alert('Błąd', 'Nie udało się zapisać zmian w wierszu.');
-    }
+    setItems((prev) => {
+      const next = prev.map((item) => (item.id === id ? { ...item, [field]: value } : item));
+      void persistLocalItems(next);
+      return next;
+    });
   };
 
   const clearAllItems = async () => {
-    if (!scheduleCollection || !user) return;
-
     try {
-      const snapshot = await getDocs(scheduleCollection);
-      if (snapshot.empty) return;
-
-      const batch = writeBatch(db);
-      snapshot.docs.forEach((docItem) => {
-        batch.delete(doc(db, 'users', user.id, 'scheduleItems', docItem.id));
-      });
-      await batch.commit();
+      await StorageManager.removeItem(localStorageKey);
+      setItems([]);
     } catch (error) {
-      console.error('Clear schedule error:', error);
-      Alert.alert('Błąd', 'Nie udało się wyczyścić listy.');
+      console.error('Clear local schedule error:', error);
+      Alert.alert('Błąd', 'Nie udało się wyczyścić listy lokalnej.');
     }
   };
 
   const handleClearPress = () => {
     if (!isAdmin) return;
 
-    Alert.alert('Wyczyść harmonogram', 'Czy na pewno chcesz usunąć wszystkie zeskanowane pozycje?', [
+    Alert.alert('Wyczyść harmonogram', 'Czy na pewno chcesz usunąć wszystkie lokalne pozycje?', [
       { text: 'Anuluj', style: 'cancel' },
       {
         text: 'Wyczyść',
@@ -602,37 +398,87 @@ export default function ScheduleScreen() {
   };
 
   const saveVerificationItems = async () => {
-    if (!isAdmin || !user || !scheduleCollection) return;
-
-    if (hasEmptyVerificationFields) {
-      Alert.alert('Uzupełnij pola', 'Przed zapisaniem uzupełnij wszystkie wartości LP i NR.');
-      return;
-    }
+    if (!isAdmin) return;
 
     setIsSaving(true);
 
     try {
+      const normalized = normalizeScheduleItems(verificationItems);
+      const nextItems = verificationMode === 'scan' ? [...items, ...normalized] : normalized;
+      const overlappingLpValues = findDuplicateLpValues(nextItems);
+
+      if (overlappingLpValues.length > 0) {
+        Alert.alert(
+          'Nakładające się LP',
+          `Nie można dodać skanu, ponieważ te LP już istnieją: ${overlappingLpValues.join(', ')}`
+        );
+        return;
+      }
+
+      setItems(nextItems);
+      await persistLocalItems(nextItems);
+      setVerificationVisible(false);
+      Alert.alert(
+        'Zapisano lokalnie',
+        verificationMode === 'scan'
+          ? 'Nowy skan został dołączony do lokalnej tabeli.'
+          : 'Tabela została zapisana na urządzeniu.'
+      );
+    } catch (error) {
+      console.error('Verification local save error:', error);
+      Alert.alert('Błąd', 'Nie udało się zapisać danych lokalnie.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const pushLocalItemsToFirestore = async () => {
+    if (!isAdmin || !user || !scheduleCollection) return;
+
+    if (!items.length) {
+      Alert.alert('Brak danych', 'Najpierw zapisz lokalnie przynajmniej jeden wiersz.');
+      return;
+    }
+
+    setIsSharing(true);
+
+    try {
       const snapshot = await getDocs(scheduleCollection);
       const batch = writeBatch(db);
-      snapshot.docs.forEach((docItem) => batch.delete(doc(db, 'users', user.id, 'scheduleItems', docItem.id)));
+      snapshot.docs.forEach((docItem) => {
+        batch.delete(doc(db, 'users', user.id, 'scheduleItems', docItem.id));
+      });
       await batch.commit();
 
-      for (const item of verificationItems) {
+      for (const item of items) {
         await addDoc(scheduleCollection, {
-          lp: item.lp,
-          nr: item.nr,
+          lp: String(item.lp || ''),
+          nr: String(item.nr || ''),
           createdAt: item.createdAt || new Date(),
         });
       }
 
-      setVerificationVisible(false);
-      Alert.alert('Gotowe', 'Zapisano harmonogram.');
+      Alert.alert('Udostępniono', 'Lokalna tabela została wysłana do Firestore.');
     } catch (error) {
-      console.error('Verification save error:', error);
-      Alert.alert('Błąd', 'Nie udało się zapisać danych z weryfikacji.');
+      console.error('Share schedule error:', error);
+      Alert.alert('Błąd', 'Nie udało się udostępnić danych do Firestore.');
     } finally {
-      setIsSaving(false);
+      setIsSharing(false);
     }
+  };
+
+  const handleSharePress = () => {
+    if (!isAdmin) return;
+
+    Alert.alert('Udostępnij harmonogram', 'Czy na pewno chcesz wysłać lokalną tabelę do Firestore?', [
+      { text: 'Anuluj', style: 'cancel' },
+      {
+        text: 'Udostępnij',
+        onPress: async () => {
+          await pushLocalItemsToFirestore();
+        },
+      },
+    ]);
   };
 
   const getPickedImageUri = (result) => {
@@ -650,11 +496,7 @@ export default function ScheduleScreen() {
       const textBlocks = await MlkitOcr.detectFromUri(uri);
       if (!Array.isArray(textBlocks) || textBlocks.length === 0) return null;
 
-      const prepared = buildLeftBandText(textBlocks);
-      return {
-        ...prepared,
-        textBlocks,
-      };
+      return buildNrScanFromBlocks(textBlocks);
     } catch (error) {
       console.log('Text recognition error:', error);
       return null;
@@ -694,79 +536,122 @@ export default function ScheduleScreen() {
     }
   };
 
+  const rebuildRowsFromRange = (nextStartValue, nextEndValue) => {
+    const buildResult = buildRowsFromLpRange(nextStartValue, nextEndValue, scannedNrNumbers);
+
+    if (buildResult.error) {
+      setRangeError(buildResult.error);
+      return;
+    }
+
+    setRangeError('');
+    setVerificationItems(buildResult.rows);
+  };
+
   const processScannedImage = async (uri) => {
     if (!uri) return;
 
     const ocrData = await recognizeTextFromImage(uri);
 
     const rawPreviewSections = [
-      ocrData?.leftBandInfo ? `[INFO]\n${ocrData.leftBandInfo}` : '',
-      ocrData?.leftBandText ? `[LEFT BAND OCR]\n${ocrData.leftBandText}` : '',
+      ocrData?.info ? `[INFO]\n${ocrData.info}` : '',
+      ocrData?.parserText ? `[NR NUMBERS]\n${ocrData.parserText}` : '',
       ocrData?.rawText ? `[FULL OCR]\n${ocrData.rawText}` : '',
     ].filter(Boolean);
     setRawOcrText(rawPreviewSections.join('\n\n'));
 
-    if (!ocrData?.parserText) {
+    if (!ocrData?.nrNumbers?.length) {
+      setParseDebug([]);
+      setRawPreviewVisible(true);
       Alert.alert(
-        'OCR niedostępne',
-        'Nie udało się rozpoznać tekstu. Upewnij się, że obraz jest wyraźny i spróbuj ponownie.'
+        'Brak numerów',
+        'Nie znaleziono żadnych liczb NR. Otworzono podgląd surowego OCR do diagnostyki.'
       );
       return;
     }
 
-    const parseResult = parseScheduleText(ocrData.parserText);
-    const parsedRows = parseResult.rows;
-    setParseDebug(parseResult.debug || []);
-    if (!parsedRows.length) {
-      setRawPreviewVisible(true);
-      Alert.alert('Brak danych', 'Nie udało się sparsować LP/NR. Otworzono podgląd surowego OCR do diagnostyki.');
-      return;
-    }
+    const startValue = '1';
+    const endValue = String(ocrData.nrNumbers.length);
 
-    setVerificationItems(
-      parsedRows.map((item, index) => ({
-        ...item,
-        id: `scanned-${Date.now()}-${index}`,
-        createdAt: item.createdAt || new Date(),
-      }))
-    );
+    setVerificationMode('scan');
+    setScannedNrNumbers(ocrData.nrNumbers);
+    setLpStartInput(startValue);
+    setLpEndInput(endValue);
+    setRangeError('');
+    setParseDebug([
+      `Rozpoznane numery NR: ${ocrData.nrNumbers.length}`,
+      `Sugerowany zakres LP: ${startValue}-${endValue}`,
+    ]);
+
+    const buildResult = buildRowsFromLpRange(startValue, endValue, ocrData.nrNumbers);
+    setVerificationItems(buildResult.rows);
     setVerificationVisible(true);
   };
 
   const handleScanPress = () => {
     if (!isAdmin) return;
 
-    Alert.alert('Skanuj dokument', 'Wybierz źródło obrazu i przytnij zdjęcie tak, aby było widać tylko kolumny LP i NR.', [
-      { text: 'Anuluj', style: 'cancel' },
-      {
-        text: 'Galeria',
-        onPress: async () => {
-          const uri = await pickImage('gallery');
-          await processScannedImage(uri);
+    Alert.alert(
+      'Skanuj dokument',
+      'Wybierz źródło obrazu i przytnij zdjęcie tak, aby było widać tylko kolumnę NR.',
+      [
+        { text: 'Anuluj', style: 'cancel' },
+        {
+          text: 'Galeria',
+          onPress: async () => {
+            const uri = await pickImage('gallery');
+            await processScannedImage(uri);
+          },
         },
-      },
-      {
-        text: 'Aparat',
-        onPress: async () => {
-          const uri = await pickImage('camera');
-          await processScannedImage(uri);
+        {
+          text: 'Aparat',
+          onPress: async () => {
+            const uri = await pickImage('camera');
+            await processScannedImage(uri);
+          },
         },
-      },
-    ]);
+      ]
+    );
   };
 
   const handleEditPress = () => {
     if (!isAdmin) return;
     if (!items.length) {
-      Alert.alert('Brak danych', 'Nie ma jeszcze zeskanowanych pozycji do edycji.');
+      Alert.alert('Brak danych', 'Nie ma jeszcze lokalnych pozycji do edycji.');
       return;
     }
-    setVerificationItems(items.map((item) => ({ ...item })));
+
+    setVerificationMode('edit');
+    setScannedNrNumbers([]);
+    setLpStartInput('');
+    setLpEndInput('');
+    setRangeError('');
+    setVerificationItems(normalizeScheduleItems(items));
     setVerificationVisible(true);
   };
 
+  const addVerificationRow = () => {
+    setVerificationItems((prev) => [
+      ...prev,
+      {
+        id: `manual-${Date.now()}-${prev.length}`,
+        lp: '',
+        nr: '',
+        createdAt: new Date(),
+      },
+    ]);
+  };
+
+  const removeLastVerificationRow = () => {
+    setVerificationItems((prev) => prev.slice(0, -1));
+  };
+
+  const clearVerificationRows = () => {
+    setVerificationItems([]);
+  };
+
   const renderTableHeader = () => (
-    <View style={[styles.tableHeaderRow, { backgroundColor: colors.navBackground, borderColor: colors.border }]}>
+    <View style={[styles.tableHeaderRow, { backgroundColor: colors.navBackground, borderColor: colors.border }]}> 
       <View style={[styles.tableHeaderCell, styles.tableLpCell, { borderColor: colors.border }]}>
         <Text style={[styles.tableHeaderText, { color: colors.textSecondary }]}>LP</Text>
       </View>
@@ -777,16 +662,14 @@ export default function ScheduleScreen() {
   );
 
   const renderRow = ({ item, index }) => {
-    const isUncertain = !!item.uncertain;
     const rowBackground = index % 2 === 0 ? colors.cardBackground : colors.background;
 
     return (
       <View style={[styles.tableRow, { backgroundColor: rowBackground, borderColor: colors.border }]}> 
-        <View style={[styles.tableCell, styles.tableLpCell, { borderColor: colors.border }]}>
+        <View style={[styles.tableCell, styles.tableLpCell, { borderColor: colors.border }]}> 
           <TextInput
             value={String(item.lp ?? '')}
             onChangeText={(value) => updateItemField(item.id, 'lp', value)}
-            onEndEditing={() => saveInlineItem(item)}
             editable={isAdmin}
             keyboardType="number-pad"
             inputMode="numeric"
@@ -796,11 +679,10 @@ export default function ScheduleScreen() {
             ]}
           />
         </View>
-        <View style={[styles.tableCell, styles.tableNrCell, { borderColor: colors.border }]}>
+        <View style={[styles.tableCell, styles.tableNrCell, { borderColor: colors.border }]}> 
           <TextInput
             value={String(item.nr ?? '')}
             onChangeText={(value) => updateItemField(item.id, 'nr', value)}
-            onEndEditing={() => saveInlineItem(item)}
             editable={isAdmin}
             keyboardType="number-pad"
             inputMode="numeric"
@@ -823,7 +705,9 @@ export default function ScheduleScreen() {
           <TextInput
             value={String(item.lp ?? '')}
             onChangeText={(value) => {
-              setVerificationItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, lp: value } : row)));
+              setVerificationItems((prev) =>
+                prev.map((row) => (row.id === item.id ? { ...row, lp: value } : row))
+              );
             }}
             keyboardType="number-pad"
             inputMode="numeric"
@@ -838,7 +722,9 @@ export default function ScheduleScreen() {
           <TextInput
             value={String(item.nr ?? '')}
             onChangeText={(value) => {
-              setVerificationItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, nr: value } : row)));
+              setVerificationItems((prev) =>
+                prev.map((row) => (row.id === item.id ? { ...row, nr: value } : row))
+              );
             }}
             keyboardType="number-pad"
             inputMode="numeric"
@@ -859,7 +745,7 @@ export default function ScheduleScreen() {
       <View style={[styles.header, { backgroundColor: colors.navBackground, borderColor: colors.border }]}> 
         <View style={styles.headerTextContainer}>
           <Text style={[styles.title, { color: colors.text }]}>Harmonogram</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Skanuj i zarządzaj swoim harmonogramem</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Skanuj NR, zapisz lokalnie, potem udostępnij</Text>
         </View>
 
         {isAdmin ? (
@@ -872,6 +758,17 @@ export default function ScheduleScreen() {
             </TouchableOpacity>
             <TouchableOpacity style={[styles.headerButton, { backgroundColor: colors.butBackground }]} onPress={handleClearPress}>
               <Text style={[styles.headerButtonText, { color: colors.butText }]}>Wyczyść</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.headerButton, { backgroundColor: colors.butBackground }]}
+              onPress={handleSharePress}
+              disabled={isSharing || !items.length}
+            >
+              {isSharing ? (
+                <ActivityIndicator color={colors.butText} />
+              ) : (
+                <Text style={[styles.headerButtonText, { color: colors.butText, opacity: items.length ? 1 : 0.55 }]}>Udostępnij</Text>
+              )}
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.headerButton, { backgroundColor: colors.butBackground }]}
@@ -901,15 +798,16 @@ export default function ScheduleScreen() {
             <ActivityIndicator color={colors.sIconColor} size="large" />
           </View>
         ) : (
-          <View style={[styles.tableWrapper, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}>
+          <View style={[styles.tableWrapper, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}> 
             {renderTableHeader()}
             <FlatList
               data={filteredItems}
               keyExtractor={(item) => item.id}
               renderItem={renderRow}
+              style={styles.tableList}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
-                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Brak zeskanowanych pozycji.</Text>
+                <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Brak zapisanych lokalnie pozycji.</Text>
               }
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
@@ -921,11 +819,104 @@ export default function ScheduleScreen() {
       <Modal visible={verificationVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: colors.background, borderColor: colors.border }]}> 
-            <Text style={[styles.modalTitle, { color: colors.text }]}>Weryfikacja skanu</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Sprawdź i popraw dane przed zapisaniem.</Text>
-            {hasEmptyVerificationFields ? (
-              <Text style={[styles.validationMessage, { color: colors.textSecondary }]}>Wszystkie pola LP i NR muszą być uzupełnione przed zapisem.</Text>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Weryfikacja</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Sprawdź tabelę i zapisz ją lokalnie.</Text>
+
+            {verificationMode === 'scan' ? (
+              <View style={[styles.rangeEditor, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}> 
+                <Text style={[styles.rangeEditorTitle, { color: colors.text }]}>Zakres LP</Text>
+                <Text style={[styles.rangeEditorMeta, { color: colors.textSecondary }]}>Rozpoznano NR: {scannedNrNumbers.length}</Text>
+                <View style={styles.rangeInputsRow}>
+                  <View style={styles.rangeInputItem}>
+                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Pierwszy LP</Text>
+                    <TextInput
+                      value={lpStartInput}
+                      onChangeText={setLpStartInput}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      style={[
+                        styles.fieldInput,
+                        { backgroundColor: colors.background, color: colors.text, borderColor: colors.inputBorder },
+                      ]}
+                    />
+                  </View>
+                  <View style={styles.rangeInputItem}>
+                    <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Ostatni LP</Text>
+                    <TextInput
+                      value={lpEndInput}
+                      onChangeText={setLpEndInput}
+                      keyboardType="number-pad"
+                      inputMode="numeric"
+                      style={[
+                        styles.fieldInput,
+                        { backgroundColor: colors.background, color: colors.text, borderColor: colors.inputBorder },
+                      ]}
+                    />
+                  </View>
+                </View>
+
+                <Text style={[styles.rangeEditorMeta, { color: colors.textSecondary }]}>Sugerowany ostatni LP: {suggestedLpEnd || '-'}</Text>
+
+                <View style={styles.rangeButtonsRow}>
+                  <TouchableOpacity
+                    style={[styles.smallActionButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                    onPress={() => {
+                      if (!suggestedLpEnd) return;
+                      setLpEndInput(suggestedLpEnd);
+                    }}
+                  >
+                    <Text style={[styles.smallActionButtonText, { color: colors.text }]}>Ustaw sugerowany koniec</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.smallActionButton, { backgroundColor: colors.butBackground, borderColor: colors.border }]}
+                    onPress={() => rebuildRowsFromRange(lpStartInput, lpEndInput)}
+                  >
+                    <Text style={[styles.smallActionButtonText, { color: colors.butText }]}>Utwórz LP/NR</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {rangeError ? (
+                  <Text style={[styles.rangeErrorText, { color: colors.textSecondary }]}>{rangeError}</Text>
+                ) : null}
+              </View>
             ) : null}
+
+            <View style={styles.verificationActionsRow}>
+              <TouchableOpacity
+                style={[styles.smallActionButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={addVerificationRow}
+              >
+                <Text style={[styles.smallActionButtonText, { color: colors.text }]}>Dodaj na końcu</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smallActionButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={removeLastVerificationRow}
+                disabled={!verificationItems.length}
+              >
+                <Text
+                  style={[
+                    styles.smallActionButtonText,
+                    { color: colors.text, opacity: verificationItems.length ? 1 : 0.5 },
+                  ]}
+                >
+                  Usuń ostatni
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.smallActionButton, { backgroundColor: colors.background, borderColor: colors.border }]}
+                onPress={clearVerificationRows}
+                disabled={!verificationItems.length}
+              >
+                <Text
+                  style={[
+                    styles.smallActionButtonText,
+                    { color: colors.text, opacity: verificationItems.length ? 1 : 0.5 },
+                  ]}
+                >
+                  Usuń tabelę
+                </Text>
+              </TouchableOpacity>
+            </View>
 
             <FlatList
               data={verificationItems}
@@ -941,17 +932,17 @@ export default function ScheduleScreen() {
                 style={[styles.modalButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
                 onPress={() => setVerificationVisible(false)}
               >
-                <Text style={[styles.modalButtonText, { color: colors.text }]}>Cancel</Text>
+                <Text style={[styles.modalButtonText, { color: colors.text }]}>Anuluj</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, { backgroundColor: colors.butBackground }]}
                 onPress={saveVerificationItems}
-                disabled={isSaving || hasEmptyVerificationFields}
+                disabled={isSaving}
               >
                 {isSaving ? (
                   <ActivityIndicator color={colors.butText} />
                 ) : (
-                  <Text style={[styles.modalButtonText, { color: colors.butText, opacity: hasEmptyVerificationFields ? 0.6 : 1 }]}>Save</Text>
+                  <Text style={[styles.modalButtonText, { color: colors.butText }]}>Zapisz lokalnie</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -963,7 +954,7 @@ export default function ScheduleScreen() {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContainer, { backgroundColor: colors.background, borderColor: colors.border }]}> 
             <Text style={[styles.modalTitle, { color: colors.text }]}>Raw OCR Preview</Text>
-            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Skopiuj ten tekst i sprawdź, jak OCR widzi kolumny LP/NR.</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Sprawdź, jakie liczby OCR rozpoznał dla NR.</Text>
 
             <View style={[styles.rawPreviewBox, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}> 
               <ScrollView contentContainerStyle={{ padding: 10 }}>
@@ -973,7 +964,7 @@ export default function ScheduleScreen() {
 
                 {parseDebug.length > 0 ? (
                   <>
-                    <Text style={[styles.rawPreviewDebugTitle, { color: colors.textSecondary }]}>Analiza parsera (niepewne/scalone):</Text>
+                    <Text style={[styles.rawPreviewDebugTitle, { color: colors.textSecondary }]}>Informacje skanowania:</Text>
                     <Text style={[styles.rawPreviewText, { color: colors.textSecondary }]}>{parseDebug.join('\n')}</Text>
                   </>
                 ) : null}
@@ -985,7 +976,7 @@ export default function ScheduleScreen() {
                 style={[styles.modalButton, { backgroundColor: colors.butBackground, borderColor: colors.border }]}
                 onPress={() => setRawPreviewVisible(false)}
               >
-                <Text style={[styles.modalButtonText, { color: colors.butText }]}>Close</Text>
+                <Text style={[styles.modalButtonText, { color: colors.butText }]}>Zamknij</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1033,7 +1024,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
   },
   headerButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     textAlign: 'center',
   },
@@ -1054,7 +1045,8 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   listContent: {
-    paddingBottom: 16,
+    flexGrow: 1,
+    paddingBottom: 28,
   },
   loadingContainer: {
     flex: 1,
@@ -1067,9 +1059,13 @@ const styles = StyleSheet.create({
     marginTop: 24,
   },
   tableWrapper: {
+    flex: 1,
     borderWidth: 1,
     borderRadius: 14,
     overflow: 'hidden',
+  },
+  tableList: {
+    flex: 1,
   },
   tableHeaderRow: {
     flexDirection: 'row',
@@ -1121,7 +1117,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
-    maxHeight: '85%',
+    maxHeight: '88%',
     borderWidth: 1,
   },
   modalTitle: {
@@ -1133,9 +1129,40 @@ const styles = StyleSheet.create({
     fontSize: 13,
     marginBottom: 12,
   },
-  validationMessage: {
-    fontSize: 12,
+  verificationActionsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 4,
+  },
+  rangeEditor: {
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
     marginBottom: 12,
+  },
+  rangeEditorTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  rangeEditorMeta: {
+    fontSize: 12,
+    marginBottom: 8,
+  },
+  rangeInputsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  rangeInputItem: {
+    flex: 1,
+  },
+  rangeButtonsRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  rangeErrorText: {
+    fontSize: 12,
+    marginTop: 8,
   },
   verificationRow: {
     borderWidth: 1,
@@ -1146,6 +1173,39 @@ const styles = StyleSheet.create({
   verificationTimestamp: {
     fontSize: 12,
     marginBottom: 10,
+  },
+  rowFields: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  fieldContainer: {
+    flex: 1,
+  },
+  fieldLabel: {
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  fieldInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: Platform.OS === 'android' ? 6 : 10,
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  smallActionButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    minHeight: 44,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  smallActionButtonText: {
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   modalActions: {
     flexDirection: 'row',
@@ -1180,9 +1240,5 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 12,
     marginBottom: 6,
-  },
-  uncertainText: {
-    fontSize: 12,
-    marginTop: 2,
   },
 });
