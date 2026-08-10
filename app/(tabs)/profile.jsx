@@ -55,6 +55,47 @@ const calculateAggregateStats = (sessions = []) => {
   };
 };
 
+const calculatePickingAggregateStats = (sessions = []) => {
+  const pickingSessions = sessions.filter((s) => s.sessionType === 'picking');
+
+  const totals = pickingSessions.reduce(
+    (acc, session) => {
+      const entries = Array.isArray(session.picking?.subsectionEntries)
+        ? session.picking.subsectionEntries
+        : [];
+
+      const entryBoxes = entries.reduce((sum, item) => sum + (Number(item?.boxesCount) || 0), 0);
+      const entryTime = entries.reduce((sum, item) => sum + (Number(item?.sessionTime) || 0), 0);
+
+      const sessionBoxes = Number(session.picking?.totalBoxes) || entryBoxes;
+      const sessionTime = Number(session.sessionTime) || entryTime;
+      const sessionScore = Number(session.picking?.score) || 0;
+
+      acc.totalSessions += 1;
+      acc.totalTimeSeconds += sessionTime;
+      acc.totalBoxes += sessionBoxes;
+      acc.totalScore += sessionScore;
+      return acc;
+    },
+    {
+      totalSessions: 0,
+      totalTimeSeconds: 0,
+      totalBoxes: 0,
+      totalScore: 0,
+    }
+  );
+
+  return {
+    ...totals,
+    averageBoxesRate: totals.totalTimeSeconds > 0
+      ? totals.totalBoxes / (totals.totalTimeSeconds / 3600)
+      : 0,
+    averageScore: totals.totalSessions > 0
+      ? totals.totalScore / totals.totalSessions
+      : 0,
+  };
+};
+
 const calculateScoreFromRate = (rate) => {
   const parsedRate = parseFloat(rate);
 
@@ -83,6 +124,7 @@ export default function Profile() {
   const { user, isGuest, signOut } = useAuth();
   const userId = user?.id;
   const [sessions, setSessions] = useState([]);
+  const [statsTab, setStatsTab] = useState('truck');
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const { profile, isLoading } = useUserProfile();
 
@@ -252,6 +294,7 @@ export default function Profile() {
   }, [userId]);
 
   const allTimeStats = useMemo(() => calculateAggregateStats(sessions), [sessions]);
+  const pickingAllTimeStats = useMemo(() => calculatePickingAggregateStats(sessions), [sessions]);
 
   // ✅ FORMAT TIME
   const formatTime = (seconds) => {
@@ -263,6 +306,7 @@ export default function Profile() {
 
   // ✅ CALCULATE AVERAGE SCORE
   const avgScore = calculateScoreFromRate(allTimeStats.averageRate).toFixed(1);
+  const pickingAvgScore = pickingAllTimeStats.averageScore.toFixed(1);
 
   const achievementStats = {
     ...profile.stats,
@@ -454,27 +498,61 @@ export default function Profile() {
             <Text style={[styles.cardTitle, { color: colors.title }]}>Statystyki</Text>
           </View>
 
+          <View style={styles.statsTabsRow}>
+            <Pressable
+              onPress={() => setStatsTab('truck')}
+              style={[
+                styles.statsTab,
+                {
+                  borderColor: statsTab === 'truck' ? colors.butBorder : colors.border,
+                  backgroundColor: statsTab === 'truck' ? colors.butBackground : colors.cardInCardBackground,
+                },
+              ]}
+            >
+              <Text style={{ color: statsTab === 'truck' ? colors.butText : colors.text, fontWeight: '700' }}>
+                Załadunek
+              </Text>
+            </Pressable>
+
+            <Pressable
+              onPress={() => setStatsTab('picking')}
+              style={[
+                styles.statsTab,
+                {
+                  borderColor: statsTab === 'picking' ? colors.butBorder : colors.border,
+                  backgroundColor: statsTab === 'picking' ? colors.butBackground : colors.cardInCardBackground,
+                },
+              ]}
+            >
+              <Text style={{ color: statsTab === 'picking' ? colors.butText : colors.text, fontWeight: '700' }}>
+                Kompletacja
+              </Text>
+            </Pressable>
+          </View>
+
           <View style={styles.statsGrid}>
             <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
               <Ionicons name="time" size={28} color={colors.iconColor} />
               <Text style={[styles.statValue, { color: colors.title }]}>
-                {formatTime(allTimeStats.totalTimeSeconds)}
+                {formatTime(statsTab === 'truck' ? allTimeStats.totalTimeSeconds : pickingAllTimeStats.totalTimeSeconds)}
               </Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ogólny czas pracy</Text>
             </View>
 
             <View style={[styles.statItem, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-              <Ionicons name="cube" size={28} color={colors.iconColor} />
+              <Ionicons name={statsTab === 'truck' ? 'cube' : 'cube-outline'} size={28} color={colors.iconColor} />
               <Text style={[styles.statValue, { color: colors.title }]}>
-                {allTimeStats.totalPallets}
+                {statsTab === 'truck' ? allTimeStats.totalPallets : pickingAllTimeStats.totalBoxes}
               </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Palety załadowane</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}> 
+                {statsTab === 'truck' ? 'Palety załadowane' : 'Paczki skompletowane'}
+              </Text>
             </View>
 
             <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
               <Ionicons name="star" size={28} color={colors.iconColor} />
               <Text style={[styles.statValue, { color: colors.title }]}>
-                {avgScore}
+                {statsTab === 'truck' ? avgScore : pickingAvgScore}
               </Text>
               <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ocena</Text>
             </View>
@@ -482,9 +560,11 @@ export default function Profile() {
             <View style={styles.statItem}>
               <Ionicons name="trending-up" size={28} color={colors.iconColor} />
               <Text style={[styles.statValue, { color: colors.title }]}>
-                {allTimeStats.averageRate.toFixed(1)}
+                {(statsTab === 'truck' ? allTimeStats.averageRate : pickingAllTimeStats.averageBoxesRate).toFixed(1)}
               </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Średnia ogólna</Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}> 
+                {statsTab === 'truck' ? 'Średnia ogólna' : 'Średnia paczek/h'}
+              </Text>
             </View>
 
             <View
@@ -499,7 +579,7 @@ export default function Profile() {
             >
               {/* <Ionicons name="information-circle" size={20} color={colors.grayIconColor} /> */}
               <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
-                {allTimeStats.totalSessions} sesji ukończonych łącznie
+                {(statsTab === 'truck' ? allTimeStats.totalSessions : pickingAllTimeStats.totalSessions)} sesji ukończonych łącznie
               </Text>
             </View>
           </View>
@@ -704,6 +784,17 @@ const styles = StyleSheet.create({
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+  },
+  statsTabsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  statsTab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
   },
   statItem: {
     width: '50%',
