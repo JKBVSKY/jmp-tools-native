@@ -1,6 +1,6 @@
 // calculator_content/shared/TruckWorkingLayout.jsx
 import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Modal,
@@ -106,6 +106,8 @@ export default function TruckWorkingLayout(props) {
 
     const [reportVisible, setReportVisible] = useState(false);
     const [reportTruckNumber, setReportTruckNumber] = useState('');
+    const [reportModalKey, setReportModalKey] = useState(0);
+    const openReportTimerRef = useRef(null);
     const insets = useSafeAreaInsets();
 
     // NEW: session info modal visibility
@@ -129,6 +131,45 @@ export default function TruckWorkingLayout(props) {
         setAnimatedRate(palletsRate);
         setRateColor(getPalletsRateColor(value));
     }, [palletsRate]);
+
+    useEffect(() => {
+        return () => {
+            if (openReportTimerRef.current) {
+                clearTimeout(openReportTimerRef.current);
+            }
+        };
+    }, []);
+
+    const openReport = (truck) => {
+        const nextTruckNumber = String(truck.trailer || '');
+        setReportTruckNumber(nextTruckNumber);
+
+        if (openReportTimerRef.current) {
+            clearTimeout(openReportTimerRef.current);
+        }
+
+        if (reportVisible) {
+            setReportVisible(false);
+            setReportModalKey((value) => value + 1);
+
+            openReportTimerRef.current = setTimeout(() => {
+                setReportVisible(true);
+                openReportTimerRef.current = null;
+            }, 160);
+            return;
+        }
+
+        setReportVisible(true);
+    };
+
+    const closeReport = () => {
+        if (openReportTimerRef.current) {
+            clearTimeout(openReportTimerRef.current);
+            openReportTimerRef.current = null;
+        }
+        setReportModalKey((value) => value + 1);
+        setReportVisible(false);
+    };
 
     // Session details stats shown in the modal
     const sessionStats = [
@@ -230,16 +271,6 @@ export default function TruckWorkingLayout(props) {
         const isExpanded = expandedTruckId === truck.id;
         const elapsedTime = truck.elapsedLoadingTime || 0;
 
-        const openReport = () => {
-            // prefill with this truck’s number if you want
-            setReportTruckNumber(String(truck.trailer || ''));
-            setReportVisible(true);
-        };
-
-        const closeReport = () => {
-            setReportVisible(false);
-        };
-
         return (
             <View key={truck.id}>
                 <View style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
@@ -278,7 +309,7 @@ export default function TruckWorkingLayout(props) {
                     <View style={styles.truckActionsRight}>
                         <TouchableOpacity
                             style={[styles.iconButton, { borderColor: colors.border }]}
-                            onPress={openReport}
+                            onPress={() => openReport(truck)}
                             activeOpacity={0.8}
                         >
                             <MaterialIcons name="report-problem" size={24} color={colors.text} />
@@ -368,12 +399,6 @@ export default function TruckWorkingLayout(props) {
                         </>
                     )}
                 </View>
-                {/* REPORT MODAL */}
-                <ReportModal
-                    visible={reportVisible}
-                    onClose={closeReport}
-                    initialTruckNumber={reportTruckNumber}
-                />
             </View>
         );
     };
@@ -383,7 +408,13 @@ export default function TruckWorkingLayout(props) {
     // ============================================================================
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View style={[styles.container, { backgroundColor: colors.background }]}> 
+            <ReportModal
+                key={reportModalKey}
+                visible={reportVisible}
+                onClose={closeReport}
+                initialTruckNumber={reportTruckNumber}
+            />
             <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={styles.scrollContent}

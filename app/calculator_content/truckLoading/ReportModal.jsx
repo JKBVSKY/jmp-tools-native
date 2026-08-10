@@ -8,8 +8,8 @@ import {
     StyleSheet,
     Platform,
     Animated,
+    ScrollView,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import { useColors } from '../../../hooks/useColors';
@@ -31,8 +31,7 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
     const opacityAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        // reset form when opened
-        if (visible) {
+        if (!visible) {
             setTruckNumber(initialTruckNumber || '');
             setReportType('');
             setDescription('');
@@ -41,26 +40,44 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
             setShowSuccess(false);
             scaleAnim.setValue(0.5);
             opacityAnim.setValue(0);
+            return;
         }
-    }, [visible, initialTruckNumber]);
+
+        setTruckNumber(initialTruckNumber || '');
+        setReportType('');
+        setDescription('');
+        setError(null);
+        setSaving(false);
+        setShowSuccess(false);
+        scaleAnim.setValue(0.5);
+        opacityAnim.setValue(0);
+    }, [visible, initialTruckNumber, scaleAnim, opacityAnim]);
 
     useEffect(() => {
-        if (showSuccess) {
-            Animated.parallel([
-                Animated.spring(scaleAnim, {
-                    toValue: 1,
-                    useNativeDriver: true,
-                    friction: 5,
-                    tension: 80,
-                }),
-                Animated.timing(opacityAnim, {
-                    toValue: 1,
-                    duration: 200,
-                    useNativeDriver: true,
-                }),
-            ]).start();
+        if (!visible || !showSuccess) {
+            return;
         }
-    }, [showSuccess, scaleAnim, opacityAnim]);
+
+        const animation = Animated.parallel([
+            Animated.spring(scaleAnim, {
+                toValue: 1,
+                useNativeDriver: true,
+                friction: 5,
+                tension: 80,
+            }),
+            Animated.timing(opacityAnim, {
+                toValue: 1,
+                duration: 200,
+                useNativeDriver: true,
+            }),
+        ]);
+
+        animation.start();
+
+        return () => {
+            animation.stop();
+        };
+    }, [showSuccess, visible, scaleAnim, opacityAnim]);
 
     const handleCancel = () => {
         if (saving) return;
@@ -180,24 +197,45 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
                             </Text>
                             <View
                                 style={[
-                                    styles.pickerWrapper,
+                                    styles.optionList,
                                     {
                                         backgroundColor: colors.inputBackground,
                                         borderColor: colors.inputBorder,
                                     },
                                 ]}
                             >
-                                <Picker
-                                    selectedValue={reportType}
-                                    onValueChange={setReportType}
-                                    style={{ color: colors.text }}
-                                    dropdownIconColor={colors.iconColor}
+                                <ScrollView
+                                    style={styles.optionScroll}
+                                    nestedScrollEnabled
+                                    showsVerticalScrollIndicator
+                                    indicatorStyle="black"
                                 >
-                                    <Picker.Item label="Wybierz..." value="" />
-                                    {REPORT_TYPES.map((opt) => (
-                                        <Picker.Item key={opt.value} label={opt.label} value={opt.value} />
-                                    ))}
-                                </Picker>
+                                    {REPORT_TYPES.map((opt) => {
+                                        const selected = reportType === opt.value;
+                                        return (
+                                            <TouchableOpacity
+                                                key={opt.value}
+                                                onPress={() => setReportType(opt.value)}
+                                                style={[
+                                                    styles.optionButton,
+                                                    selected && {
+                                                        backgroundColor: colors.butBackground,
+                                                        borderColor: colors.butBorder,
+                                                    },
+                                                ]}
+                                            >
+                                                <Text
+                                                    style={[
+                                                        styles.optionText,
+                                                        { color: selected ? colors.butText : colors.text },
+                                                    ]}
+                                                >
+                                                    {opt.label}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        );
+                                    })}
+                                </ScrollView>
                             </View>
 
                             {/* Optional description */}
@@ -299,10 +337,23 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         fontSize: 15,
     },
-    pickerWrapper: {
+    optionList: {
         borderWidth: 1,
         borderRadius: 12,
         overflow: 'hidden',
+        maxHeight: 180,
+    },
+    optionScroll: {
+        maxHeight: 180,
+    },
+    optionButton: {
+        borderBottomWidth: 1,
+        borderBottomColor: 'rgba(0,0,0,0.08)',
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    optionText: {
+        fontSize: 14,
     },
     textArea: {
         borderWidth: 1,
