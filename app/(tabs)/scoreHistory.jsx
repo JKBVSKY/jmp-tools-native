@@ -3,7 +3,6 @@ import { View, Text, StyleSheet, ScrollView, Dimensions, Pressable, RefreshContr
 import { useColors } from '../../hooks/useColors';
 import ThemedView from '../../components/ThemedView';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
@@ -22,6 +21,7 @@ import {
 } from 'firebase/firestore';
 
 const { width } = Dimensions.get('window');
+const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
 
 // Format date as "15 nov" from startTime (ignores endTime)
 const formatDateLabel = (startTimeIso) => {
@@ -53,15 +53,29 @@ export default function ScoreHistory() {
   const userId = user?.id;
   const [sessions, setSessions] = useState([]);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'graph'
+  const [sectionType, setSectionType] = useState('truck'); // 'truck' or 'picking'
+  const [pickingSubsection, setPickingSubsection] = useState('P01');
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(null); // { month: 0-11, year: 2026 }
   const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
 
+  const truckSessions = React.useMemo(
+    () => sessions.filter((s) => s.sessionType !== 'picking'),
+    [sessions]
+  );
+
+  const pickingSessions = React.useMemo(
+    () => sessions.filter((s) => s.sessionType === 'picking'),
+    [sessions]
+  );
+
+  const activeSessions = sectionType === 'picking' ? pickingSessions : truckSessions;
+
   // Unique months from all sessions, sorted newest → oldest
   const months = React.useMemo(() => {
     const map = new Map(); // key -> { month, year }
-    sessions.forEach((s) => {
+    activeSessions.forEach((s) => {
       const { month, year, key } = getMonthKey(s.date);
       if (!map.has(key)) {
         map.set(key, { month, year, key });
@@ -73,29 +87,78 @@ export default function ScoreHistory() {
       if (a.year !== b.year) return b.year - a.year;
       return b.month - a.month;
     });
-  }, [sessions]);
+  }, [activeSessions]);
 
   // Ensure currentMonth is always one of available months
   useEffect(() => {
-    if (!currentMonth && months.length > 0) {
+    if (months.length === 0) {
+      if (currentMonth !== null) {
+        setCurrentMonth(null);
+      }
+      return;
+    }
+
+    const isCurrentMonthAvailable = currentMonth
+      ? months.some((m) => m.month === currentMonth.month && m.year === currentMonth.year)
+      : false;
+
+    if (!isCurrentMonthAvailable) {
       setCurrentMonth({ month: months[0].month, year: months[0].year });
     }
-  }, [months, currentMonth]);
+  }, [months, currentMonth, sectionType]);
 
   // Filter sessions to selected month
   const sessionsForMonth = React.useMemo(() => {
     if (!currentMonth) return [];
-    return sessions.filter((s) => {
+    return activeSessions.filter((s) => {
       const d = new Date(s.date);
       return (
         d.getMonth() === currentMonth.month &&
         d.getFullYear() === currentMonth.year
       );
     });
-  }, [sessions, currentMonth]);
+  }, [activeSessions, currentMonth]);
+
+  const calculatePickingSummary = React.useCallback((sessionsArray) => {
+    if (!sessionsArray || sessionsArray.length === 0) return null;
+
+    const totals = sessionsArray.reduce(
+      (acc, session) => {
+        const entries = Array.isArray(session.picking?.subsectionEntries)
+          ? session.picking.subsectionEntries
+          : [];
+        const entry = entries.find((item) => item?.subsection === pickingSubsection);
+
+        if (!entry) {
+          return acc;
+        }
+
+        acc.totalTime += Number(entry.sessionTime || 0);
+        acc.totalBoxes += Number(entry.boxesCount || 0);
+        acc.totalOrders += Number(entry.ordersCount || 0);
+        acc.sessionsCount += 1;
+        return acc;
+      },
+      { totalTime: 0, totalBoxes: 0, totalOrders: 0, sessionsCount: 0 }
+    );
+
+    const averageRate = totals.totalTime > 0
+      ? (totals.totalBoxes / (totals.totalTime / 3600)).toFixed(2)
+      : '0.00';
+
+    return {
+      ...totals,
+      averageRate,
+    };
+  }, [pickingSubsection]);
 
   // Calculate summary stats
-  const summary = calculateSummary(sessionsForMonth);
+  const summary = React.useMemo(() => {
+    if (sectionType === 'picking') {
+      return calculatePickingSummary(sessionsForMonth);
+    }
+    return calculateSummary(sessionsForMonth);
+  }, [calculatePickingSummary, sectionType, sessionsForMonth]);
 
   // Load saved sessions from Firestore
   const loadSessions = useCallback(async () => {
@@ -122,19 +185,13 @@ export default function ScoreHistory() {
       });
 
       setSessions(fetchedSessions);
-
-      // Keep your currentMonth logic
-      if (fetchedSessions.length > 0 && !currentMonth) {
-        const { month, year } = getMonthKey(fetchedSessions[0].date);
-        setCurrentMonth({ month, year });
-      }
     } catch (error) {
       console.error('Failed to load sessions from Firestore:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [userId, currentMonth]);
+  }, [userId]);
 
   // Load sessions when screen is focused (every time you navigate to it)
   useFocusEffect(
@@ -159,27 +216,58 @@ export default function ScoreHistory() {
     return `${h}h ${m}m`;
   };
 
-  const pointsCount = sessionsForMonth.length;
+  const visibleSessionsForMonth = React.useMemo(() => {
+    if (sectionType !== 'picking') {
+      return sessionsForMonth;
+    }
+
+    return sessionsForMonth.filter((session) => {
+      const entries = Array.isArray(session.picking?.subsectionEntries)
+        ? session.picking.subsectionEntries
+        : [];
+      return entries.some((item) => item?.subsection === pickingSubsection);
+    });
+  }, [pickingSubsection, sectionType, sessionsForMonth]);
+
+  const pointsCount = visibleSessionsForMonth.length;
   const chartWidth = Math.max(width, pointsCount * 60);
   // e.g. ~60px per point, tweak as you like
   // Prepare chart data for selected month
 
   const chartData = {
-    labels: sessionsForMonth
+    labels: visibleSessionsForMonth
       .slice()               // copy
       .reverse()             // keep oldest → newest or as you like
       .map((s) => formatDateLabel(s.date)),
     datasets: [
       {
-        data: sessionsForMonth
+        data: visibleSessionsForMonth
           .slice()
           .reverse()
-          .map((s) => parseFloat(s.palletsRate) || 0),
+          .map((s) => {
+            if (sectionType === 'picking') {
+              const entries = Array.isArray(s.picking?.subsectionEntries)
+                ? s.picking.subsectionEntries
+                : [];
+              const entry = entries.find((item) => item?.subsection === pickingSubsection);
+              if (!entry) {
+                return 0;
+              }
+              const entryTime = Number(entry.sessionTime || 0);
+              return entryTime > 0
+                ? Number(entry.boxesCount || 0) / (entryTime / 3600)
+                : 0;
+            }
+
+            return parseFloat(s.palletsRate) || 0;
+          }),
         color: (opacity = 1) => colors.iconColor,
         strokeWidth: 2,
       },
     ],
   };
+
+  const hasVisibleData = visibleSessionsForMonth.length > 0;
 
   return (
     <ThemedView style={styles.container}>
@@ -201,6 +289,62 @@ export default function ScoreHistory() {
             <View style={[styles.header, { backgroundColor: colors.navBackground, paddingTop: insets.top + 8 }]}>
               <Text style={[styles.title, { color: colors.text }]}>Statystyki</Text>
               <Text style={{ color: colors.textSecondary }}>Tutaj możesz zobaczyć swoje statystyki</Text>
+
+              <View style={styles.sectionTabsRow}>
+                <TouchableOpacity
+                  onPress={() => setSectionType('truck')}
+                  style={[
+                    styles.sectionTab,
+                    {
+                      borderColor: sectionType === 'truck' ? colors.butBorder : colors.outButBorder,
+                      backgroundColor: sectionType === 'truck' ? colors.butBackground : colors.outButBackground,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: sectionType === 'truck' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+                    Załadunek
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => setSectionType('picking')}
+                  style={[
+                    styles.sectionTab,
+                    {
+                      borderColor: sectionType === 'picking' ? colors.butBorder : colors.outButBorder,
+                      backgroundColor: sectionType === 'picking' ? colors.butBackground : colors.outButBackground,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: sectionType === 'picking' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+                    Kompletacja
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {sectionType === 'picking' && (
+                <View style={styles.subsectionTabsWrap}>
+                  {PICKING_SUBSECTIONS.map((item) => {
+                    const isActive = pickingSubsection === item;
+
+                    return (
+                      <TouchableOpacity
+                        key={item}
+                        onPress={() => setPickingSubsection(item)}
+                        style={[
+                          styles.subsectionTab,
+                          {
+                            borderColor: isActive ? colors.butBorder : colors.border,
+                            backgroundColor: isActive ? colors.butBackground : colors.cardBackground,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: isActive ? colors.butText : colors.text, fontWeight: '700' }}>{item}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              )}
             </View>
 
             {/* Month selector and toggle buttons container*/}
@@ -308,11 +452,13 @@ export default function ScoreHistory() {
             </View>
 
             {/* Summary Table - Always visible when sessions exist */}
-            {sessionsForMonth.length > 0 && summary && (
+            {hasVisibleData && summary && (
               <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                 <Text style={[styles.summaryTitle, { color: colors.text }]}>Podsumowanie miesiąca</Text>
                 <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
-                  Twoja wydajność w tym miesiącu
+                  {sectionType === 'picking'
+                    ? `Twoja wydajność w podsekcji ${pickingSubsection}`
+                    : 'Twoja wydajność w tym miesiącu'}
                 </Text>
 
                 <View style={styles.summaryGrid}>
@@ -327,7 +473,9 @@ export default function ScoreHistory() {
                       ]}
                     />
                     <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Średnia Miesięczna</Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>{summary.averageRate} pal/h</Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}> 
+                      {summary.averageRate} {sectionType === 'picking' ? 'pacz/h' : 'pal/h'}
+                    </Text>
                   </ThemedCard>
                   {/* Total Time */}
                   <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
@@ -342,7 +490,7 @@ export default function ScoreHistory() {
                     </Text>
                   </ThemedCard>
 
-                  {/* Total Pallets */}
+                  {/* Total Units */}
                   <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
                     <Ionicons
                       name="layers-outline"
@@ -352,15 +500,27 @@ export default function ScoreHistory() {
                         { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
                       ]}
                     />
-                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Palety</Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>{summary.totalPallets}</Text>
+                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}> 
+                      {sectionType === 'picking' ? 'Paczki' : 'Palety'}
+                    </Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}> 
+                      {sectionType === 'picking' ? summary.totalBoxes : summary.totalPallets}
+                    </Text>
                   </ThemedCard>
 
-                  {/* Total Trucks */}
+                  {/* Total Orders / Trucks */}
                   <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
-                    <MaterialCommunityIcons name="truck-check-outline" size={28} style={{ color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }} />
-                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Naczepy</Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>{summary.totalTrucks}</Text>
+                    <MaterialCommunityIcons
+                      name={sectionType === 'picking' ? 'package-variant-closed-check' : 'truck-check-outline'}
+                      size={28}
+                      style={{ color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }}
+                    />
+                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}> 
+                      {sectionType === 'picking' ? 'Zamówienia' : 'Naczepy'}
+                    </Text>
+                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}> 
+                      {sectionType === 'picking' ? summary.totalOrders : summary.totalTrucks}
+                    </Text>
                   </ThemedCard>
 
                 </View>
@@ -368,7 +528,7 @@ export default function ScoreHistory() {
             )}
 
             {/* Graph/Table */}
-            {sessions.length === 0 ? (
+            {!hasVisibleData ? (
               <ScrollView
                 refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
                 style={{ flex: 1 }}
@@ -379,7 +539,9 @@ export default function ScoreHistory() {
                     Brak zapisanych sesji
                   </Text>
                   <Text style={[styles.emptySubtext, { color: colors.text }]}>
-                    Zakończ sesję, aby zobaczyć historię.
+                    {sectionType === 'picking'
+                      ? `Zakończ sesję w podsekcji ${pickingSubsection}, aby zobaczyć historię.`
+                      : 'Zakończ sesję, aby zobaczyć historię.'}
                   </Text>
                 </View>
               </ScrollView>
@@ -387,13 +549,15 @@ export default function ScoreHistory() {
               <View style={[styles.graphGrid, { flex: 1 }]}>
 
                 {/* Graph components here */}
-                {viewMode === 'graph' && sessions.length > 0 && (
+                {viewMode === 'graph' && hasVisibleData && (
                   <View style={[styles.chartContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                     <Text style={[styles.chartTitle, { color: colors.text }]}>
                       Wykres wydajności
                     </Text>
                     <Text style={[styles.chartSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
-                      Wydajność palet na godzinę dla każdej sesji w tym miesiącu
+                      {sectionType === 'picking'
+                        ? `Wydajność paczek na godzinę dla podsekcji ${pickingSubsection}`
+                        : 'Wydajność palet na godzinę dla każdej sesji w tym miesiącu'}
                     </Text>
 
                     <View style={[styles.chartCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
@@ -406,7 +570,7 @@ export default function ScoreHistory() {
                           data={chartData}
                           width={chartWidth}
                           height={160}
-                          yAxisSuffix=" pal/h"
+                          yAxisSuffix={sectionType === 'picking' ? ' pacz/h' : ' pal/h'}
                           yLabelsOffset={8}
                           chartConfig={{
                             backgroundColor: colors.cardInCardBackground,
@@ -440,7 +604,9 @@ export default function ScoreHistory() {
                       Szczegóły Sesji
                     </Text>
                     <Text style={[styles.tableSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
-                      Lista wszystkich sesji w tym miesiącu
+                      {sectionType === 'picking'
+                        ? `Lista sesji z aktywnością w podsekcji ${pickingSubsection}`
+                        : 'Lista wszystkich sesji w tym miesiącu'}
                     </Text>
 
                     <View
@@ -451,8 +617,12 @@ export default function ScoreHistory() {
                       <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
                         <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
                         <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Palety</Text>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Naczepy</Text>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}> 
+                          {sectionType === 'picking' ? 'Paczki' : 'Palety'}
+                        </Text>
+                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}> 
+                          {sectionType === 'picking' ? 'Zam.' : 'Naczepy'}
+                        </Text>
                         <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
                         <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
                       </View>
@@ -462,7 +632,26 @@ export default function ScoreHistory() {
                         marginBottom: 16,
                         borderBottomRadius: 16,
                       }}>
-                        {sessionsForMonth.map((session, index) => (
+                        {visibleSessionsForMonth.map((session, index) => {
+                          const pickingEntry = sectionType === 'picking'
+                            ? (Array.isArray(session.picking?.subsectionEntries)
+                              ? session.picking.subsectionEntries.find((item) => item?.subsection === pickingSubsection)
+                              : null)
+                            : null;
+                          const rowTime = sectionType === 'picking'
+                            ? Number(pickingEntry?.sessionTime || 0)
+                            : Number(session.sessionTime ?? session.loadingTime) || 0;
+                          const rowUnits = sectionType === 'picking'
+                            ? Number(pickingEntry?.boxesCount || 0)
+                            : Number(session.palletsLoaded || 0);
+                          const rowOrders = sectionType === 'picking'
+                            ? Number(pickingEntry?.ordersCount || 0)
+                            : Number(session.trucksCount || 0);
+                          const rowRate = rowTime > 0
+                            ? rowUnits / (rowTime / 3600)
+                            : Number(session.palletsRate || 0);
+
+                          return (
                           <View
                             key={session.id}
                             style={[
@@ -477,16 +666,16 @@ export default function ScoreHistory() {
                               {formatDate(session.date)}
                             </Text>
                             <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
-                              {formatTime(Number(session.sessionTime ?? session.loadingTime) || 0)}
+                              {formatTime(rowTime)}
                             </Text>
                             <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                              {session.palletsLoaded}
+                              {rowUnits}
                             </Text>
                             <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                              {session.trucksCount}
+                              {rowOrders}
                             </Text>
                             <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
-                              {session.palletsRate.toFixed(1)}
+                              {rowRate.toFixed(1)}
                             </Text>
 
                             {/* Delete button */}
@@ -527,7 +716,8 @@ export default function ScoreHistory() {
                               <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
                             </Pressable>
                           </View>
-                        ))}
+                          );
+                        })}
                       </ScrollView>
                     </View>
                   </View>
@@ -546,8 +736,8 @@ export const calculateSummary = (sessionsArray) => {
   if (!sessionsArray || sessionsArray.length === 0) return null;
 
   const totalTime = sessionsArray.reduce((sum, s) => sum + (Number(s.sessionTime ?? s.loadingTime) || 0), 0);
-  const totalPallets = sessionsArray.reduce((sum, s) => sum + s.palletsLoaded, 0);
-  const totalTrucks = sessionsArray.reduce((sum, s) => sum + s.trucksCount, 0);
+  const totalPallets = sessionsArray.reduce((sum, s) => sum + (Number(s.palletsLoaded) || 0), 0);
+  const totalTrucks = sessionsArray.reduce((sum, s) => sum + (Number(s.trucksCount) || 0), 0);
   const averageRate =
     totalTime > 0 ? (totalPallets / (totalTime / 3600)).toFixed(2) : '0.00';
 
@@ -576,6 +766,29 @@ const styles = StyleSheet.create({
   toggleContainer: {
     flexDirection: 'row',
     gap: 16,
+  },
+  sectionTabsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 10,
+  },
+  sectionTab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  subsectionTabsWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 10,
+  },
+  subsectionTab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   toggleButton: {
     padding: 10,
