@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -44,6 +45,8 @@ const PODIUM_STYLES = {
   },
 };
 
+const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
+
 const getMonthBounds = () => {
   const now = new Date();
   const start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
@@ -59,7 +62,10 @@ const getMonthBounds = () => {
   };
 };
 
-const formatRate = (value) => `${value.toFixed(2)} pal/h`;
+const formatRate = (value, sectionType) => {
+  const unit = sectionType === 'picking' ? 'pacz/h' : 'pal/h';
+  return `${value.toFixed(2)} ${unit}`;
+};
 
 const getDisplayName = (entry, currentUser, currentProfile) => {
   if (entry.userId === currentUser?.id) {
@@ -88,6 +94,8 @@ export default function Leaderboards() {
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [sectionType, setSectionType] = useState('truck');
+  const [pickingSubsection, setPickingSubsection] = useState('P01');
 
   const monthInfo = useMemo(() => getMonthBounds(), []);
 
@@ -124,13 +132,38 @@ export default function Leaderboards() {
         const session = sessionDoc.data();
         const current = grouped.get(userId) || {
           userId,
-          totalPallets: 0,
+          totalUnits: 0,
           totalTime: 0,
           sessionsCount: 0,
         };
 
-        current.totalPallets += parseFloat(session.palletsLoaded) || 0;
-        current.totalTime += parseFloat(session.sessionTime ?? session.loadingTime) || 0;
+        if (sectionType === 'truck') {
+          if (session.sessionType === 'picking') {
+            return;
+          }
+
+          current.totalUnits += parseFloat(session.palletsLoaded) || 0;
+          current.totalTime += parseFloat(session.sessionTime ?? session.loadingTime) || 0;
+          current.sessionsCount += 1;
+          grouped.set(userId, current);
+          return;
+        }
+
+        if (session.sessionType !== 'picking') {
+          return;
+        }
+
+        const entries = Array.isArray(session.picking?.subsectionEntries)
+          ? session.picking.subsectionEntries
+          : [];
+        const subsectionEntry = entries.find((item) => item?.subsection === pickingSubsection);
+
+        if (!subsectionEntry) {
+          return;
+        }
+
+        current.totalUnits += parseFloat(subsectionEntry.boxesCount) || 0;
+        current.totalTime += parseFloat(subsectionEntry.sessionTime) || 0;
         current.sessionsCount += 1;
 
         grouped.set(userId, current);
@@ -140,7 +173,7 @@ export default function Leaderboards() {
         .map((entry) => {
           const userProfile = usersMap.get(entry.userId) || {};
           const averageRate = entry.totalTime > 0
-            ? entry.totalPallets / (entry.totalTime / 3600)
+            ? entry.totalUnits / (entry.totalTime / 3600)
             : 0;
 
           return {
@@ -155,8 +188,8 @@ export default function Leaderboards() {
             return b.averageRate - a.averageRate;
           }
 
-          if (b.totalPallets !== a.totalPallets) {
-            return b.totalPallets - a.totalPallets;
+          if (b.totalUnits !== a.totalUnits) {
+            return b.totalUnits - a.totalUnits;
           }
 
           return getDisplayName(a, user, profile).localeCompare(getDisplayName(b, user, profile), 'pl');
@@ -174,7 +207,7 @@ export default function Leaderboards() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [monthInfo.endIso, monthInfo.startIso, user]);
+  }, [monthInfo.endIso, monthInfo.startIso, pickingSubsection, profile, sectionType, user]);
 
   useFocusEffect(
     useCallback(() => {
@@ -197,10 +230,68 @@ export default function Leaderboards() {
       ]}
     >
       <View style={[styles.header, { backgroundColor: colors.navBackground, paddingTop: insets.top + 8 }]}>
-        <Text style={[styles.title, { color: colors.text }]}>Tablice Wyników - Załadunek</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Tablice wyników</Text>
         <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Srednia miesięczna palet na godzinę, {monthInfo.label}
+          {sectionType === 'picking'
+            ? `Średnia miesięczna paczek na godzinę, ${monthInfo.label}`
+            : `Średnia miesięczna palet na godzinę, ${monthInfo.label}`}
         </Text>
+
+        <View style={styles.sectionTabsRow}>
+          <Pressable
+            onPress={() => setSectionType('truck')}
+            style={[
+              styles.sectionTab,
+              {
+                borderColor: sectionType === 'truck' ? colors.butBorder : colors.outButBorder,
+                backgroundColor: sectionType === 'truck' ? colors.butBackground : colors.outButBackground,
+              },
+            ]}
+          >
+            <Text style={{ color: sectionType === 'truck' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+              Załadunek
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => setSectionType('picking')}
+            style={[
+              styles.sectionTab,
+              {
+                borderColor: sectionType === 'picking' ? colors.butBorder : colors.outButBorder,
+                backgroundColor: sectionType === 'picking' ? colors.butBackground : colors.outButBackground,
+              },
+            ]}
+          >
+            <Text style={{ color: sectionType === 'picking' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+              Kompletacja
+            </Text>
+          </Pressable>
+        </View>
+
+        {sectionType === 'picking' && (
+          <View style={styles.subsectionTabsWrap}>
+            {PICKING_SUBSECTIONS.map((item) => {
+              const isActive = pickingSubsection === item;
+
+              return (
+                <Pressable
+                  key={item}
+                  onPress={() => setPickingSubsection(item)}
+                  style={[
+                    styles.subsectionTab,
+                    {
+                      borderColor: isActive ? colors.butBorder : colors.border,
+                      backgroundColor: isActive ? colors.butBackground : colors.cardBackground,
+                    },
+                  ]}
+                >
+                  <Text style={{ color: isActive ? colors.butText : colors.text, fontWeight: '700' }}>{item}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
       </View>
 
       {loading ? (
@@ -237,7 +328,7 @@ export default function Leaderboards() {
             <View style={styles.summaryItem}>
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Lider</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>
-                {leaderboard[0] ? formatRate(leaderboard[0].averageRate) : 'Brak'}
+                {leaderboard[0] ? formatRate(leaderboard[0].averageRate, sectionType) : 'Brak'}
               </Text>
             </View>
           </View>
@@ -255,7 +346,9 @@ export default function Leaderboards() {
               <Ionicons name="trophy-outline" size={54} color={colors.iconColor} />
               <Text style={[styles.emptyTitle, { color: colors.text }]}>Brak rankingu w tym miesiącu</Text>
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                Gdy użytkownicy zapiszą sesje w tym miesiącu, ranking pojawi się tutaj.
+                {sectionType === 'picking'
+                  ? `Gdy użytkownicy zapiszą sesje dla podsekcji ${pickingSubsection}, ranking pojawi się tutaj.`
+                  : 'Gdy użytkownicy zapiszą sesje w tym miesiącu, ranking pojawi się tutaj.'}
               </Text>
             </View>
           ) : (
@@ -292,7 +385,7 @@ export default function Leaderboards() {
                     </View>
 
                     <Text style={[styles.rate, { color: colors.text }]}>
-                      {formatRate(entry.averageRate)}
+                      {formatRate(entry.averageRate, sectionType)}
                     </Text>
                   </View>
                 );
@@ -312,7 +405,7 @@ const styles = StyleSheet.create({
   header: {
     marginBottom: 20,
     paddingHorizontal: 24,
-    paddingBottom: 24,
+    paddingBottom: 20,
   },
   title: {
     fontSize: 28,
@@ -322,6 +415,29 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
+    marginBottom: 12,
+  },
+  sectionTabsRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  sectionTab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  subsectionTabsWrap: {
+    marginTop: 12,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  subsectionTab: {
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
   },
   scroll: {
     flex: 1,
@@ -376,6 +492,7 @@ const styles = StyleSheet.create({
     paddingVertical: 36,
     paddingHorizontal: 24,
     marginTop: 8,
+    marginHorizontal: 24,
   },
   emptyTitle: {
     fontSize: 20,
