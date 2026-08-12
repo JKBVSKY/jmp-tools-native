@@ -4,7 +4,7 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import { collection, collectionGroup, getDocs, orderBy, query, where } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -701,11 +701,19 @@ export default function Dashboard() {
   return (
     <ThemedView style={styles.container}>
       {isGuest && (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'left' }}>
-          <View style={{ marginBottom: 20 }}>
+        <View
+          style={[
+            styles.guestContent,
+            {
+              paddingTop: insets.top + 8,
+              backgroundColor: colors.background,
+            },
+          ]}
+        >
+          <View style={styles.guestHeader}>
             <View style={styles.headerRow}>
               <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
-                <Image source={{ uri: avatarUri }} style={styles.avatar} />
+                <Ionicons name="person-circle" size={64} color={colors.iconColor} />
               </TouchableOpacity>
               <Text style={[styles.welcome, { color: colors.text, marginLeft: 12 }]}>Witaj, {user?.name || 'User'}!</Text>
             </View>
@@ -1104,6 +1112,14 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     paddingBottom: 24,
+  },
+  guestContent: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
+  },
+  guestHeader: {
+    marginBottom: 20,
   },
   welcome: {
     fontSize: 28,
