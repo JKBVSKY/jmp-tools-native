@@ -171,8 +171,9 @@ const ReportsScreen = () => {
         setReportVisible(false);
     };
 
-    const handleDelete = (id) => {
-        if (!isAdmin) return;
+    const handleDelete = (id, item) => {
+        const isOwner = !!user?.id && item?.reporterId === user.id;
+        if (!isAdmin && !isOwner) return;
 
         Alert.alert(
             'Usuń zgłoszenie',
@@ -216,6 +217,7 @@ const ReportsScreen = () => {
         const reporterName = item.reporterName || 'Gość';
         const reporterInitials = item.reporterInitials || getInitials(reporterName);
         const canEdit = !!user?.id && item.reporterId === user.id;
+        const canDelete = isAdmin || (!!user?.id && item.reporterId === user.id);
 
         return (<View
             style={[
@@ -309,9 +311,9 @@ const ReportsScreen = () => {
                         </TouchableOpacity>
                     )}
 
-                    {isAdmin && (
+                    {canDelete && (
                         <TouchableOpacity
-                            onPress={() => handleDelete(item.id)}
+                            onPress={() => handleDelete(item.id, item)}
                             style={[
                                 styles.deleteButton,
                                 { borderColor: colors.border, backgroundColor: colors.cardBackground },
