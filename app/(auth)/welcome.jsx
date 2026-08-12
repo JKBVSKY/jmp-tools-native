@@ -11,7 +11,7 @@ export default function Welcome() {
 
   const handleGuestMode = async () => {
     await continueAsGuest();
-    router.replace('/(app)');
+    router.replace('/');
   };
 
   return (
