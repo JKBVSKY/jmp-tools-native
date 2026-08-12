@@ -10,7 +10,6 @@ const About = () => {
   const insets = useSafeAreaInsets();
 
   const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '0.0.0';
-  const buildVersion = Application.nativeBuildVersion;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -37,7 +36,7 @@ const About = () => {
           <Text style={[styles.title, { color: colors.text }]}>JMP Tools</Text>
 
           <View style={[styles.versionPill, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}>
-            <Text style={[styles.versionText, { color: colors.textSecondary }]}>v{appVersion}{buildVersion ? ` (${buildVersion})` : ''}</Text>
+            <Text style={[styles.versionText, { color: colors.textSecondary }]}>v{appVersion}</Text>
           </View>
         </View>
 
@@ -75,13 +74,13 @@ const About = () => {
             (uwierzytelnianie + Firestore) do bezpiecznego przechowywania sesji i statystyk.
           </Text>
 
-          <Text style={[styles.description, { color: colors.textSecondary }]}>
+          {/* <Text style={[styles.description, { color: colors.textSecondary }]}>
             Jeśli przeglądasz ten ekran jako rekruter lub osoba zainteresowana współpracą,
             JMP Tools to projekt pokazujący umiejętność budowania pełnoprawnych aplikacji
             mobilnych: od architektury, przez integrację z backendem, po UX/UI i gamifikację.
           </Text>
 
-          <Text style={[styles.contact, { color: colors.text }]}>Kontakt: [Twój email / GitHub / LinkedIn]</Text>
+          <Text style={[styles.contact, { color: colors.text }]}>Kontakt: [Twój email / GitHub / LinkedIn]</Text> */}
         </View>
       </ScrollView>
     </View>
