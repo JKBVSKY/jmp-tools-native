@@ -130,14 +130,14 @@ export default function More() {
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Ustawienia</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
-            // onPress={() => {
-            //   router.push('/misc/about');
-            // }}
+              onPress={() => {
+                router.push('/misc/about');
+              }}
             >
-              <Ionicons name="information-circle" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
-              <Text style={[styles.cardText, { color: colors.textSecondary }]}>O aplikacji</Text>
+              <Ionicons name="information-circle" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.text }]}>O aplikacji</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}

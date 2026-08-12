@@ -15,6 +15,7 @@ import {
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
 import { getFirestore } from 'firebase/firestore';
 import { StorageManager } from '../utils/StorageManager';
+import { clearUserPushTokenAsync } from '../services/NotificationService';
 
 // Initialize Firebase
 const firebaseConfig = {
@@ -190,6 +191,16 @@ export function AuthProvider({ children }) {
 
   const signOut = async () => {
     try {
+      const currentUserId = user?.id;
+
+      if (currentUserId) {
+        try {
+          await clearUserPushTokenAsync(currentUserId);
+        } catch (error) {
+          console.error('Failed to clear push token on sign out:', error);
+        }
+      }
+
       await firebaseSignOut(auth);
       setUser(null);
       setIsGuest(false);

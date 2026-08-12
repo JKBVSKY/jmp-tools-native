@@ -1,7 +1,7 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { ActivityIndicator, View } from 'react-native';
-import 'react-native-gesture-handler';
+import { useEffect } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -10,12 +10,63 @@ import { ThemeProvider, useThemeContext } from '../context/ThemeContext';
 import { UserProfileProvider } from '../context/UserProfileContext';
 import { useColors } from '../hooks/useColors';
 import CalculatorHeaderTitle from './calculator_content/shared/CalculatorHeaderTitle';
+import {
+  attachNotificationListeners,
+  attachPushTokenRefreshListener,
+  registerForPushNotificationsAsync,
+  saveUserPushTokenAsync,
+} from '../services/NotificationService';
 
 // inside app/_layout.jsx
 function RootNavigator() {
-  const { isLoading } = useAuth();
+  const { isLoading, user } = useAuth();
   const { theme } = useThemeContext();
   const colors = useColors();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (user?.id) {
+      registerForPushNotificationsAsync().then(async ({ token, error }) => {
+        if (!isMounted) {
+          return;
+        }
+
+        if (token) {
+          console.log('Expo push token:', token);
+          await saveUserPushTokenAsync(user.id, token);
+          console.log('Push token synced for user:', user.id);
+        }
+
+        if (error) {
+          console.log('Push setup:', error);
+        }
+      });
+    }
+
+    const detachTokenRefreshListener = attachPushTokenRefreshListener(async (token) => {
+      if (!user?.id || !isMounted) {
+        return;
+      }
+      await saveUserPushTokenAsync(user.id, token);
+      console.log('Push token refreshed and synced for user:', user.id);
+    });
+
+    const detachListeners = attachNotificationListeners({
+      onNotification: (notification) => {
+        console.log('Notification received:', notification.request.identifier);
+      },
+      onResponse: (response) => {
+        console.log('Notification response:', response.actionIdentifier);
+      },
+    });
+
+    return () => {
+      isMounted = false;
+      detachTokenRefreshListener();
+      detachListeners();
+    };
+  }, [user?.id]);
 
   if (isLoading) {
     return (

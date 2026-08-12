@@ -50,6 +50,12 @@
           }
         }
       ],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "default"
+        }
+      ],
       "expo-secure-store",
       "@react-native-community/datetimepicker"
     ],
