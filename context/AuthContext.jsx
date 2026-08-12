@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react';
 import { Platform } from 'react-native';
-import { initializeApp } from 'firebase/app';
+import { getApp, getApps, initializeApp } from 'firebase/app';
 import {
   getAuth,
   initializeAuth,
@@ -28,7 +28,7 @@ const firebaseConfig = {
   measurementId: 'G-MSZZN9T73R',
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 // IMPORTANT: different init for web vs native
 let auth;

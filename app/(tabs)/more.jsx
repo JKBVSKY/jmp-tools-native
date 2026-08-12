@@ -102,16 +102,16 @@ export default function More() {
             </TouchableOpacity>
 
             {/* Szukanie Towaru */}
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
               activeOpacity={0.8}
-            // onPress={() => {
-            //   router.push('/misc/goodsFinder');
-            // }}
+            onPress={() => {
+              router.push('/misc/goodsFinder');
+            }}
             >
               <Ionicons name="search" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Szukanie Towaru</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
@@ -119,16 +119,16 @@ export default function More() {
           <Text style={[styles.title, { color: colors.text }]}>Ogólne</Text>
 
           <View style={styles.cardsGrid}>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
               activeOpacity={0.8}
-            // onPress={() => {
-            //   router.push('/misc/settings');
-            // }}
+            onPress={() => {
+              router.push('/misc/settings');
+            }}
             >
               <Ionicons name="settings" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Ustawienia</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
@@ -139,16 +139,16 @@ export default function More() {
               <Ionicons name="information-circle" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.text }]}>O aplikacji</Text>
             </TouchableOpacity>
-            <TouchableOpacity
+            {/* <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
               activeOpacity={0.8}
-            // onPress={() => {
-            //   router.push('/misc/help');
-            // }}
+            onPress={() => {
+              router.push('/misc/help');
+            }}
             >
               <Ionicons name="help-circle" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Pomoc</Text>
-            </TouchableOpacity>
+            </TouchableOpacity> */}
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}

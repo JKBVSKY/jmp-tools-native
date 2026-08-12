@@ -103,14 +103,14 @@ const ScoreSimulator = () => {
         if (!palletsPattern.test(normalizedPalletsStr)) {
             return {
                 error:
-                    'Liczba palet musi być większa od 0. Dozwolone są tylko wartości całkowite (1, 2, 3, …) oraz końcówki .25, .50, .75.',
+                    'Liczba palet/paczek musi być większa od 0. Dozwolone są tylko wartości całkowite (1, 2, 3, …) oraz końcówki .25, .50, .75.',
             };
         }
 
         const palletsNumber = parseFloat(normalizedPalletsStr);
 
         if (Number.isNaN(palletsNumber) || palletsNumber <= 0) {
-            return { error: 'Liczba palet musi być większa od 0.' };
+            return { error: 'Liczba palet/paczek musi być większa od 0.' };
         }
 
         return { value: palletsNumber };
@@ -447,7 +447,7 @@ const ScoreSimulator = () => {
                 )}
 
                 <View style={styles.formGroup}>
-                    <Text style={styles.label}>Liczba palet</Text>
+                    <Text style={styles.label}>Liczba palet/paczek</Text>
                     <TextInput
                         style={styles.input}
                         placeholder="Np. 12, 12.25, 12.50, 12.75"
@@ -462,7 +462,7 @@ const ScoreSimulator = () => {
 
                 {avgPalletsPerHour != null && (
                     <View style={styles.resultContainer}>
-                        <Text style={styles.resultLabel}>Średnia palet na godzinę</Text>
+                        <Text style={styles.resultLabel}>Średnia palet/paczek na godzinę</Text>
                         <Text
                             style={[
                                 styles.resultValue,
@@ -480,7 +480,7 @@ const ScoreSimulator = () => {
 
                         {maxUntilLabel ? (
                             <Text style={styles.resultSubLabel}>
-                                48 o godzinie: {maxUntilLabel}
+                                Dla załadunku: 48 palet/h o godzinie {maxUntilLabel}
                             </Text>
                         ) : null}
                     </View>

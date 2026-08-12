@@ -84,6 +84,7 @@ const ReportsScreen = () => {
     const [activeTab, setActiveTab] = useState('all');
     const [reportVisible, setReportVisible] = useState(false);
     const [reportTruckNumber, setReportTruckNumber] = useState('');
+    const [editingReport, setEditingReport] = useState(null);
 
     const statusStyles = useMemo(
         () => ({
@@ -154,11 +155,19 @@ const ReportsScreen = () => {
     }, [reports, search, activeTab, user?.id]);
 
     const openReport = () => {
+        setEditingReport(null);
         setReportTruckNumber(search.trim());
         setReportVisible(true);
     };
 
+    const openEditReport = (report) => {
+        setEditingReport(report);
+        setReportTruckNumber(report.truckNumber || '');
+        setReportVisible(true);
+    };
+
     const closeReport = () => {
+        setEditingReport(null);
         setReportVisible(false);
     };
 
@@ -206,6 +215,7 @@ const ReportsScreen = () => {
 
         const reporterName = item.reporterName || 'Gość';
         const reporterInitials = item.reporterInitials || getInitials(reporterName);
+        const canEdit = !!user?.id && item.reporterId === user.id;
 
         return (<View
             style={[
@@ -286,17 +296,31 @@ const ReportsScreen = () => {
                     )}
                 </View>
 
-                {isAdmin && (
-                    <TouchableOpacity
-                        onPress={() => handleDelete(item.id)}
-                        style={[
-                            styles.deleteButton,
-                            { borderColor: colors.border, backgroundColor: colors.cardBackground },
-                        ]}
-                    >
-                        <Text style={[styles.deleteText, { color: colors.textSecondary }]}>✕</Text>
-                    </TouchableOpacity>
-                )}
+                <View style={styles.actionButtonsRow}>
+                    {canEdit && (
+                        <TouchableOpacity
+                            onPress={() => openEditReport(item)}
+                            style={[
+                                styles.editButton,
+                                { borderColor: colors.border, backgroundColor: colors.cardBackground },
+                            ]}
+                        >
+                            <Text style={[styles.deleteText, { color: colors.textSecondary }]}>✎</Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {isAdmin && (
+                        <TouchableOpacity
+                            onPress={() => handleDelete(item.id)}
+                            style={[
+                                styles.deleteButton,
+                                { borderColor: colors.border, backgroundColor: colors.cardBackground },
+                            ]}
+                        >
+                            <Text style={[styles.deleteText, { color: colors.textSecondary }]}>✕</Text>
+                        </TouchableOpacity>
+                    )}
+                </View>
             </View>
         </View>
         );
@@ -316,6 +340,9 @@ const ReportsScreen = () => {
                 visible={reportVisible}
                 onClose={closeReport}
                 initialTruckNumber={reportTruckNumber}
+                editMode={!!editingReport}
+                reportId={editingReport?.id || null}
+                initialData={editingReport}
             />
             <FlatList
                 data={filteredReports}
@@ -520,6 +547,18 @@ const styles = StyleSheet.create({
     timestamp: {
         marginTop: 6,
         fontSize: 11,
+    },
+    actionButtonsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
+    editButton: {
+        borderWidth: 1,
+        borderRadius: 50,
+        paddingHorizontal: 8,
+        paddingVertical: 6,
+        alignSelf: 'flex-start',
     },
     deleteButton: {
         borderWidth: 1,

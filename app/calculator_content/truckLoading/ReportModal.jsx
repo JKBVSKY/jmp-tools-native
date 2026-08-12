@@ -10,14 +10,21 @@ import {
     Animated,
     ScrollView,
 } from 'react-native';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
 import { useColors } from '../../../hooks/useColors';
 import { MaterialIcons } from '@expo/vector-icons';
 import { REPORT_TYPES } from '../../../constants/reportTypes';
 import { useAuth } from '../../../context/AuthContext';
 
-const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
+const ReportModal = ({
+    visible,
+    onClose,
+    initialTruckNumber = '',
+    editMode = false,
+    reportId = null,
+    initialData = null,
+}) => {
     const colors = useColors();
     const { user } = useAuth();
 
@@ -45,15 +52,25 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
             return;
         }
 
-        setTruckNumber(initialTruckNumber || '');
-        setReportType('');
-        setDescription('');
+        const nextTruckNumber = editMode
+            ? (initialData?.truckNumber ?? initialTruckNumber ?? '')
+            : (initialTruckNumber || '');
+        const nextReportType = editMode
+            ? (initialData?.type ?? '')
+            : '';
+        const nextDescription = editMode
+            ? (initialData?.description ?? '')
+            : '';
+
+        setTruckNumber(nextTruckNumber);
+        setReportType(nextReportType);
+        setDescription(nextDescription);
         setError(null);
         setSaving(false);
         setShowSuccess(false);
         scaleAnim.setValue(0.5);
         opacityAnim.setValue(0);
-    }, [visible, initialTruckNumber, scaleAnim, opacityAnim]);
+    }, [visible, initialTruckNumber, editMode, initialData, scaleAnim, opacityAnim]);
 
     useEffect(() => {
         if (!visible || !showSuccess) {
@@ -100,30 +117,41 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
         setError(null);
 
         try {
-            const reporterName = user?.name || user?.email || 'Gość';
-            const reporterInitials = reporterName
-                .split(/\s+/)
-                .filter(Boolean)
-                .slice(0, 2)
-                .map((part) => part[0]?.toUpperCase() || '')
-                .join('') || 'G';
-
-            await addDoc(collection(db, 'reports'), {
+            const payload = {
                 truckNumber: truckNumber.trim(),
                 type: reportType,
                 description: description.trim() || null,
-                createdAt: serverTimestamp(),
-                reporterId: user?.id || null,
-                reporterName,
-                reporterInitials,
-            });
+            };
+
+            if (editMode && reportId) {
+                await updateDoc(doc(db, 'reports', reportId), {
+                    ...payload,
+                    updatedAt: serverTimestamp(),
+                });
+            } else {
+                const reporterName = user?.name || user?.email || 'Gość';
+                const reporterInitials = reporterName
+                    .split(/\s+/)
+                    .filter(Boolean)
+                    .slice(0, 2)
+                    .map((part) => part[0]?.toUpperCase() || '')
+                    .join('') || 'G';
+
+                await addDoc(collection(db, 'reports'), {
+                    ...payload,
+                    createdAt: serverTimestamp(),
+                    reporterId: user?.id || null,
+                    reporterName,
+                    reporterInitials,
+                });
+            }
 
             setSaving(false);
             setShowSuccess(true);
         } catch (e) {
             console.log('Error saving report:', e);
             setSaving(false);
-            setError('Nie udało się zapisać zgłoszenia. Spróbuj ponownie.');
+            setError(editMode ? 'Nie udało się zaktualizować zgłoszenia. Spróbuj ponownie.' : 'Nie udało się zapisać zgłoszenia. Spróbuj ponownie.');
         }
     };
 
@@ -163,7 +191,7 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
                             </Animated.View>
 
                             <Text style={[styles.successText, { color: colors.title }]}>
-                                Dodano zgłoszenie!
+                                {editMode ? 'Zaktualizowano zgłoszenie!' : 'Dodano zgłoszenie!'}
                             </Text>
 
                             <TouchableOpacity
@@ -306,7 +334,7 @@ const ReportModal = ({ visible, onClose, initialTruckNumber = '' }) => {
                                     disabled={saving}
                                 >
                                     <Text style={[styles.primaryText, { color: colors.butText }]}>
-                                        {saving ? 'Zapisywanie...' : 'Zapisz'}
+                                        {saving ? 'Zapisywanie...' : editMode ? 'Zapisz zmiany' : 'Zapisz'}
                                     </Text>
                                 </TouchableOpacity>
                             </View>

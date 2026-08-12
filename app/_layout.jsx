@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { ActivityIndicator, View } from 'react-native';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -10,6 +9,7 @@ import { ThemeProvider, useThemeContext } from '../context/ThemeContext';
 import { UserProfileProvider } from '../context/UserProfileContext';
 import { useColors } from '../hooks/useColors';
 import CalculatorHeaderTitle from './calculator_content/shared/CalculatorHeaderTitle';
+import StartupLoadingScreen from '../components/StartupLoadingScreen';
 import {
   attachNotificationListeners,
   attachPushTokenRefreshListener,
@@ -22,34 +22,40 @@ function RootNavigator() {
   const { isLoading, user } = useAuth();
   const { theme } = useThemeContext();
   const colors = useColors();
+  const [isNotificationsReady, setIsNotificationsReady] = useState(false);
+  const [pushToken, setPushToken] = useState(null);
 
   useEffect(() => {
     let isMounted = true;
 
-    if (user?.id) {
-      registerForPushNotificationsAsync().then(async ({ token, error }) => {
+    registerForPushNotificationsAsync()
+      .then(({ token, error }) => {
         if (!isMounted) {
           return;
         }
 
         if (token) {
           console.log('Expo push token:', token);
-          await saveUserPushTokenAsync(user.id, token);
-          console.log('Push token synced for user:', user.id);
+          setPushToken(token);
         }
 
         if (error) {
           console.log('Push setup:', error);
         }
+      })
+      .finally(() => {
+        if (isMounted) {
+          setIsNotificationsReady(true);
+        }
       });
-    }
 
     const detachTokenRefreshListener = attachPushTokenRefreshListener(async (token) => {
-      if (!user?.id || !isMounted) {
+      if (!isMounted) {
         return;
       }
-      await saveUserPushTokenAsync(user.id, token);
-      console.log('Push token refreshed and synced for user:', user.id);
+
+      console.log('Expo push token refreshed:', token);
+      setPushToken(token);
     });
 
     const detachListeners = attachNotificationListeners({
@@ -66,14 +72,24 @@ function RootNavigator() {
       detachTokenRefreshListener();
       detachListeners();
     };
-  }, [user?.id]);
+  }, []);
 
-  if (isLoading) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+  useEffect(() => {
+    if (!user?.id || !pushToken) {
+      return;
+    }
+
+    saveUserPushTokenAsync(user.id, pushToken)
+      .then(() => {
+        console.log('Push token synced for user:', user.id);
+      })
+      .catch((error) => {
+        console.log('Push token sync error:', error?.message ?? String(error));
+      });
+  }, [user?.id, pushToken]);
+
+  if (!isNotificationsReady || isLoading) {
+    return <StartupLoadingScreen subtitle="Restoring your session..." />;
   }
 
   return (
