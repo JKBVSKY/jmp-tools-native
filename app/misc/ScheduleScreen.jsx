@@ -215,6 +215,7 @@ const normalizeScheduleItems = (items) => {
     id: String(item?.id || `local-${Date.now()}-${index}`),
     lp: String(item?.lp ?? ''),
     nr: String(item?.nr ?? ''),
+    pasy: String(item?.pasy ?? ''),
     createdAt: item?.createdAt ? new Date(item.createdAt) : new Date(),
   }));
 };
@@ -243,6 +244,7 @@ const buildRowsFromLpRange = (lpStartValue, lpEndValue, nrNumbers) => {
     id: `scanned-${timestampSeed}-${index}`,
     lp: index < rangeCount ? String(start + index) : '',
     nr: index < nrNumbers.length ? String(nrNumbers[index]) : '',
+    pasy: '',
     createdAt: new Date(),
   }));
 
@@ -307,6 +309,7 @@ export default function ScheduleScreen() {
       id: String(item?.id || `local-${Date.now()}-${index}`),
       lp: String(item?.lp ?? ''),
       nr: String(item?.nr ?? ''),
+      pasy: String(item?.pasy ?? ''),
       createdAt: item?.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
     }));
     await StorageManager.setItem(localStorageKey, JSON.stringify(serializable));
@@ -348,6 +351,7 @@ export default function ScheduleScreen() {
       ? items
       : items.filter((item) =>
           [item.lp, item.nr]
+            .concat(item.pasy)
             .map((value) => String(value || '').toLowerCase())
             .some((value) => value.includes(queryText))
         );
@@ -454,6 +458,7 @@ export default function ScheduleScreen() {
         await addDoc(scheduleCollection, {
           lp: String(item.lp || ''),
           nr: String(item.nr || ''),
+          pasy: String(item.pasy || ''),
           createdAt: item.createdAt || new Date(),
         });
       }
@@ -637,6 +642,7 @@ export default function ScheduleScreen() {
         id: `manual-${Date.now()}-${prev.length}`,
         lp: '',
         nr: '',
+        pasy: '',
         createdAt: new Date(),
       },
     ]);
@@ -657,6 +663,9 @@ export default function ScheduleScreen() {
       </View>
       <View style={[styles.tableHeaderCell, styles.tableNrCell, { borderColor: colors.border }]}>
         <Text style={[styles.tableHeaderText, { color: colors.textSecondary }]}>NR</Text>
+      </View>
+      <View style={[styles.tableHeaderCell, styles.tablePasyCell, { borderColor: colors.border }]}>
+        <Text style={[styles.tableHeaderText, { color: colors.textSecondary }]}>Pasy</Text>
       </View>
     </View>
   );
@@ -683,6 +692,19 @@ export default function ScheduleScreen() {
           <TextInput
             value={String(item.nr ?? '')}
             onChangeText={(value) => updateItemField(item.id, 'nr', value)}
+            editable={isAdmin}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            style={[
+              styles.tableInput,
+              { color: colors.text, borderColor: colors.inputBorder, backgroundColor: colors.background },
+            ]}
+          />
+        </View>
+        <View style={[styles.tableCell, styles.tablePasyCell, { borderColor: colors.border }]}> 
+          <TextInput
+            value={String(item.pasy ?? '')}
+            onChangeText={(value) => updateItemField(item.id, 'pasy', value)}
             editable={isAdmin}
             keyboardType="number-pad"
             inputMode="numeric"
@@ -724,6 +746,23 @@ export default function ScheduleScreen() {
             onChangeText={(value) => {
               setVerificationItems((prev) =>
                 prev.map((row) => (row.id === item.id ? { ...row, nr: value } : row))
+              );
+            }}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            style={[
+              styles.fieldInput,
+              { backgroundColor: colors.background, color: colors.text, borderColor: colors.inputBorder },
+            ]}
+          />
+        </View>
+        <View style={styles.fieldContainer}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Pasy</Text>
+          <TextInput
+            value={String(item.pasy ?? '')}
+            onChangeText={(value) => {
+              setVerificationItems((prev) =>
+                prev.map((row) => (row.id === item.id ? { ...row, pasy: value } : row))
               );
             }}
             keyboardType="number-pad"
@@ -790,6 +829,8 @@ export default function ScheduleScreen() {
             onChangeText={setSearchText}
             style={[styles.searchInput, { color: colors.text }]}
             returnKeyType="search"
+            keyboardType="number-pad"
+            inputMode="numeric"
           />
         </View>
 
@@ -1094,9 +1135,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   tableLpCell: {
-    flex: 0.95,
+    flex: 1,
   },
   tableNrCell: {
+    flex: 1,
+  },
+  tablePasyCell: {
     flex: 1,
     borderRightWidth: 0,
   },
