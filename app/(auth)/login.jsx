@@ -1,19 +1,59 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, Pressable, Alert, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TextInput, StyleSheet, Pressable, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 import { useColors } from '../../hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import DismissKeyboardView from '../../components/DismissKeyboardView';
+import { StorageManager } from '../../utils/StorageManager';
+
+const REMEMBER_CREDENTIALS_KEY = 'rememberedLoginCredentials';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false); // Toggle password visibility
+  const [rememberCredentials, setRememberCredentials] = useState(false);
   const router = useRouter();
   const { signIn } = useAuth();
   const colors = useColors();
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadRememberedCredentials = async () => {
+      const savedCredentials = await StorageManager.getItem(REMEMBER_CREDENTIALS_KEY);
+
+      if (!isMounted || !savedCredentials) {
+        return;
+      }
+
+      try {
+        const parsedCredentials = JSON.parse(savedCredentials);
+        setEmail(parsedCredentials.email ?? '');
+        setPassword(parsedCredentials.password ?? '');
+        setRememberCredentials(true);
+      } catch {
+        await StorageManager.removeItem(REMEMBER_CREDENTIALS_KEY);
+      }
+    };
+
+    loadRememberedCredentials();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const handleRememberCredentialsChange = async () => {
+    const nextValue = !rememberCredentials;
+    setRememberCredentials(nextValue);
+
+    if (!nextValue) {
+      await StorageManager.removeItem(REMEMBER_CREDENTIALS_KEY);
+    }
+  };
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -26,6 +66,15 @@ export default function Login() {
     setLoading(false);
 
     if (result.success) {
+      if (rememberCredentials) {
+        await StorageManager.setItem(
+          REMEMBER_CREDENTIALS_KEY,
+          JSON.stringify({ email, password })
+        );
+      } else {
+        await StorageManager.removeItem(REMEMBER_CREDENTIALS_KEY);
+      }
+
       router.replace('/');
     } else {
       Alert.alert('Logowanie nieudane', result.error);
@@ -52,6 +101,8 @@ export default function Login() {
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          autoComplete="email"
+          textContentType="emailAddress"
         />
 
         {/* Password input with eye button */}
@@ -68,6 +119,8 @@ export default function Login() {
             onChangeText={setPassword}
             secureTextEntry={!showPassword}
             autoCapitalize="none"
+            autoComplete="current-password"
+            textContentType="password"
           />
           <Pressable
             style={styles.eyeButton}
@@ -80,6 +133,15 @@ export default function Login() {
             />
           </Pressable>
         </View>
+
+        <Pressable style={styles.rememberRow} onPress={handleRememberCredentialsChange}>
+          <Ionicons
+            name={rememberCredentials ? 'checkbox' : 'checkbox-outline'}
+            size={22}
+            color={colors.iconColor}
+          />
+          <Text style={[styles.rememberText, { color: colors.textSecondary }]}>Zapamiętaj email i hasło na tym urządzeniu</Text>
+        </Pressable>
 
         <Pressable
           style={[
@@ -154,6 +216,17 @@ const styles = StyleSheet.create({
     right: 15,
     top: 15,
     padding: 5,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 10,
+    paddingVertical: 4,
+  },
+  rememberText: {
+    flex: 1,
+    fontSize: 14,
   },
   button: {
     padding: 16,
