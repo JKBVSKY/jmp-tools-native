@@ -141,8 +141,21 @@ function RootNavigator() {
         />
         <Stack.Screen
           name="misc/WarehouseMap"
-          options={{ title: 'Mapa Magazynu', headerShown: false
-           }}
+          options={{
+            title: 'Mapa Magazynu', headerShown: false
+          }}
+        />
+        <Stack.Screen
+          name="misc/settings"
+          options={{ title: 'Ustawienia', headerShown: true }}
+        />
+        <Stack.Screen
+          name="misc/about"
+          options={{ title: 'O aplikacji', headerShown: true }}
+        />
+        <Stack.Screen
+          name="misc/Timetable"
+          options={{ title: 'Grafik pracy', headerShown: true }}
         />
       </Stack>
     </>

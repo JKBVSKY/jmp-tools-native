@@ -123,7 +123,7 @@ export default function More() {
               <MaterialCommunityIcons name="warehouse" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.text }]}>Mapa Magazynu</Text>
             </TouchableOpacity>
-            
+
             {/* Szukanie Towaru */}
             {/* <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
@@ -142,16 +142,26 @@ export default function More() {
           <Text style={[styles.title, { color: colors.text }]}>Ogólne</Text>
 
           <View style={styles.cardsGrid}>
-            {/* <TouchableOpacity
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              activeOpacity={0.8}
+              onPress={() => {
+                router.push('/misc/Timetable');
+              }}
+            >
+              <Ionicons name="calendar" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.text }]}>Twój Grafik</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
               activeOpacity={0.8}
-            onPress={() => {
-              router.push('/misc/settings');
-            }}
+              onPress={() => {
+                router.push('/misc/settings');
+              }}
             >
               <Ionicons name="settings" size={28} color={colors.grayIconColor} style={{ marginBottom: 6 }} />
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Ustawienia</Text>
-            </TouchableOpacity> */}
+            </TouchableOpacity>
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
