@@ -135,6 +135,15 @@ function RootNavigator() {
             headerStyle: { backgroundColor: colors.navBackground, height: 102 },
           }}
         />
+        <Stack.Screen
+          name="misc/Mapping"
+          options={{ title: 'Lokalizator Palet', headerShown: true }}
+        />
+        <Stack.Screen
+          name="misc/WarehouseMap"
+          options={{ title: 'Mapa Magazynu', headerShown: false
+           }}
+        />
       </Stack>
     </>
   );

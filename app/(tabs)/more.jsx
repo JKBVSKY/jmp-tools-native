@@ -1,10 +1,9 @@
 // app/(app)/(tabs)/more.jsx
 import React from 'react';
-import { View, ScrollView, Text, TouchableOpacity, StyleSheet, Pressable, ActivityIndicator, Image } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image } from 'react-native';
 import { useColors } from '../../hooks/useColors';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useAuth } from '../../context/AuthContext';
 
@@ -12,7 +11,7 @@ export default function More() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const router = useRouter();
-  const { user, isGuest, signOut } = useAuth();
+  const { signOut } = useAuth();
 
   const handleLogout = async () => {
     try {
@@ -101,6 +100,30 @@ export default function More() {
               <Text style={[styles.cardText, { color: colors.text }]}>Zgłoszenia</Text>
             </TouchableOpacity>
 
+            {/* PalletMap */}
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              activeOpacity={0.8}
+              onPress={() => {
+                router.push('/misc/Mapping');
+              }}
+            >
+              <MaterialCommunityIcons name="map-marker-radius" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.text }]}>Lokalizator Palet</Text>
+            </TouchableOpacity>
+
+            {/* WarehouseMap */}
+            <TouchableOpacity
+              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              activeOpacity={0.8}
+              onPress={() => {
+                router.push('/misc/WarehouseMap');
+              }}
+            >
+              <MaterialCommunityIcons name="warehouse" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.text }]}>Mapa Magazynu</Text>
+            </TouchableOpacity>
+            
             {/* Szukanie Towaru */}
             {/* <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
