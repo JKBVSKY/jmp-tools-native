@@ -39,6 +39,10 @@ module.exports = ({ config }) => {
     android: {
       ...config.android,
       package: androidPackage,
+      // 🔑 tu wybieramy odpowiedni plik google-services
+      googleServicesFile: isDevelopment
+        ? "./google-services.dev.json"
+        : "./google-services.json",
     },
 
     plugins: [

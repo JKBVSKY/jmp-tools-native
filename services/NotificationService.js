@@ -15,6 +15,24 @@ Notifications.setNotificationHandler({
   }),
 });
 
+export async function enableUserNotificationsAsync(userId) {
+  const { token, error } = await registerForPushNotificationsAsync();
+  if (!token) {
+    return { success: false, error };
+  }
+
+  await saveUserPushTokenAsync(userId, token);
+  return { success: true, token };
+}
+
+export async function disableUserNotificationsAsync(userId) {
+  // W Firestore wyczyść token
+  await clearUserPushTokenAsync(userId);
+  // Lokalnie anuluj wszystkie zaplanowane notyfikacje
+  await Notifications.cancelAllScheduledNotificationsAsync();
+  return { success: true };
+}
+
 async function setupAndroidChannelAsync() {
   if (Platform.OS !== 'android') {
     return;
@@ -123,7 +141,7 @@ export async function clearUserPushTokenAsync(userId) {
 
 export function attachPushTokenRefreshListener(onTokenRefreshed) {
   if (Platform.OS === 'web') {
-    return () => {};
+    return () => { };
   }
 
   const subscription = Notifications.addPushTokenListener(async () => {
@@ -144,7 +162,7 @@ export function attachPushTokenRefreshListener(onTokenRefreshed) {
 
 export function attachNotificationListeners({ onNotification, onResponse } = {}) {
   if (Platform.OS === 'web') {
-    return () => {};
+    return () => { };
   }
 
   const receivedSub = Notifications.addNotificationReceivedListener((notification) => {

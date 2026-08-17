@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "401798516907",
+    "project_id": "jmp-tools",
+    "storage_bucket": "jmp-tools.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:401798516907:android:c63a9c3978f1b007c6e7ee",
+        "android_client_info": {
+          "package_name": "com.jmp.tools.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCm2b4_JIIG5qeppIevB8uG6A8HCFmWb70"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
