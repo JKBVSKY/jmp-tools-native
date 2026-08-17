@@ -13,6 +13,7 @@ export const Colors = {
     title: '#FFFFFF',
     cardValue: '#ede8e8',
     cardTitle: '#a6a6b1',
+    textSuccess: '#16a34a',
 
     // Backgrounds - dark gray with navy accent
     background: '#202124',      // Main background (dark gray)
@@ -70,6 +71,7 @@ export const Colors = {
     title: '#000000',
     cardValue: '#242020',
     cardTitle: '#968c8c',
+    textSuccess: '#16a34a',
 
     // Backgrounds - clean white with light gray accents
     background: '#EEEFF2',
