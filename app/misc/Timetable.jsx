@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import * as Notifications from 'expo-notifications';
 import {
     SafeAreaView,
     View,
@@ -14,10 +15,16 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-
+import {
+    Gesture,
+    GestureDetector,
+} from 'react-native-gesture-handler';
+import { runOnJS } from 'react-native-reanimated';
 import { useColors } from '../../hooks/useColors';
 
 const STORAGE_KEY = '@jmp_tools_timetable';
+const NOTIFICATIONS_ENABLED_KEY =
+    '@jmp_tools_notifications_enabled';
 
 const MONTHS = [
     'styczeń',
@@ -51,6 +58,26 @@ const SHIFT_TYPES = {
     sick: 'L4',
 };
 
+const SHIFT_PRESETS = {
+    morning: {
+        label: 'Rano',
+        start: '06:00',
+        end: '14:15',
+    },
+
+    afternoon: {
+        label: 'Popołudnie',
+        start: '13:45',
+        end: '22:00',
+    },
+
+    night: {
+        label: 'Nocka',
+        start: '21:45',
+        end: '06:00',
+    },
+};
+
 const Timetable = () => {
     const colors = useColors();
 
@@ -67,11 +94,370 @@ const Timetable = () => {
     // Multi-day selection
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedDays, setSelectedDays] = useState([]);
+    const [dayLayouts, setDayLayouts] = useState({});
+    const [dragSelectionStart, setDragSelectionStart] =
+        useState(null);
+
+    const [isDraggingSelection, setIsDraggingSelection] =
+        useState(false);
 
     // Form
     const [shiftType, setShiftType] = useState('work');
     const [startTime, setStartTime] = useState('06:00');
     const [endTime, setEndTime] = useState('14:00');
+    const [selectedPreset, setSelectedPreset] = useState(null);
+
+    //  Modal functions 
+    const applyShiftPreset = (presetKey) => {
+        const preset = SHIFT_PRESETS[presetKey];
+
+        setSelectedPreset(presetKey);
+        setStartTime(preset.start);
+        setEndTime(preset.end);
+    };
+
+    const adjustTime = (time, minutes) => {
+        if (!/^\d{2}:\d{2}$/.test(time)) {
+            return time;
+        }
+
+        const [hours, mins] = time.split(':').map(Number);
+
+        let totalMinutes = hours * 60 + mins + minutes;
+
+        // Obsługa przejścia przez północ
+        totalMinutes =
+            ((totalMinutes % 1440) + 1440) % 1440;
+
+        const newHours = Math.floor(totalMinutes / 60);
+        const newMinutes = totalMinutes % 60;
+
+        return `${String(newHours).padStart(2, '0')}:${String(
+            newMinutes
+        ).padStart(2, '0')}`;
+    };
+
+    const adjustStartTime = (minutes) => {
+        setStartTime((currentTime) =>
+            adjustTime(currentTime, minutes)
+        );
+
+        setSelectedPreset(null);
+    };
+
+    const adjustEndTime = (minutes) => {
+        setEndTime((currentTime) =>
+            adjustTime(currentTime, minutes)
+        );
+
+        setSelectedPreset(null);
+    };
+
+    const selectDayRange = (startKey, endKey) => {
+        const startIndex = monthDays.findIndex(
+            (item) => item.key === startKey
+        );
+
+        const endIndex = monthDays.findIndex(
+            (item) => item.key === endKey
+        );
+
+        if (startIndex === -1 || endIndex === -1) {
+            return;
+        }
+
+        const from = Math.min(startIndex, endIndex);
+        const to = Math.max(startIndex, endIndex);
+
+        const range = monthDays
+            .slice(from, to + 1)
+            .map((item) => item.key);
+
+        setSelectedDays(range);
+    };
+
+    const getDayFromPosition = (y) => {
+        for (const item of monthDays) {
+            const layout = dayLayouts[item.key];
+
+            if (!layout) {
+                continue;
+            }
+
+            const start = layout.y;
+            const end = layout.y + layout.height;
+
+            if (y >= start && y <= end) {
+                return item.key;
+            }
+        }
+
+        return null;
+    };
+
+    /*
+    * -----------------------------
+    * Notifications
+    * -----------------------------
+    */
+
+    const testScheduleAllShifts = async () => {
+        await scheduleShiftReminder(schedule);
+
+        const futureShifts = getAllFutureWorkShifts(schedule);
+
+        if (futureShifts.length === 0) {
+            Alert.alert(
+                'Test powiadomień',
+                'Brak przyszłych zmian typu work – nie zaplanowano powiadomień.'
+            );
+            return;
+        }
+
+        const message =
+            `Liczba przyszłych zmian: ${futureShifts.length}\n\n` +
+            futureShifts
+                .map(
+                    ({ date }) =>
+                        `- ${date.toLocaleString('pl-PL')} (powiadomienie 10h przed)`
+                )
+                .join('\n');
+
+        Alert.alert('Test powiadomień', message);
+    };
+
+    const getAllFutureWorkShifts = (schedule) => {
+        const now = new Date();
+        const shifts = [];
+
+        const entries = Object.entries(schedule);
+
+        for (const [dateKey, entry] of entries) {
+            if (entry.type !== 'work') continue;
+
+            // dateKey: "YYYY-MM-DD"
+            const [year, month, day] = dateKey.split('-').map(Number);
+            const shiftDate = new Date(year, month - 1, day);
+
+            // Godzina rozpoczęcia, np. "06:00"
+            const [hours, mins] = (entry.start || '06:00').split(':').map(Number);
+            shiftDate.setHours(hours, mins, 0, 0);
+
+            // Tylko przyszłe zmiany
+            if (shiftDate <= now) continue;
+
+            shifts.push({
+                dateKey,
+                shift: entry,
+                date: shiftDate,
+            });
+        }
+
+        // Opcjonalnie posortuj chronologicznie
+        shifts.sort((a, b) => a.date.getTime() - b.date.getTime());
+
+        return shifts;
+    };
+
+    const sendTestNotification = async () => {
+        // 1. Sprawdź uprawnienia
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') {
+            Alert.alert('Brak uprawnień', 'Nie można wysłać powiadomienia testowego.');
+            return;
+        }
+
+        // 2. Zaplanuj powiadomienie za 5 sekund
+        const trigger = {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds: 5,
+        };
+
+        await Notifications.scheduleNotificationAsync({
+            content: {
+                title: 'Test powiadomienia',
+                body: 'Jeśli to widzisz, powiadomienia działają!',
+                sound: true,
+            },
+            trigger,
+        });
+
+        Alert.alert(
+            'Powiadomienie zaplanowane',
+            'Za 5 sekund powinno przyjść powiadomienie testowe.'
+        );
+    };
+
+    const getNextWorkShift = (schedule) => {
+        const now = new Date();
+        let nextShift = null;
+        let nextShiftDate = null;
+
+        const entries = Object.entries(schedule);
+
+        for (const [dateKey, entry] of entries) {
+            if (entry.type !== 'work') continue;
+
+            // dateKey: "YYYY-MM-DD"
+            const [year, month, day] = dateKey.split('-').map(Number);
+            const shiftDate = new Date(year, month - 1, day);
+
+            // Godzina rozpoczęcia, np. "06:00"
+            const [hours, mins] = (entry.start || '06:00').split(':').map(Number);
+            shiftDate.setHours(hours, mins, 0, 0);
+
+            // Interesują nas tylko przyszłe zmiany
+            if (shiftDate <= now) continue;
+
+            if (!nextShiftDate || shiftDate < nextShiftDate) {
+                nextShiftDate = shiftDate;
+                nextShift = { dateKey, ...entry };
+            }
+        }
+
+        return nextShiftDate ? { shift: nextShift, date: nextShiftDate } : null;
+    };
+
+    const scheduleShiftReminder = async (schedule) => {
+        const notificationsEnabled = await AsyncStorage.getItem(
+            NOTIFICATIONS_ENABLED_KEY
+        );
+
+        if (notificationsEnabled !== 'true') {
+            await Notifications.cancelAllScheduledNotificationsAsync();
+            return;
+        }
+
+        // 1. Anuluj wszystkie wcześniej zaplanowane powiadomienia o zmianach
+        await Notifications.cancelAllScheduledNotificationsAsync();
+
+        const futureShifts = getAllFutureWorkShifts(schedule);
+        if (futureShifts.length === 0) {
+            console.log('Brak przyszłych zmian typu work do powiadomienia');
+            return;
+        }
+
+        // 2. Sprawdź uprawnienia
+        const { status: existingStatus } = await Notifications.getPermissionsAsync();
+        let finalStatus = existingStatus;
+
+        if (existingStatus !== 'granted') {
+            const { status } = await Notifications.requestPermissionsAsync();
+            finalStatus = status;
+        }
+
+        if (finalStatus !== 'granted') {
+            console.warn('Brak uprawnień na powiadomienia');
+            return;
+        }
+
+        // 3. Zaplanuj po jednym powiadomieniu na każdą zmianę
+        const scheduledIds = [];
+
+        for (const { shift, date } of futureShifts) {
+            const reminderDate = new Date(date.getTime() - 10 * 60 * 60 * 1000);
+            const now = new Date();
+
+            // Nie planuj powiadomień w przeszłości
+            if (reminderDate <= now) {
+                continue;
+            }
+
+            const dateStr = date.toLocaleDateString('pl-PL', {
+                weekday: 'long',
+                day: '2-digit',
+                month: '2-digit',
+            });
+
+            const content = {
+                title: 'Nadchodząca zmiana',
+                body: `Masz pracę ${dateStr} o ${shift.start}.`,
+                sound: true,
+                data: {
+                    type: 'shift_reminder',
+                    dateKey: shift.date,
+                },
+            };
+
+            const trigger = {
+                type: Notifications.SchedulableTriggerInputTypes.DATE,
+                date: reminderDate,
+            };
+
+            const notificationId = await Notifications.scheduleNotificationAsync({
+                content,
+                trigger,
+            });
+
+            scheduledIds.push(notificationId);
+        }
+
+        console.log(
+            `Zaplanowano ${scheduledIds.length} powiadomień o zmianach.`,
+            scheduledIds
+        );
+    };
+    /*
+    * -----------------------------
+    * GESTURE
+    * -----------------------------
+    */
+
+    const rangeGesture = Gesture.Pan()
+        .runOnJS(true)
+        .activateAfterLongPress(400)
+
+        .onBegin(() => {
+            setIsDraggingSelection(true);
+        })
+
+        .onStart((event) => {
+            const dayKey = getDayFromPosition(event.y);
+            if (!dayKey) {
+                return;
+            }
+
+            // jeśli multi select był wyłączony, włącz go „automatycznie”
+            if (!selectionMode) {
+                setSelectionMode(true);
+                // czyścimy poprzednie zaznaczenie, zaczynamy od tego dnia
+                setSelectedDays([dayKey]);
+            } else {
+                // jeśli już był włączony, możesz zdecydować czy czyścić,
+                // czy dorzucać: tutaj też zaczynamy nowy zakres
+                setSelectedDays([dayKey]);
+            }
+
+            setDragSelectionStart(dayKey);
+        })
+
+        .onUpdate((event) => {
+            if (!dragSelectionStart) {
+                return;
+            }
+
+            const dayKey = getDayFromPosition(event.y);
+            if (!dayKey) {
+                return;
+            }
+
+            selectDayRange(dragSelectionStart, dayKey);
+        })
+        .onEnd(() => {
+            setIsDraggingSelection(false);
+            setDragSelectionStart(null);
+        })
+        .onFinalize(() => {
+            setIsDraggingSelection(false);
+            setDragSelectionStart(null);
+        });
 
     /*
      * --------------------------------------------------
@@ -85,12 +471,14 @@ const Timetable = () => {
 
     const loadSchedule = async () => {
         try {
-            const savedSchedule = await AsyncStorage.getItem(
-                STORAGE_KEY
-            );
+            const savedSchedule = await AsyncStorage.getItem(STORAGE_KEY);
 
             if (savedSchedule) {
-                setSchedule(JSON.parse(savedSchedule));
+                const parsed = JSON.parse(savedSchedule);
+                setSchedule(parsed);
+
+                // Ustaw powiadomienie na podstawie zapisanego grafiku
+                await scheduleShiftReminder(parsed);
             }
         } catch (error) {
             console.error('Error loading timetable:', error);
@@ -113,6 +501,9 @@ const Timetable = () => {
             );
 
             setSchedule(newSchedule);
+
+            // Zaplanuj powiadomienie na podstawie nowego grafiku
+            await scheduleShiftReminder(newSchedule);
         } catch (error) {
             console.error('Error saving timetable:', error);
 
@@ -214,10 +605,23 @@ const Timetable = () => {
             setShiftType(existing.type || 'work');
             setStartTime(existing.start || '06:00');
             setEndTime(existing.end || '14:00');
+
+            const matchingPreset = Object.entries(
+                SHIFT_PRESETS
+            ).find(
+                ([, preset]) =>
+                    preset.start === existing.start &&
+                    preset.end === existing.end
+            );
+
+            setSelectedPreset(
+                matchingPreset ? matchingPreset[0] : null
+            );
         } else {
             setShiftType('work');
             setStartTime('06:00');
             setEndTime('14:00');
+            setSelectedPreset('morning');
         }
 
         setModalVisible(true);
@@ -275,6 +679,7 @@ const Timetable = () => {
         setShiftType('work');
         setStartTime('06:00');
         setEndTime('14:00');
+        setSelectedPreset('morning');
 
         setModalVisible(true);
     };
@@ -440,6 +845,17 @@ const Timetable = () => {
         return (
             <Pressable
                 key={key}
+                onLayout={(event) => {
+                    const { y, height } = event.nativeEvent.layout;
+
+                    setDayLayouts((previous) => ({
+                        ...previous,
+                        [key]: {
+                            y,
+                            height,
+                        },
+                    }));
+                }}
                 onPress={handlePress}
                 style={({ pressed }) => [
                     styles.scheduleItem,
@@ -515,6 +931,7 @@ const Timetable = () => {
                     </Text>
                 </View>
 
+                        <View style={{ alignItems: 'stretch' }}></View>
                 {/* SHIFT */}
 
                 <View style={styles.shiftContainer}>
@@ -722,6 +1139,49 @@ const Timetable = () => {
                                         Godziny pracy
                                     </Text>
 
+                                    <View style={styles.presetContainer}>
+                                        {Object.entries(SHIFT_PRESETS).map(
+                                            ([presetKey, preset]) => {
+                                                const selected =
+                                                    selectedPreset === presetKey;
+
+                                                return (
+                                                    <Pressable
+                                                        key={presetKey}
+                                                        onPress={() =>
+                                                            applyShiftPreset(presetKey)
+                                                        }
+                                                        style={[
+                                                            styles.presetButton,
+                                                            {
+                                                                backgroundColor: selected
+                                                                    ? colors.butBackground
+                                                                    : colors.outButBackground,
+
+                                                                borderColor: selected
+                                                                    ? colors.butBorder
+                                                                    : colors.outButBorder,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        <Text
+                                                            style={[
+                                                                styles.presetButtonText,
+                                                                {
+                                                                    color: selected
+                                                                        ? colors.butText
+                                                                        : colors.outButText,
+                                                                },
+                                                            ]}
+                                                        >
+                                                            {preset.label}
+                                                        </Text>
+                                                    </Pressable>
+                                                );
+                                            }
+                                        )}
+                                    </View>
+
                                     <View style={styles.timeRow}>
                                         <View style={styles.timeInputContainer}>
                                             <Text
@@ -737,7 +1197,10 @@ const Timetable = () => {
 
                                             <TextInput
                                                 value={startTime}
-                                                onChangeText={setStartTime}
+                                                onChangeText={(value) => {
+                                                    setStartTime(value);
+                                                    setSelectedPreset(null);
+                                                }}
                                                 keyboardType="numbers-and-punctuation"
                                                 maxLength={5}
                                                 placeholder="06:00"
@@ -755,6 +1218,49 @@ const Timetable = () => {
                                                     },
                                                 ]}
                                             />
+                                            <View style={styles.adjustButtons}>
+                                                <Pressable
+                                                    onPress={() => adjustStartTime(-15)}
+                                                    style={({ pressed }) => [
+                                                        styles.adjustButton,
+                                                        {
+                                                            backgroundColor: colors.outButBackground,
+                                                            borderColor: colors.outButBorder,
+                                                        },
+                                                        pressed && styles.pressed,
+                                                    ]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.adjustButtonText,
+                                                            { color: colors.outButText },
+                                                        ]}
+                                                    >
+                                                        −15
+                                                    </Text>
+                                                </Pressable>
+
+                                                <Pressable
+                                                    onPress={() => adjustStartTime(15)}
+                                                    style={({ pressed }) => [
+                                                        styles.adjustButton,
+                                                        {
+                                                            backgroundColor: colors.outButBackground,
+                                                            borderColor: colors.outButBorder,
+                                                        },
+                                                        pressed && styles.pressed,
+                                                    ]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.adjustButtonText,
+                                                            { color: colors.outButText },
+                                                        ]}
+                                                    >
+                                                        +15
+                                                    </Text>
+                                                </Pressable>
+                                            </View>
                                         </View>
 
                                         <Text
@@ -780,7 +1286,10 @@ const Timetable = () => {
 
                                             <TextInput
                                                 value={endTime}
-                                                onChangeText={setEndTime}
+                                                onChangeText={(value) => {
+                                                    setEndTime(value);
+                                                    setSelectedPreset(null);
+                                                }}
                                                 keyboardType="numbers-and-punctuation"
                                                 maxLength={5}
                                                 placeholder="14:00"
@@ -798,6 +1307,49 @@ const Timetable = () => {
                                                     },
                                                 ]}
                                             />
+                                            <View style={styles.adjustButtons}>
+                                                <Pressable
+                                                    onPress={() => adjustEndTime(-15)}
+                                                    style={({ pressed }) => [
+                                                        styles.adjustButton,
+                                                        {
+                                                            backgroundColor: colors.outButBackground,
+                                                            borderColor: colors.outButBorder,
+                                                        },
+                                                        pressed && styles.pressed,
+                                                    ]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.adjustButtonText,
+                                                            { color: colors.outButText },
+                                                        ]}
+                                                    >
+                                                        −15
+                                                    </Text>
+                                                </Pressable>
+
+                                                <Pressable
+                                                    onPress={() => adjustEndTime(15)}
+                                                    style={({ pressed }) => [
+                                                        styles.adjustButton,
+                                                        {
+                                                            backgroundColor: colors.outButBackground,
+                                                            borderColor: colors.outButBorder,
+                                                        },
+                                                        pressed && styles.pressed,
+                                                    ]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.adjustButtonText,
+                                                            { color: colors.outButText },
+                                                        ]}
+                                                    >
+                                                        +15
+                                                    </Text>
+                                                </Pressable>
+                                            </View>
                                         </View>
                                     </View>
                                 </View>
@@ -932,6 +1484,7 @@ const Timetable = () => {
             {/* CONTENT */}
 
             <ScrollView
+                scrollEnabled={!isDraggingSelection}
                 contentContainerStyle={styles.content}
                 showsVerticalScrollIndicator={false}
             >
@@ -1066,9 +1619,11 @@ const Timetable = () => {
 
                 {/* DAYS */}
 
-                <View style={styles.scheduleContainer}>
-                    {monthDays.map(renderDay)}
-                </View>
+                <GestureDetector gesture={rangeGesture}>
+                    <View style={styles.scheduleContainer}>
+                        {monthDays.map(renderDay)}
+                    </View>
+                </GestureDetector>
             </ScrollView>
 
             {/* BOTTOM */}
@@ -1131,7 +1686,31 @@ const Timetable = () => {
                     </Pressable>
                 ) : (
                     <>
-                        <Pressable
+                        {/* <Pressable
+                            onPress={sendTestNotification}
+                            style={({ pressed }) => [
+                                styles.actionButton,
+                                { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder },
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <Ionicons name="notifications-outline" size={21} color={colors.outButText} />
+                            <Text style={styles.actionButtonText}>Test powiadomień</Text>
+                        </Pressable>*/}
+
+                        {/* <Pressable
+                            onPress={testScheduleAllShifts }
+                            style={({ pressed }) => [
+                                styles.actionButton,
+                                { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder },
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <Ionicons name="flash-outline" size={21} color={colors.outButText} />
+                            <Text style={styles.actionButtonText}>Test powiad. teraz</Text>
+                        </Pressable>  */}
+
+                        {/* <Pressable
                             onPress={() => openSingleDay(null)}
                             style={({ pressed }) => [
                                 styles.actionButton,
@@ -1183,7 +1762,7 @@ const Timetable = () => {
                             >
                                 Skanuj grafik
                             </Text>
-                        </Pressable>
+                        </Pressable> */}
                     </>
                 )}
             </View>
@@ -1527,6 +2106,44 @@ const styles = StyleSheet.create({
 
     saveButtonText: {
         fontSize: 15,
+        fontWeight: '700',
+    },
+    presetContainer: {
+        flexDirection: 'row',
+        gap: 8,
+        marginBottom: 16,
+    },
+
+    presetButton: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    presetButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    adjustButtons: {
+        flexDirection: 'row',
+        gap: 6,
+        marginTop: 6,
+    },
+
+    adjustButton: {
+        flex: 1,
+        height: 34,
+        borderRadius: 8,
+        borderWidth: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+
+    adjustButtonText: {
+        fontSize: 12,
         fontWeight: '700',
     },
 });
