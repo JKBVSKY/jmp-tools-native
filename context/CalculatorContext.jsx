@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const CalculatorContext = createContext();
@@ -67,15 +67,27 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
     ...getInitialState(type),
   });
 
+  const saveTimerRef = useRef(null);
+  const latestStateRef = useRef(state);
 
-  // Save state to AsyncStorage
-  const saveState = async (newState) => {
+  // Coalesce persistence writes so rapid UI updates do not queue native bridge calls.
+  const saveState = useCallback(async (newState) => {
     try {
       await AsyncStorage.setItem(storageKey, JSON.stringify(newState));
     } catch (error) {
       console.error('Failed to save calculator state:', error);
     }
-  };
+  }, [storageKey]);
+
+  const scheduleSave = useCallback((newState) => {
+    latestStateRef.current = newState;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      void saveState(latestStateRef.current);
+    }, 300);
+  }, [saveState]);
 
   // Restore state from AsyncStorage
   const restoreState = async () => {
@@ -96,6 +108,11 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
 
   // Clear calculator state (after saving results)
   const clearState = async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
     try {
       await AsyncStorage.removeItem(storageKey);
       setState(prev => ({
@@ -109,7 +126,7 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
   };
 
   // Update state and auto-save
-  const updateState = (updates) => {
+  const updateState = useCallback((updates, { persist = true } = {}) => {
     setState(prev => {
       const normalizedUpdates = { ...updates };
       if ('loadingTime' in normalizedUpdates && !('sessionTime' in normalizedUpdates)) {
@@ -120,14 +137,19 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
       }
 
       const newState = { ...prev, ...normalizedUpdates };
-      saveState(newState);
+      latestStateRef.current = newState;
+      if (persist) scheduleSave(newState);
       return newState;
     });
-  };
+  }, [scheduleSave]);
 
   // Restore state on mount
   useEffect(() => {
     restoreState();
+  }, []);
+
+  useEffect(() => () => {
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
   }, []);
 
   const value = {

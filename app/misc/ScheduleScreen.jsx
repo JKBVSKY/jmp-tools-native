@@ -14,6 +14,7 @@ import {
   View,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
 import { addDoc, collection, doc, getDocs, writeBatch } from 'firebase/firestore';
 import MlkitOcr from 'react-native-mlkit-ocr';
@@ -24,6 +25,7 @@ import { StorageManager } from '../../utils/StorageManager';
 
 const ADMIN_EMAILS = ['jakub.jaskola7@gmail.com'];
 const LOCAL_SCHEDULE_KEY_PREFIX = 'scheduleItemsLocalV2';
+const ASYNC_LOCAL_SCHEDULE_KEY_PREFIX = 'scheduleItemsLocalV3';
 
 const toFiniteNumber = (...values) => {
   for (const value of values) {
@@ -293,10 +295,12 @@ export default function ScheduleScreen() {
   const [lpStartInput, setLpStartInput] = useState('1');
   const [lpEndInput, setLpEndInput] = useState('');
   const [rangeError, setRangeError] = useState('');
+  const persistTimerRef = React.useRef(null);
 
   const isAdmin = !!user?.email && !isGuest && ADMIN_EMAILS.includes(user.email.toLowerCase());
   const scheduleCollection = user ? collection(db, 'users', user.id, 'scheduleItems') : null;
   const localStorageKey = getLocalScheduleKey(user?.id);
+  const asyncLocalStorageKey = `${ASYNC_LOCAL_SCHEDULE_KEY_PREFIX}_${String(user?.id || 'guest').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
 
   const suggestedLpEnd = useMemo(() => {
     const start = toInteger(lpStartInput);
@@ -312,7 +316,7 @@ export default function ScheduleScreen() {
       pasy: String(item?.pasy ?? ''),
       createdAt: item?.createdAt ? new Date(item.createdAt).toISOString() : new Date().toISOString(),
     }));
-    await StorageManager.setItem(localStorageKey, JSON.stringify(serializable));
+    await AsyncStorage.setItem(asyncLocalStorageKey, JSON.stringify(serializable));
   };
 
   useEffect(() => {
@@ -321,7 +325,11 @@ export default function ScheduleScreen() {
     const loadLocalItems = async () => {
       setLoading(true);
       try {
-        const raw = await StorageManager.getItem(localStorageKey);
+        let raw = await AsyncStorage.getItem(asyncLocalStorageKey);
+        if (!raw) {
+          raw = await StorageManager.getItem(localStorageKey);
+          if (raw) await AsyncStorage.setItem(asyncLocalStorageKey, raw);
+        }
         if (cancelled) return;
         if (!raw) {
           setItems([]);
@@ -343,7 +351,11 @@ export default function ScheduleScreen() {
     return () => {
       cancelled = true;
     };
-  }, [localStorageKey]);
+  }, [asyncLocalStorageKey, localStorageKey]);
+
+  useEffect(() => () => {
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+  }, []);
 
   const filteredItems = useMemo(() => {
     const queryText = searchText.trim().toLowerCase();
@@ -369,16 +381,21 @@ export default function ScheduleScreen() {
   }, [items, searchText]);
 
   const updateItemField = (id, field, value) => {
-    setItems((prev) => {
-      const next = prev.map((item) => (item.id === id ? { ...item, [field]: value } : item));
+    const next = items.map((item) => (item.id === id ? { ...item, [field]: value } : item));
+    setItems(next);
+    if (persistTimerRef.current) clearTimeout(persistTimerRef.current);
+    persistTimerRef.current = setTimeout(() => {
+      persistTimerRef.current = null;
       void persistLocalItems(next);
-      return next;
-    });
+    }, 600);
   };
 
   const clearAllItems = async () => {
     try {
-      await StorageManager.removeItem(localStorageKey);
+      await Promise.all([
+        AsyncStorage.removeItem(asyncLocalStorageKey),
+        StorageManager.removeItem(localStorageKey),
+      ]);
       setItems([]);
     } catch (error) {
       console.error('Clear local schedule error:', error);

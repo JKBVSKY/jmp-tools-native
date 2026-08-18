@@ -125,7 +125,7 @@ export default function Calculator() {
             sessionTime={calc.sessionTime}
             startTime={calc.startTime}
             endTime={calc.endTime}
-            setSessionTime={(time) => calc.updateState({ sessionTime: time })}
+            setSessionTime={(time) => calc.updateState({ sessionTime: time }, { persist: false })}
             setStartTime={(time) => calc.updateState({ startTime: time })}
             setEndTime={(time) => calc.updateState({ endTime: time })}
             forcedFinishTime={forcedFinishTime}
@@ -140,7 +140,7 @@ export default function Calculator() {
             shopNum={calc.shopNum}
             gateNum={calc.gateNum}
             trailerNum={calc.trailerNum}
-            setSessionTime={(time) => calc.updateState({ sessionTime: time })}
+            setSessionTime={(time) => calc.updateState({ sessionTime: time }, { persist: false })}
             setStartTime={(time) => calc.updateState({ startTime: time })}
             setEndTime={(time) => calc.updateState({ endTime: time })}
             setShopNum={(num) => calc.updateState({ shopNum: num })}

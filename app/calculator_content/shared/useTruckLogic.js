@@ -1,5 +1,5 @@
 // calculator_content/shared/useTruckLogic.js
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { Animated, Easing, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as NavigationBar from 'expo-navigation-bar';
@@ -33,6 +33,7 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
     const [palletsInput, setPalletsInput] = useState("");
     const [pendingTruckId, setPendingTruckId] = useState(null);
     const [areSessionDetailsVisible, setAreSessionDetailsVisible] = useState(false);
+    const [elapsedTick, setElapsedTick] = useState(0);
 
     const [lastLevelBeforeSession] = useState(profile?.level || 1);
 
@@ -47,7 +48,34 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         }
     }, [colors]);
 
-    const calculateXPPerMin = () => 10;
+    const calculateXPPerMin = useCallback(() => 10, []);
+
+    // Compute context-backed values before wiring the session engine.
+    const trucks = calc.trucks || [];
+    const trucksHistory = calc.trucksHistory || [];
+    const nextTruckId = calc.nextTruckId || 1;
+    const isPaused = calc.isPaused || false;
+    const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
+    const palletsRate =
+        sessionTime > 0 ? (palletsLoaded / (sessionTime / 3600)).toFixed(2) : "0.00";
+    const trucksLoadedCount = trucksHistory.length;
+    const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
+    const xpForNextLevel = profile ? profile.level * 1000 : 1000;
+    const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
+    const palletsRateGoal = profile?.palletsRateGoal ?? 48;
+    const effectiveEndTime = forcedFinishTime || Date.now();
+    const activeSessionSeconds = startTime
+        ? Math.max(0, Math.floor((effectiveEndTime - startTime - (calc.totalPausedTime || 0)) / 1000))
+        : 0;
+    const requiredPalletsByGoal = startTime && effectiveEndTime > startTime
+        ? Math.max(0, Math.ceil(palletsRateGoal * (activeSessionSeconds / 3600)))
+        : 0;
+    const palletsNeeded = requiredPalletsByGoal;
+    const palletsLeft = Math.max(0, palletsNeeded - palletsLoaded);
+    const isOverGoal = Number(palletsRate) >= palletsRateGoal;
+    const goalReachedUntilSeconds = isOverGoal && palletsLoaded > 0
+        ? Math.max(0, Math.floor((palletsLoaded / palletsRateGoal) * 3600 - sessionTime))
+        : null;
 
     const {
         currentXPPerMin,
@@ -117,35 +145,6 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
     // SECTION 2: COMPUTED VALUES & CONTEXT DATA (NOT HOOKS)
     // ============================================================================
 
-    // Use trucks data from context
-    const trucks = calc.trucks || [];
-    const trucksHistory = calc.trucksHistory || [];
-    const nextTruckId = calc.nextTruckId || 1;
-    const isPaused = calc.isPaused || false;
-    const pauseStart = calc.pauseStart || null;
-    const totalPausedTime = calc.totalPausedTime || 0;
-    const palletsLoaded = trucksHistory.reduce((sum, t) => sum + Number(t.pallets || 0), 0);
-    const palletsRate =
-        sessionTime > 0 ? (palletsLoaded / (sessionTime / 3600)).toFixed(2) : "0.00";
-    const trucksLoadedCount = trucksHistory.length;
-    const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
-    const xpForNextLevel = profile ? profile.level * 1000 : 1000;
-    const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
-    const palletsRateGoal = profile?.palletsRateGoal ?? 48;
-    const effectiveEndTime = forcedFinishTime || Date.now();
-    const activeSessionSeconds = startTime
-        ? Math.max(0, Math.floor((effectiveEndTime - startTime - totalPausedTime) / 1000))
-        : 0;
-    const requiredPalletsByGoal = startTime && effectiveEndTime > startTime
-        ? Math.max(0, Math.ceil(palletsRateGoal * (activeSessionSeconds / 3600)))
-        : 0;
-    const palletsNeeded = requiredPalletsByGoal;
-    const palletsLeft = Math.max(0, palletsNeeded - palletsLoaded);
-    const isOverGoal = Number(palletsRate) >= palletsRateGoal;
-    const goalReachedUntilSeconds = isOverGoal && palletsLoaded > 0
-        ? Math.max(0, Math.floor((palletsLoaded / palletsRateGoal) * 3600 - sessionTime))
-        : null;
-
     // ============================================================================
     // SECTION 3: ALL useEffect HOOKS - AFTER STATE/REF INITIALIZATION
     // ============================================================================
@@ -172,25 +171,25 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         ],
     };
 
-    // Update elapsed loading time for each active truck every second
+    // Keep the live elapsed display local. Do not persist a new copy of every
+    // truck every second.
     useEffect(() => {
         if (isPaused || trucks.length === 0) return;
 
         const interval = setInterval(() => {
-            const updatedTrucks = trucks.map(truck => {
-                const elapsed = Math.floor((Date.now() - truck.startLoadingTime) / 1000);
-                return {
-                    ...truck,
-                    elapsedLoadingTime: elapsed
-                };
-            });
-            calc.updateState({
-                trucks: updatedTrucks
-            });
+            setElapsedTick((tick) => tick + 1);
         }, 1000);
 
         return () => clearInterval(interval);
-    }, [trucks.length, isPaused, calc]);
+    }, [trucks.length, isPaused]);
+
+    const visibleTrucks = useMemo(() => trucks.map((truck) => ({
+        ...truck,
+        elapsedLoadingTime: Math.max(
+            truck.elapsedLoadingTime || 0,
+            Math.floor((Date.now() - truck.startLoadingTime) / 1000)
+        ),
+    })), [trucks, elapsedTick]);
 
     // Focus the pallets input when the modal opens
     useEffect(() => {
@@ -398,7 +397,7 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
 
         // computed values
         startTime,
-        trucks,
+        trucks: visibleTrucks,
         trucksHistory,
         palletsLoaded,
         palletsRate,

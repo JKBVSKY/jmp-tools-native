@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import {
     SafeAreaView,
@@ -94,9 +94,9 @@ const Timetable = () => {
     // Multi-day selection
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedDays, setSelectedDays] = useState([]);
-    const [dayLayouts, setDayLayouts] = useState({});
-    const [dragSelectionStart, setDragSelectionStart] =
-        useState(null);
+    const dayLayoutsRef = useRef({});
+    const dragSelectionStartRef = useRef(null);
+    const lastDragDayRef = useRef(null);
 
     const [isDraggingSelection, setIsDraggingSelection] =
         useState(false);
@@ -178,7 +178,7 @@ const Timetable = () => {
 
     const getDayFromPosition = (y) => {
         for (const item of monthDays) {
-            const layout = dayLayouts[item.key];
+            const layout = dayLayoutsRef.current[item.key];
 
             if (!layout) {
                 continue;
@@ -435,11 +435,13 @@ const Timetable = () => {
                 setSelectedDays([dayKey]);
             }
 
-            setDragSelectionStart(dayKey);
+            dragSelectionStartRef.current = dayKey;
+            lastDragDayRef.current = dayKey;
         })
 
         .onUpdate((event) => {
-            if (!dragSelectionStart) {
+            const startKey = dragSelectionStartRef.current;
+            if (!startKey) {
                 return;
             }
 
@@ -448,15 +450,19 @@ const Timetable = () => {
                 return;
             }
 
-            selectDayRange(dragSelectionStart, dayKey);
+            if (dayKey === lastDragDayRef.current) return;
+            lastDragDayRef.current = dayKey;
+            selectDayRange(startKey, dayKey);
         })
         .onEnd(() => {
+            dragSelectionStartRef.current = null;
+            lastDragDayRef.current = null;
             setIsDraggingSelection(false);
-            setDragSelectionStart(null);
         })
         .onFinalize(() => {
+            dragSelectionStartRef.current = null;
+            lastDragDayRef.current = null;
             setIsDraggingSelection(false);
-            setDragSelectionStart(null);
         });
 
     /*
@@ -557,6 +563,7 @@ const Timetable = () => {
         // Czyścimy zaznaczenie po zmianie miesiąca.
         setSelectedDays([]);
         setSelectionMode(false);
+        dayLayoutsRef.current = {};
     };
 
     /*
@@ -848,13 +855,9 @@ const Timetable = () => {
                 onLayout={(event) => {
                     const { y, height } = event.nativeEvent.layout;
 
-                    setDayLayouts((previous) => ({
-                        ...previous,
-                        [key]: {
-                            y,
-                            height,
-                        },
-                    }));
+                    const previous = dayLayoutsRef.current[key];
+                    if (previous?.y === y && previous?.height === height) return;
+                    dayLayoutsRef.current[key] = { y, height };
                 }}
                 onPress={handlePress}
                 style={({ pressed }) => [

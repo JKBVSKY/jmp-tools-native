@@ -19,7 +19,6 @@
     },
     "android": {
       "package": "com.jmp.tools.app",
-      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/android-adaptive-foreground.png",
         "backgroundColor": "#f2f2f2"
