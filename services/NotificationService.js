@@ -50,7 +50,7 @@ function getEasProjectId() {
   return Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId ?? null;
 }
 
-async function getExpoPushTokenValueAsync() {
+async function getExpoPushTokenValueAsync(devicePushToken) {
   const projectId = getEasProjectId();
   if (!projectId) {
     return {
@@ -60,7 +60,7 @@ async function getExpoPushTokenValueAsync() {
   }
 
   try {
-    const token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
+    const token = (await Notifications.getExpoPushTokenAsync({ projectId, devicePushToken })).data;
     return {
       token,
       error: null,
@@ -110,11 +110,9 @@ export async function saveUserPushTokenAsync(userId, token) {
   await setDoc(
     userRef,
     {
-      notifications: {
-        expoPushToken: token,
-        platform: Platform.OS,
-        updatedAt: new Date().toISOString(),
-      },
+      'notifications.expoPushToken': token,
+      'notifications.platform': Platform.OS,
+      'notifications.updatedAt': new Date().toISOString(),
     },
     { merge: true }
   );
@@ -129,11 +127,10 @@ export async function clearUserPushTokenAsync(userId) {
   await setDoc(
     userRef,
     {
-      notifications: {
-        expoPushToken: null,
-        platform: Platform.OS,
-        updatedAt: new Date().toISOString(),
-      },
+      'notifications.expoPushToken': null,
+      'notifications.enabled': false,
+      'notifications.platform': Platform.OS,
+      'notifications.updatedAt': new Date().toISOString(),
     },
     { merge: true }
   );
@@ -144,8 +141,9 @@ export function attachPushTokenRefreshListener(onTokenRefreshed) {
     return () => { };
   }
 
-  const subscription = Notifications.addPushTokenListener(async () => {
-    const { token, error } = await getExpoPushTokenValueAsync();
+  const subscription = Notifications.addPushTokenListener(async (devicePushToken) => {
+    // Do not call getDevicePushTokenAsync here; Expo emits this event from that method.
+    const { token, error } = await getExpoPushTokenValueAsync(devicePushToken);
     if (!token) {
       if (error) {
         console.log('Push token refresh:', error);
