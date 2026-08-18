@@ -37,6 +37,9 @@ export const calculateXPFromScore = (score) => {
 // ============================================
 
 export const calculateLevelFromXP = (totalXP = 0) => {
+  const value = Number(totalXP);
+  totalXP = Number.isFinite(value) && value >= 0 ? value : 0;
+
   let level = 1;
   let xpRequired = 0;
 

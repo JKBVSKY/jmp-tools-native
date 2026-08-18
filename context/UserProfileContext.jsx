@@ -3,6 +3,7 @@ import { useAuth } from './AuthContext';
 import { calculateLevelFromXP } from '../constants/LevelSystem';
 import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
+import { PendingXPService } from '../services/PendingXPService';
 
 const UserProfileContext = createContext();
 
@@ -39,6 +40,15 @@ export function UserProfileProvider({ children }) {
       if (userSnap.exists()) {
         // User profile exists
         const existingProfile = userSnap.data();
+
+        const parsedXP = Number(existingProfile.totalXP);
+        const totalXP = Number.isFinite(parsedXP) && parsedXP >= 0 ? parsedXP : 0;
+
+        const parsedLevel = Number(existingProfile.level);
+        const level = Number.isFinite(parsedLevel) && parsedLevel >= 1
+          ? Math.floor(parsedLevel)
+          : calculateLevelFromXP(totalXP).level;
+
         const identityFallbacks = {
           displayName: existingProfile.displayName || user?.name || '',
           name: existingProfile.name || user?.name || '',
@@ -53,7 +63,18 @@ export function UserProfileProvider({ children }) {
         const hydratedProfile = {
           ...existingProfile,
           ...identityFallbacks,
+          totalXP,
+          level,
         };
+        if (existingProfile.totalXP !== totalXP || existingProfile.level !== level) {
+          await updateDoc(userRef, { totalXP, level });
+          console.warn('⚠️ Repaired invalid profile XP/level values:', {
+            previousTotalXP: existingProfile.totalXP,
+            previousLevel: existingProfile.level,
+            totalXP,
+            level,
+          });
+        }
 
         console.log('✅ Profile found:', hydratedProfile);
         setProfile(hydratedProfile);
@@ -121,6 +142,13 @@ export function UserProfileProvider({ children }) {
         setTimeout(() => reject(new Error('Firestore timeout - likely offline')), 3000) // 3 second timeout
       );
 
+      const numericXP = Number(xpAmount);
+
+      if (!Number.isFinite(numericXP) || numericXP < 0) {
+        console.error('Invalid XP amount:', xpAmount);
+        return null;
+      }
+
       const awardPromise = (async () => {
         const userRef = doc(db, 'users', user.id);
         const freshSnap = await Promise.race([
@@ -134,8 +162,11 @@ export function UserProfileProvider({ children }) {
         }
 
         const freshProfile = freshSnap.data();
-        const currentTotalXP = freshProfile.totalXP || 0;
-        const newTotalXP = currentTotalXP + xpAmount;
+        const currentTotalXP = Number(freshProfile.totalXP);
+        const safeCurrentTotalXP = Number.isFinite(currentTotalXP) && currentTotalXP >= 0
+          ? currentTotalXP
+          : 0;
+        const newTotalXP = safeCurrentTotalXP + numericXP;
 
         // ✅ RECALCULATE LEVEL FROM NEW XP
         const levelData = calculateLevelFromXP(newTotalXP);
@@ -158,10 +189,10 @@ export function UserProfileProvider({ children }) {
 
         setProfile(updated);
 
-        console.log('✅ XP saved:', { xpAmount, newTotalXP, level: newLevel });
+        console.log('✅ XP saved:', { xpAmount: numericXP, newTotalXP, level: newLevel });
 
         return {
-          xpEarned: xpAmount,
+          xpEarned: numericXP,
           newLevel: newLevel,
           leveledUp: newLevel > (freshProfile.level || 1),
           newTotalXP,
