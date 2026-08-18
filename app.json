@@ -4,7 +4,6 @@
     "slug": "jmp-tools-native",
     "version": "0.10.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
     "scheme": "jmp-tools-native",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
