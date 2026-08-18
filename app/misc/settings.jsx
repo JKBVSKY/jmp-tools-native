@@ -3,15 +3,14 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useColors } from '../../hooks/useColors';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
+import { db } from '../../firebase/config';
 import {
   registerForPushNotificationsAsync,
   saveUserPushTokenAsync,
   clearUserPushTokenAsync,
 } from '../../services/NotificationService';
-
-const NOTIFICATIONS_ENABLED_KEY = '@jmp_tools_notifications_enabled';
 
 const Settings = () => {
   const {
@@ -24,6 +23,38 @@ const Settings = () => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadNotificationState = async () => {
+      if (!user?.id) {
+        if (!cancelled) setNotificationsEnabled(false);
+        return;
+      }
+
+      try {
+        const [userSnapshot, permission] = await Promise.all([
+          getDoc(doc(db, 'users', user.id)),
+          Notifications.getPermissionsAsync(),
+        ]);
+        const notificationSettings = userSnapshot.data()?.notifications;
+        const enabled = notificationSettings?.enabled !== false && (
+          permission.status === 'granted' ||
+          !!notificationSettings?.expoPushToken
+        );
+
+        if (!cancelled) setNotificationsEnabled(enabled);
+      } catch (error) {
+        console.error('Błąd odczytu ustawień powiadomień:', error);
+      }
+    };
+
+    loadNotificationState();
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
+
   if (authLoading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -33,19 +64,6 @@ const Settings = () => {
       </View>
     );
   }
-
-  // Ustal stan przełącznika na podstawie danych użytkownika (dopasuj do swojej struktury usera)
-  useEffect(() => {
-    if (!user) return;
-
-    // Przykład: jeśli w dokumencie użytkownika zapisujesz expoPushToken,
-    // możesz traktować jego obecność jako "powiadomienia włączone".
-    const enabled =
-      !!user.notifications?.expoPushToken ||
-      user.notifications?.enabled === true;
-
-    setNotificationsEnabled(enabled);
-  }, [user]);
 
   const handleToggleNotifications = async () => {
     console.log('Aktualny user:', user);
@@ -76,6 +94,11 @@ const Settings = () => {
         }
 
         await saveUserPushTokenAsync(user.id, token);
+        await setDoc(
+          doc(db, 'users', user.id),
+          { 'notifications.enabled': true },
+          { merge: true }
+        );
         setNotificationsEnabled(true);
       } else {
         await clearUserPushTokenAsync(user.id);
