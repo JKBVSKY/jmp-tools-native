@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, Pressable, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useColors } from '../../hooks/useColors';
 import ThemedView from '../../components/ThemedView';
@@ -59,6 +59,19 @@ export default function ScoreHistory() {
   const [currentMonth, setCurrentMonth] = useState(null); // { month: 0-11, year: 2026 }
   const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
+
+  const [activePage, setActivePage] = useState(0);
+  const pagerWidth = width - 32;
+  const pagerRef = useRef(null);
+
+  const goToPage = (page) => {
+    setActivePage(page);
+
+    pagerRef.current?.scrollTo({
+      x: page * pagerWidth,
+      animated: true,
+    });
+  };
 
   const truckSessions = React.useMemo(
     () => sessions.filter((s) => s.sessionType !== 'picking'),
@@ -413,321 +426,417 @@ export default function ScoreHistory() {
                   />
                 </TouchableOpacity>
               </View>
-              {/* View mode toggle */}
-              <View style={styles.toggleContainer}>
-                <TouchableOpacity
-                  onPress={() => setViewMode('table')}
-                  style={[
-                    styles.toggleButton,
-                    {
-                      backgroundColor: viewMode === 'table' ? colors.butBackground : colors.outButBackground,
-                      borderColor: viewMode === 'table' ? colors.butBorder : colors.outButBorder
-                    }
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="table"
-                    size={26}
-                    color={viewMode === 'table' ? '#fff' : colors.text}
-                  />
-                </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setViewMode('graph')}
-                  style={[
-                    styles.toggleButton,
-                    {
-                      backgroundColor: viewMode === 'graph' ? colors.butBackground : colors.outButBackground,
-                      borderColor: viewMode === 'graph' ? colors.butBorder : colors.outButBorder
-                    }
-                  ]}
-                >
-                  <MaterialCommunityIcons
-                    name="chart-line"
-                    size={26}
-                    color={viewMode === 'graph' ? '#fff' : colors.text}
-                  />
-                </TouchableOpacity>
-              </View>
+              {/* View mode toggle */}
+              {hasVisibleData && (
+                <View style={styles.toggleContainer}>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setViewMode('table');
+                      activePage !== 1 && goToPage(1);
+                    }}
+                    style={[
+                      styles.toggleButton,
+                      {
+                        backgroundColor: viewMode === 'table' ? colors.butBackground : colors.outButBackground,
+                        borderColor: viewMode === 'table' ? colors.butBorder : colors.outButBorder
+                      }
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name="table"
+                      size={26}
+                      color={viewMode === 'table' ? '#fff' : colors.text}
+                    />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    onPress={() => {
+                      setViewMode('graph');
+                      activePage !== 1 && goToPage(1);
+                    }}
+                    style={[
+                      styles.toggleButton,
+                      {
+                        backgroundColor: viewMode === 'graph' ? colors.butBackground : colors.outButBackground,
+                        borderColor: viewMode === 'graph' ? colors.butBorder : colors.outButBorder
+                      }
+                    ]}
+                  >
+                    <MaterialCommunityIcons
+                      name="chart-line"
+                      size={26}
+                      color={viewMode === 'graph' ? '#fff' : colors.text}
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
 
-            {/* Summary Table - Always visible when sessions exist */}
-            {hasVisibleData && summary && (
-              <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                <Text style={[styles.summaryTitle, { color: colors.text }]}>Podsumowanie miesiąca</Text>
-                <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
-                  {sectionType === 'picking'
-                    ? `Twoja wydajność w podsekcji ${pickingSubsection}`
-                    : 'Twoja wydajność w tym miesiącu'}
-                </Text>
-
-                <View style={styles.summaryGrid}>
-                  {/* Average Rate */}
-                  <ThemedCard style={[styles.summaryBoxWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, }]}>
-                    <Ionicons
-                      name="flash-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Średnia Miesięczna</Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}> 
-                      {summary.averageRate} {sectionType === 'picking' ? 'pacz/h' : 'pal/h'}
+            <View style={styles.pagerWrapper}>
+              {!hasVisibleData ? (
+                <ScrollView
+                  refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+                  style={{ flex: 1 }}
+                >
+                  <View style={styles.emptyContainer}>
+                    <MaterialCommunityIcons name="history" size={64} color={colors.text} />
+                    <Text style={[styles.emptyText, { color: colors.text }]}>
+                      Brak zapisanych sesji
                     </Text>
-                  </ThemedCard>
-                  {/* Total Time */}
-                  <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
-                    <Ionicons
-                      name="time-outline"
-                      size={28}
-                      style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
-                    />
-                    <Text style={[styles.summaryLabel, { color: colors.cardTitle}]}>Czas</Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}>
-                      {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
-                    </Text>
-                  </ThemedCard>
-
-                  {/* Total Units */}
-                  <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
-                    <Ionicons
-                      name="layers-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}> 
-                      {sectionType === 'picking' ? 'Paczki' : 'Palety'}
-                    </Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}> 
-                      {sectionType === 'picking' ? summary.totalBoxes : summary.totalPallets}
-                    </Text>
-                  </ThemedCard>
-
-                  {/* Total Orders / Trucks */}
-                  <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
-                    <MaterialCommunityIcons
-                      name={sectionType === 'picking' ? 'package-variant-closed-check' : 'truck-check-outline'}
-                      size={28}
-                      style={{ color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }}
-                    />
-                    <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}> 
-                      {sectionType === 'picking' ? 'Zamówienia' : 'Naczepy'}
-                    </Text>
-                    <Text style={[styles.summaryValue, { color: colors.cardValue }]}> 
-                      {sectionType === 'picking' ? summary.totalOrders : summary.totalTrucks}
-                    </Text>
-                  </ThemedCard>
-
-                </View>
-              </View>
-            )}
-
-            {/* Graph/Table */}
-            {!hasVisibleData ? (
-              <ScrollView
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
-                style={{ flex: 1 }}
-              >
-                <View style={styles.emptyContainer}>
-                  <MaterialCommunityIcons name="history" size={64} color={colors.text} />
-                  <Text style={[styles.emptyText, { color: colors.text }]}>
-                    Brak zapisanych sesji
-                  </Text>
-                  <Text style={[styles.emptySubtext, { color: colors.text }]}>
-                    {sectionType === 'picking'
-                      ? `Zakończ sesję w podsekcji ${pickingSubsection}, aby zobaczyć historię.`
-                      : 'Zakończ sesję, aby zobaczyć historię.'}
-                  </Text>
-                </View>
-              </ScrollView>
-            ) : (
-              <View style={[styles.graphGrid, { flex: 1 }]}>
-
-                {/* Graph components here */}
-                {viewMode === 'graph' && hasVisibleData && (
-                  <View style={[styles.chartContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                    <Text style={[styles.chartTitle, { color: colors.text }]}>
-                      Wykres wydajności
-                    </Text>
-                    <Text style={[styles.chartSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
+                    <Text style={[styles.emptySubtext, { color: colors.text }]}>
                       {sectionType === 'picking'
-                        ? `Wydajność paczek na godzinę dla podsekcji ${pickingSubsection}`
-                        : 'Wydajność palet na godzinę dla każdej sesji w tym miesiącu'}
+                        ? `Zakończ sesję w podsekcji ${pickingSubsection}, aby zobaczyć historię.`
+                        : 'Zakończ sesję, aby zobaczyć historię.'}
                     </Text>
-
-                    <View style={[styles.chartCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
-                      <ScrollView
-                        horizontal
-                        showsHorizontalScrollIndicator={false}
-                        style={{ margin: 16 }}
-                      >
-                        <LineChart
-                          data={chartData}
-                          width={chartWidth}
-                          height={160}
-                          yAxisSuffix={sectionType === 'picking' ? ' pacz/h' : ' pal/h'}
-                          yLabelsOffset={8}
-                          chartConfig={{
-                            backgroundColor: colors.cardInCardBackground,
-                            backgroundGradientFrom: colors.cardInCardBackground,
-                            backgroundGradientTo: colors.cardInCardBackground,
-                            decimalPlaces: 1,
-                            color: (opacity = 1) => colors.iconColor,
-                            labelColor: (opacity = 1) => colors.text,
-                            style: {
-                              borderRadius: 16,
-                            },
-                            propsForDots: {
-                              r: '6',
-                              strokeWidth: '2',
-                              stroke: colors.iconColor,
-                              fill: colors.iconColor,
-                            },
-                          }}
-                          bezier
-                          style={styles.chart}
-                        />
-                      </ScrollView>
-                    </View>
                   </View>
-                )}
-
-                {/* Table components here */}
-                {viewMode === 'table' && (
-                  <View style={[styles.tableContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                    <Text style={[styles.tableTitle, { color: colors.text }]}>
-                      Szczegóły Sesji
-                    </Text>
-                    <Text style={[styles.tableSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
-                      {sectionType === 'picking'
-                        ? `Lista sesji z aktywnością w podsekcji ${pickingSubsection}`
-                        : 'Lista wszystkich sesji w tym miesiącu'}
-                    </Text>
-
-                    <View
-                      style={[styles.tableCard, { flex: 1, borderColor: colors.border }]}
-                      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+                </ScrollView>
+              ) : (
+                <>
+                  <View style={styles.pageIndicator}>
+                    {[0, 1].map((page) => (
+                      <View
+                        key={page}
+                        style={[
+                          activePage === page ? styles.pageDotActive : styles.pageDot,
+                          {
+                            backgroundColor:
+                              activePage === page ? colors.iconColor : colors.grayIconColor,
+                          },
+                        ]}
+                      />
+                    ))}
+                  </View>
+                  <View style={styles.pagerNavigation}>
+                    <Pressable
+                      onPress={() => goToPage(0)}
+                      disabled={activePage === 0}
+                      style={styles.pagerNavButton}
                     >
-                      {/* Table Header */}
-                      <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}> 
-                          {sectionType === 'picking' ? 'Paczki' : 'Palety'}
-                        </Text>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}> 
-                          {sectionType === 'picking' ? 'Zam.' : 'Naczepy'}
-                        </Text>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
-                        <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
-                      </View>
+                      <Ionicons
+                        name="chevron-back"
+                        size={22}
+                        color={activePage === 0 ? colors.headerBorder : colors.text}
+                      />
+                    </Pressable>
 
-                      {/* Table Rows */}
-                      <ScrollView style={{
-                        marginBottom: 16,
-                        borderBottomRadius: 16,
-                      }}>
-                        {visibleSessionsForMonth.map((session, index) => {
-                          const pickingEntry = sectionType === 'picking'
-                            ? (Array.isArray(session.picking?.subsectionEntries)
-                              ? session.picking.subsectionEntries.find((item) => item?.subsection === pickingSubsection)
-                              : null)
-                            : null;
-                          const rowTime = sectionType === 'picking'
-                            ? Number(pickingEntry?.sessionTime || 0)
-                            : Number(session.sessionTime ?? session.loadingTime) || 0;
-                          const rowUnits = sectionType === 'picking'
-                            ? Number(pickingEntry?.boxesCount || 0)
-                            : Number(session.palletsLoaded || 0);
-                          const rowOrders = sectionType === 'picking'
-                            ? Number(pickingEntry?.ordersCount || 0)
-                            : Number(session.trucksCount || 0);
-                          const rowRate = rowTime > 0
-                            ? rowUnits / (rowTime / 3600)
-                            : Number(session.palletsRate || 0);
+                    <Text style={[styles.pagerNavLabel, { color: colors.text }]}>
+                      {activePage === 0 ? 'Podsumowanie' : 'Szczegóły'}
+                    </Text>
 
-                          return (
-                          <View
-                            key={session.id}
-                            style={[
-                              styles.tableRow,
-                              {
-                                backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
-                                borderBottomColor: colors.border
-                              }
-                            ]}
-                          >
-                            <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
-                              {formatDate(session.date)}
-                            </Text>
-                            <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
-                              {formatTime(rowTime)}
-                            </Text>
-                            <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                              {rowUnits}
-                            </Text>
-                            <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
-                              {rowOrders}
-                            </Text>
-                            <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
-                              {rowRate.toFixed(1)}
-                            </Text>
-
-                            {/* Delete button */}
-                            <Pressable
-                              onPress={() => {
-                                Alert.alert(
-                                  'Usuń Sesję',
-                                  'Czy na pewno chcesz usunąć tę sesję?',
-                                  [
-                                    {
-                                      text: 'Anuluj',
-                                      style: 'cancel'
-                                    },
-                                    {
-                                      text: 'Usuń',
-                                      onPress: async () => {
-                                        try {
-                                          if (!userId) return;
-
-                                          // Delete from Firestore
-                                          await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
-
-                                          // Then update local state
-                                          const updatedSessions = sessions.filter((s) => s.id !== session.id);
-                                          setSessions(updatedSessions);
-                                        } catch (error) {
-                                          Alert.alert('Error', 'Failed to delete session');
-                                        }
-                                      },
-
-                                      style: 'destructive'
-                                    }
-                                  ]
-                                );
-                              }}
-                              style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
-                            >
-                              <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
-                            </Pressable>
-                          </View>
-                          );
-                        })}
-                      </ScrollView>
-                    </View>
+                    <Pressable
+                      onPress={() => goToPage(1)}
+                      disabled={activePage === 1}
+                      style={styles.pagerNavButton}
+                    >
+                      <Ionicons
+                        name="chevron-forward"
+                        size={22}
+                        color={activePage === 1 ? colors.headerBorder : colors.text}
+                      />
+                    </Pressable>
                   </View>
-                )}
-              </View>
-            )}
+                  <ScrollView
+                    ref={pagerRef}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    decelerationRate="fast"
+                    style={styles.pagerScroll}
+                    onMomentumScrollEnd={(event) => {
+                      const page = Math.round(
+                        event.nativeEvent.contentOffset.x / pagerWidth
+                      );
+
+                      setActivePage(page);
+                    }}>
+                    <View style={[styles.pagerPage, { width: pagerWidth }]}>
+                      {/* Summary Table - Always visible when sessions exist */}
+                      {hasVisibleData && summary && (
+                        <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                          <Text style={[styles.summaryTitle, { color: colors.text }]}>Podsumowanie miesiąca</Text>
+                          <Text style={[styles.summarySubtitle, { color: colors.textSecondary }]}>
+                            {sectionType === 'picking'
+                              ? `Twoja wydajność w podsekcji ${pickingSubsection}`
+                              : 'Twoja wydajność w tym miesiącu'}
+                          </Text>
+
+                          <View style={styles.summaryGrid}>
+                            {/* Average Rate */}
+                            <ThemedCard style={[styles.summaryBoxWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, }]}>
+                              <Ionicons
+                                name="flash-outline"
+                                size={28}
+                                style={[
+                                  styles.cardIcon,
+                                  { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                ]}
+                              />
+                              <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Średnia Miesięczna</Text>
+                              <Text style={[styles.summaryValue, { color: colors.cardValue }]}>
+                                {summary.averageRate} {sectionType === 'picking' ? 'pacz/h' : 'pal/h'}
+                              </Text>
+                            </ThemedCard>
+                            {/* Total Time */}
+                            <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                              <Ionicons
+                                name="time-outline"
+                                size={28}
+                                style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
+                              />
+                              <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>Czas</Text>
+                              <Text style={[styles.summaryValue, { color: colors.cardValue }]}>
+                                {Math.floor(summary.totalTime / 3600)}h {Math.floor((summary.totalTime % 3600) / 60)}m
+                              </Text>
+                            </ThemedCard>
+
+                            {/* Total Units */}
+                            <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                              <Ionicons
+                                name="layers-outline"
+                                size={28}
+                                style={[
+                                  styles.cardIcon,
+                                  { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                ]}
+                              />
+                              <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>
+                                {sectionType === 'picking' ? 'Paczki' : 'Palety'}
+                              </Text>
+                              <Text style={[styles.summaryValue, { color: colors.cardValue }]}>
+                                {sectionType === 'picking' ? summary.totalBoxes : summary.totalPallets}
+                              </Text>
+                            </ThemedCard>
+
+                            {/* Total Orders / Trucks */}
+                            <ThemedCard style={[styles.summaryBox, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                              <MaterialCommunityIcons
+                                name={sectionType === 'picking' ? 'package-variant-closed-check' : 'truck-check-outline'}
+                                size={28}
+                                style={{ color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }}
+                              />
+                              <Text style={[styles.summaryLabel, { color: colors.cardTitle }]}>
+                                {sectionType === 'picking' ? 'Sklepy' : 'Naczepy'}
+                              </Text>
+                              <Text style={[styles.summaryValue, { color: colors.cardValue }]}>
+                                {sectionType === 'picking' ? summary.totalOrders : summary.totalTrucks}
+                              </Text>
+                            </ThemedCard>
+
+                          </View>
+                        </View>
+                      )}
+
+                    </View>
+
+                    <View style={[styles.pagerPage, { width: pagerWidth }]}>
+                      {/* Graph/Table */}
+                      {!hasVisibleData ? (
+                        <ScrollView
+                          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+                          style={{ flex: 1 }}
+                        >
+                          <View style={styles.emptyContainer}>
+                            <MaterialCommunityIcons name="history" size={64} color={colors.text} />
+                            <Text style={[styles.emptyText, { color: colors.text }]}>
+                              Brak zapisanych sesji
+                            </Text>
+                            <Text style={[styles.emptySubtext, { color: colors.text }]}>
+                              {sectionType === 'picking'
+                                ? `Zakończ sesję w podsekcji ${pickingSubsection}, aby zobaczyć historię.`
+                                : 'Zakończ sesję, aby zobaczyć historię.'}
+                            </Text>
+                          </View>
+                        </ScrollView>
+                      ) : (
+                        <View style={[styles.graphGrid, { flex: 1 }]}>
+
+                          {/* Graph components here */}
+                          {viewMode === 'graph' && hasVisibleData && (
+                            <View style={[styles.chartContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                              <Text style={[styles.chartTitle, { color: colors.text }]}>
+                                Wykres wydajności
+                              </Text>
+                              <Text style={[styles.chartSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
+                                {sectionType === 'picking'
+                                  ? `Wydajność paczek na godzinę dla podsekcji ${pickingSubsection}`
+                                  : 'Wydajność palet na godzinę dla każdej sesji w tym miesiącu'}
+                              </Text>
+
+                              <View style={[styles.chartCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                                <ScrollView
+                                  horizontal
+                                  showsHorizontalScrollIndicator={false}
+                                  style={{ margin: 16 }}
+                                >
+                                  <LineChart
+                                    data={chartData}
+                                    width={chartWidth}
+                                    height={160}
+                                    yAxisSuffix={sectionType === 'picking' ? ' pacz/h' : ' pal/h'}
+                                    yLabelsOffset={8}
+                                    chartConfig={{
+                                      backgroundColor: colors.cardInCardBackground,
+                                      backgroundGradientFrom: colors.cardInCardBackground,
+                                      backgroundGradientTo: colors.cardInCardBackground,
+                                      decimalPlaces: 1,
+                                      color: (opacity = 1) => colors.iconColor,
+                                      labelColor: (opacity = 1) => colors.text,
+                                      style: {
+                                        borderRadius: 16,
+                                      },
+                                      propsForDots: {
+                                        r: '6',
+                                        strokeWidth: '2',
+                                        stroke: colors.iconColor,
+                                        fill: colors.iconColor,
+                                      },
+                                    }}
+                                    bezier
+                                    style={styles.chart}
+                                  />
+                                </ScrollView>
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Table components here */}
+                          {viewMode === 'table' && (
+                            <View style={[styles.tableContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                              <Text style={[styles.tableTitle, { color: colors.text }]}>
+                                Szczegóły Sesji
+                              </Text>
+                              <Text style={[styles.tableSubtitle, { color: colors.textSecondary, marginBottom: 12 }]}>
+                                {sectionType === 'picking'
+                                  ? `Lista sesji z aktywnością w podsekcji ${pickingSubsection}`
+                                  : 'Lista wszystkich sesji w tym miesiącu'}
+                              </Text>
+
+                              <View
+                                style={[styles.tableCard, { flex: 1, borderColor: colors.border }]}
+                                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.text} />}
+                              >
+                                {/* Table Header */}
+                                <View style={[styles.tableHeader, { backgroundColor: colors.cardBackground, borderBottomColor: colors.border }]}>
+                                  <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1.5 }]}>Data</Text>
+                                  <Text style={[styles.tableHeaderText, { color: colors.text, flex: 1 }]}>Czas</Text>
+                                  <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>
+                                    {sectionType === 'picking' ? 'Paczki' : 'Palety'}
+                                  </Text>
+                                  <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>
+                                    {sectionType === 'picking' ? 'Zam.' : 'Naczepy'}
+                                  </Text>
+                                  <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.8 }]}>Wynik/h</Text>
+                                  <Text style={[styles.tableHeaderText, { color: colors.text, flex: 0.6 }]}>Usuń</Text>
+                                </View>
+
+                                {/* Table Rows */}
+                                <ScrollView style={{
+                                  marginBottom: 16,
+                                  borderBottomRadius: 16,
+                                }}>
+                                  {visibleSessionsForMonth.map((session, index) => {
+                                    const pickingEntry = sectionType === 'picking'
+                                      ? (Array.isArray(session.picking?.subsectionEntries)
+                                        ? session.picking.subsectionEntries.find((item) => item?.subsection === pickingSubsection)
+                                        : null)
+                                      : null;
+                                    const rowTime = sectionType === 'picking'
+                                      ? Number(pickingEntry?.sessionTime || 0)
+                                      : Number(session.sessionTime ?? session.loadingTime) || 0;
+                                    const rowUnits = sectionType === 'picking'
+                                      ? Number(pickingEntry?.boxesCount || 0)
+                                      : Number(session.palletsLoaded || 0);
+                                    const rowOrders = sectionType === 'picking'
+                                      ? Number(pickingEntry?.ordersCount || 0)
+                                      : Number(session.trucksCount || 0);
+                                    const rowRate = rowTime > 0
+                                      ? rowUnits / (rowTime / 3600)
+                                      : Number(session.palletsRate || 0);
+
+                                    return (
+                                      <View
+                                        key={session.id}
+                                        style={[
+                                          styles.tableRow,
+                                          {
+                                            backgroundColor: index % 2 === 0 ? colors.background : colors.cardBackground,
+                                            borderBottomColor: colors.border
+                                          }
+                                        ]}
+                                      >
+                                        <Text style={[styles.tableCell, { color: colors.text, flex: 1.5 }]} numberOfLines={2}>
+                                          {formatDate(session.date)}
+                                        </Text>
+                                        <Text style={[styles.tableCell, { color: colors.text, flex: 1 }]}>
+                                          {formatTime(rowTime)}
+                                        </Text>
+                                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                                          {rowUnits}
+                                        </Text>
+                                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8 }]}>
+                                          {rowOrders}
+                                        </Text>
+                                        <Text style={[styles.tableCell, { color: colors.text, flex: 0.8, fontWeight: '600' }]}>
+                                          {rowRate.toFixed(1)}
+                                        </Text>
+
+                                        {/* Delete button */}
+                                        <Pressable
+                                          onPress={() => {
+                                            Alert.alert(
+                                              'Usuń Sesję',
+                                              'Czy na pewno chcesz usunąć tę sesję?',
+                                              [
+                                                {
+                                                  text: 'Anuluj',
+                                                  style: 'cancel'
+                                                },
+                                                {
+                                                  text: 'Usuń',
+                                                  onPress: async () => {
+                                                    try {
+                                                      if (!userId) return;
+
+                                                      // Delete from Firestore
+                                                      await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
+
+                                                      // Then update local state
+                                                      const updatedSessions = sessions.filter((s) => s.id !== session.id);
+                                                      setSessions(updatedSessions);
+                                                    } catch (error) {
+                                                      Alert.alert('Error', 'Failed to delete session');
+                                                    }
+                                                  },
+
+                                                  style: 'destructive'
+                                                }
+                                              ]
+                                            );
+                                          }}
+                                          style={[styles.tableCell, { flex: 0.6, justifyContent: 'center', alignItems: 'center' }]}
+                                        >
+                                          <MaterialCommunityIcons name="trash-can-outline" size={18} color="#f44336" />
+                                        </Pressable>
+                                      </View>
+                                    );
+                                  })}
+                                </ScrollView>
+                              </View>
+                            </View>
+                          )}
+                        </View>
+                      )}
+                    </View>
+                  </ScrollView>
+                </>
+              )}
+            </View>
           </>
-        )}
-      </View>
-    </ThemedView>
+        )
+        }
+      </View >
+    </ThemedView >
   );
 }
 
@@ -814,7 +923,6 @@ const styles = StyleSheet.create({
   chartContainer: {
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 16,
     marginBottom: 20,
     borderWidth: 1,
     elevation: 2,
@@ -839,7 +947,6 @@ const styles = StyleSheet.create({
   },
   tableContainer: {
     flex: 1,
-    marginHorizontal: 24,
     marginBottom: 20,
     borderRadius: 16,
     padding: 16,
@@ -886,7 +993,6 @@ const styles = StyleSheet.create({
   summaryContainer: {
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 24,
     marginBottom: 20,
     borderWidth: 1,
     elevation: 2,
@@ -943,6 +1049,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingTop: 8,
   },
   monthButton: {
     borderWidth: 1,
@@ -963,5 +1070,59 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     fontSize: 16,
+  },
+  pagerWrapper: {
+    flex: 1,
+    marginHorizontal: 16,
+  },
+
+  pagerScroll: {
+    flex: 1,
+  },
+
+  pagerPage: {
+    paddingHorizontal: 0,
+  },
+
+  pageIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+    marginBottom: 12,
+  },
+
+  pageDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+
+  pageDotActive: {
+    width: 20,
+    height: 8,
+    borderRadius: 4,
+  },
+  pagerNavigation: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    marginTop: 4,
+    marginBottom: 12,
+  },
+
+  pagerNavButton: {
+    padding: 6,
+    borderRadius: 999,
+    // optional hit area if you want bigger touch targets:
+    // marginHorizontal: 4,
+  },
+
+  pagerNavLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
