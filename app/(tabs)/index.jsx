@@ -1089,10 +1089,8 @@ export default function Dashboard() {
         onClose={() => setSessionModalVisible(false)}
         onOptionSelect={handleSessionOptionSelect}
         options={[
-          { key: 'zaladunek', label: 'Załadunek', route: '/calculator_content/calculator', icon: 'flash' },
-          { key: 'kompletacja', label: 'Kompletacja', route: '/calculator_content/calculator', icon: 'layers' },
-          { key: 'wsparcie', label: 'Wsparcie', icon: 'help-circle' },
-          { key: 'owijarki', label: 'Owijarki', icon: 'settings' },
+          { key: 'zaladunek', label: 'Załadunek', route: '/calculator_content/calculator', icon: 'truck-cargo-container' },
+          { key: 'kompletacja', label: 'Kompletacja', route: '/calculator_content/calculator', icon: 'package' },
         ]}
       />
     </ThemedView >

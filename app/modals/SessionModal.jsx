@@ -1,4 +1,4 @@
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useState } from 'react';
 import { Alert, Modal, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -66,7 +66,7 @@ export default function SessionModal({ visible, onClose, onOptionSelect, options
                                     end={{ x: 1, y: 1 }}
                                     style={styles.cornerGradientLarge}
                                 />
-                                <Ionicons name={opt.icon || 'checkmark-circle'} size={32} color={colors.iconColor} />
+                                <MaterialCommunityIcons name={opt.icon || 'checkmark-circle'} size={46} color={colors.iconColor} />
                                 <Text style={[styles.optionText, { color: colors.text }]}>{opt.label}</Text>
                             </TouchableOpacity>
                         ))}
