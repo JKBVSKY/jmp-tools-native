@@ -104,6 +104,11 @@ export default function Results({
   // ✅ MAIN SAVE HANDLER - NOW WITH CORRECT ORDER!
   const handleSave = async () => {
     try {
+      if (!profile) {
+        appAlert('Błąd', 'Profil użytkownika nie jest gotowy. Spróbuj ponownie za chwilę.');
+        return;
+      }
+
       if (hasInvalidTimeRange) {
         appAlert('Błąd', 'Nieprawidłowy zakres czasu. Ustaw poprawny czas rozpoczęcia i zakończenia.');
         return;
@@ -151,17 +156,18 @@ export default function Results({
       }
 
       // ✅ STEP 3: Calculate NEW stats (BEFORE checking achievements!)
+      const currentStats = profile.stats || {};
       const newStats = {
-        totalSessions: (profile.stats.totalSessions || 0) + 1,
-        totalTimeWorked: (profile.stats.totalTimeWorked || 0) + (effectiveSessionTime / 3600),
-        palletsLoaded: (profile.stats.palletsLoaded || 0) + editedPalletsLoaded,
-        totalScore: (profile.stats.totalScore || 0) + sessionScore,
-        bestScore: Math.max(profile.stats.bestScore || 0, sessionScore),
+        totalSessions: (currentStats.totalSessions || 0) + 1,
+        totalTimeWorked: (currentStats.totalTimeWorked || 0) + (effectiveSessionTime / 3600),
+        palletsLoaded: (currentStats.palletsLoaded || 0) + editedPalletsLoaded,
+        totalScore: (currentStats.totalScore || 0) + sessionScore,
+        bestScore: Math.max(currentStats.bestScore || 0, sessionScore),
         palletsLoadedInSession: editedPalletsLoaded,
         perfectScores:
-          (profile.stats.perfectScores || 0) + (sessionScore === 10 ? 1 : 0),
+          (currentStats.perfectScores || 0) + (sessionScore === 10 ? 1 : 0),
         nightShiftsCompleted:
-          (profile.stats.nightShiftsCompleted || 0) + (wasNightShift ? 1 : 0),
+          (currentStats.nightShiftsCompleted || 0) + (wasNightShift ? 1 : 0),
       };
 
       console.log('📊 New Stats calculated:', newStats);
@@ -171,7 +177,7 @@ export default function Results({
       const newAchievements = checkAchievements(
         newStats,
         sessionScore,
-        profile.achievements
+        profile.achievements || []
       );
       console.log('🏆 Achievements to unlock:', newAchievements);
 
@@ -208,7 +214,7 @@ export default function Results({
           finishSession
         );
       } else {
-        const levelData = calculateLevelFromXP(profile.totalXP + xpEarned);
+        const levelData = calculateLevelFromXP(xpResult.newTotalXP);
         const progressText = `Postęp do Poziomu ${xpResult.newLevel + 1}: ${levelData.currentXP} / ${levelData.xpToNextLevel} XP`;
 
         appAlert(
