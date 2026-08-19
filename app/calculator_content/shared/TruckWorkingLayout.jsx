@@ -110,8 +110,9 @@ export default function TruckWorkingLayout(props) {
     const openReportTimerRef = useRef(null);
     const insets = useSafeAreaInsets();
 
-    // NEW: session info modal visibility
-    const [showSessionInfoModal, setShowSessionInfoModal] = useState(false);
+    const showSessionInfoModal = Boolean(calc.showSessionInfoModal);
+    const setShowSessionInfoModal = (visible) =>
+        calc.updateState({ showSessionInfoModal: visible }, { persist: false });
 
     // Helpers for palletsRate highlight
     const getPalletsRateColor = (value) => {
@@ -408,7 +409,7 @@ export default function TruckWorkingLayout(props) {
     // ============================================================================
 
     return (
-        <View style={[styles.container, { backgroundColor: colors.background }]}> 
+        <View style={[styles.container, { backgroundColor: colors.background }]}>
             <ReportModal
                 key={reportModalKey}
                 visible={reportVisible}
@@ -436,290 +437,196 @@ export default function TruckWorkingLayout(props) {
                     showProgressCard={false}
                 />
 
-                {isWeb ? (
-                    <View style={styles.statsSection}>
-                        <View style={styles.statsGrid}>
-                            {/* Card 1: Elapsed Time */}
-                            <View style={[styles.statCard, { backgroundColor: colors.cardBackground }]}>
-                                <View style={styles.cardHeader}>
-                                    <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-                                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Ładowania</Text>
-                                </View>
-                                <Text style={[styles.cardValue, { color: colors.text }]}>
-                                    {sessionTime ? formatElapsed(sessionTime) : "00:00:00"}
-                                </Text>
-                            </View>
-
-                            {/* Card 2: Pallets Loaded */}
+                <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                    <View style={styles.statsHeader}>
+                        <View>
+                            <Text style={[styles.gridTitle, { color: colors.text }]}>
+                                Sesja aktywna
+                            </Text>
+                            <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
+                                Twoje statystyki bieżącej sesji.
+                            </Text>
+                        </View>
+                        <View>
                             <TouchableOpacity
-                                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22%' }]}
-                                onPress={() => Alert.alert('Palety Załadowane', `${palletsLoaded}`)}
+                                style={styles.infoButton}
+                                onPress={() => setShowSessionInfoModal(true)}
                             >
-                                <View style={styles.cardHeader}>
-                                    <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Palety</Text>
-                                    <MaterialCommunityIcons name="truck-delivery-outline" size={24} style={{ color: colors.iconColor }} />
-                                </View>
-                                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsLoaded}</Text>
+                                <Ionicons name="information-circle-outline" size={26} color={colors.text} />
                             </TouchableOpacity>
-
-                            {/* Card 3: Trucks Loaded */}
-                            <TouchableOpacity
-                                style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '22%' }]}
-                                onPress={() => Alert.alert('Dostawy załadowane', `${trucksLoadedCount}`)}
-                            >
-                                <View style={styles.cardHeader}>
-                                    <Text style={[styles.cardLabelBadge, { color: colors.textSecondary }]}>Dostawy</Text>
-                                    <MaterialCommunityIcons name="truck-check-outline" size={24} style={{ color: colors.iconColor }} />
-                                </View>
-                                <Text style={[styles.cardValue, { color: colors.text }]}>{trucksLoadedCount}</Text>
-                            </TouchableOpacity>
-
-                            {/* Card 4: Rate (per hour) */}
-                            <View style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '48%' }]}>
-                                <View style={styles.cardHeader}>
-                                    <Ionicons name="flash-outline" size={24} style={{ color: colors.iconColor }} />
-                                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Wynik/godz</Text>
-                                </View>
-                                <Text style={[styles.cardValue, { color: colors.text }]}>{palletsRate}</Text>
-                            </View>
-
-                            {/* Card 5: Forced Finish Time */}
-                            <TouchableOpacity style={[styles.statCard, { backgroundColor: colors.cardBackground, width: '48%' }]} onPress={() => setShowAdjustFinishTimeModal(true)}>
-                                <View style={styles.cardHeader}>
-                                    <Ionicons name="time-outline" size={24} style={{ color: colors.iconColor }} />
-                                    <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Czas Zakończenia</Text>
-                                </View>
-                                <Text style={[styles.cardValue, { color: colors.text }]}>
-                                    {forcedFinishTime
-                                        ? `${new Date(forcedFinishTime).toLocaleTimeString()}`
-                                        : 'Brak'}
-                                </Text>
-                            </TouchableOpacity>
-
-                            {forcedFinishTime && (
-                                <View style={{
-                                    backgroundColor: '#fff3cd',
-                                    borderRadius: 12,
-                                    padding: 12,
-                                    marginBottom: 16,
-                                    borderLeftWidth: 4,
-                                    borderLeftColor: '#ff6b6b'
-                                }}>
-                                    <Text style={{ fontSize: 12, fontWeight: '600', color: '#cc5200' }}>
-                                        ⏰ Auto-finish at {new Date(forcedFinishTime).toLocaleTimeString()}
-                                    </Text>
-                                </View>
-                            )}
                         </View>
                     </View>
-                ) : (
-                    <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                        <View style={styles.statsHeader}>
-                            <View>
-                                <Text style={[styles.gridTitle, { color: colors.text }]}>
-                                    Sesja aktywna
+                    <View style={styles.statsGrid}>
+
+                        {/* Card 1: Score */}
+                        <View style={[styles.gridCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                            <Ionicons name="flash-outline" size={28}
+                                style={[
+                                    styles.cardIcon,
+                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                ]}
+                            />
+                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                Średnia aktualna
+                            </Text>
+                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 32, fontWeight: '600' }]}>
+                                {palletsRate}
+                            </Text>
+                        </View>
+
+                        {/* Expand / collapse button */}
+                        <Pressable
+                            onPress={() => setAreSessionDetailsVisible(prev => !prev)}
+                            style={({ pressed }) => [
+                                styles.expandButton,
+                                {
+                                    backgroundColor: colors.cardInCardBackground,
+                                    borderColor: colors.border,
+                                    opacity: pressed ? 0.85 : 1,
+                                },
+                            ]}
+                        >
+                            <View style={styles.expandButtonContent}>
+                                <Text style={[styles.expandButtonText, { color: colors.cardTitle }]}>
+                                    {areSessionDetailsVisible ? 'Ukryj szczegóły sesji' : 'Pokaż szczegóły sesji'}
                                 </Text>
-                                <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
-                                    Twoje statystyki bieżącej sesji.
-                                </Text>
+
+                                <Ionicons
+                                    name={areSessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
+                                    size={20}
+                                    color={colors.grayIconColor}
+                                />
                             </View>
-                            <View>
-                                <TouchableOpacity
-                                    style={styles.infoButton}
-                                    onPress={() => setShowSessionInfoModal(true)}
+                        </Pressable>
+
+                        {/* Hidden Cards */}
+                        <Animated.View
+                            pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}
+                            style={[
+                                styles.expandableContent,
+                                detailsAnimatedStyle,
+                                !areSessionDetailsVisible && styles.expandableContentHidden,
+                            ]}
+                        >
+                            <View style={styles.statsGridHidden}>
+                                {/* Card 2: Time */}
+                                <View
+                                    style={[
+                                        styles.gridCard,
+                                        {
+                                            backgroundColor: colors.cardInCardBackground,
+                                            borderColor: colors.border,
+                                        },
+                                    ]}
                                 >
-                                    <Ionicons name="information-circle-outline" size={26} color={colors.text} />
+                                    <View style={styles.gridCardContent}>
+                                        <Ionicons
+                                            name="time-outline"
+                                            size={24}
+                                            style={[
+                                                styles.cardIcon,
+                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                            ]}
+                                        />
+                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                            Czas
+                                        </Text>
+                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                            {sessionTime ? formatElapsed(sessionTime) : '00:00:00'}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Card 3: Pallets */}
+                                <View
+                                    style={[
+                                        styles.gridCard,
+                                        {
+                                            backgroundColor: colors.cardInCardBackground,
+                                            borderColor: colors.border,
+                                        },
+                                    ]}
+                                >
+                                    <View style={styles.gridCardContent}>
+                                        <Ionicons
+                                            name="layers-outline"
+                                            size={28}
+                                            style={[
+                                                styles.cardIcon,
+                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                            ]}
+                                        />
+                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                            Palety
+                                        </Text>
+                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                            {palletsLoaded}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Card 4: Truck loaded */}
+                                <View
+                                    style={[
+                                        styles.gridCard,
+                                        {
+                                            backgroundColor: colors.cardInCardBackground,
+                                            borderColor: colors.border,
+                                        },
+                                    ]}
+                                >
+                                    <View style={styles.gridCardContent}>
+                                        <MaterialCommunityIcons
+                                            name="truck-check-outline"
+                                            size={28}
+                                            style={[
+                                                styles.cardIcon,
+                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                            ]}
+                                        />
+                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                            Dostawy
+                                        </Text>
+                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                            {trucksLoadedCount}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                {/* Card 5: Forced finish */}
+                                <TouchableOpacity
+                                    style={[
+                                        styles.gridCard,
+                                        {
+                                            backgroundColor: colors.cardInCardBackground,
+                                            borderColor: colors.border,
+                                        },
+                                    ]}
+                                    onPress={() => setShowAdjustFinishTimeModal(true)}
+                                >
+                                    <View style={styles.gridCardContent}>
+                                        <MaterialIcons
+                                            name="alarm-off"
+                                            size={28}
+                                            style={[
+                                                styles.cardIcon,
+                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                                            ]}
+                                        />
+                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
+                                            Koniec
+                                        </Text>
+                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
+                                            {forcedFinishTime
+                                                ? new Date(forcedFinishTime).toLocaleTimeString()
+                                                : 'Brak'}
+                                        </Text>
+                                    </View>
                                 </TouchableOpacity>
                             </View>
-                        </View>
-                        <View style={styles.statsGrid}>
-
-                            {/* Card 1: Score */}
-                            <View style={[styles.gridCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
-                                <Ionicons name="flash-outline" size={28}
-                                    style={[
-                                        styles.cardIcon,
-                                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                    ]}
-                                />
-                                <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                    Średnia aktualna
-                                </Text>
-                                <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 32, fontWeight: '600' }]}>
-                                    {palletsRate}
-                                </Text>
-                            </View>
-
-                            {/* Expand / collapse button */}
-                            <Pressable
-                                onPress={() => setAreSessionDetailsVisible(prev => !prev)}
-                                style={({ pressed }) => [
-                                    styles.expandButton,
-                                    {
-                                        backgroundColor: colors.cardInCardBackground,
-                                        borderColor: colors.border,
-                                        opacity: pressed ? 0.85 : 1,
-                                    },
-                                ]}
-                            >
-                                <View style={styles.expandButtonContent}>
-                                    <Text style={[styles.expandButtonText, { color: colors.cardTitle }]}>
-                                        {areSessionDetailsVisible ? 'Ukryj szczegóły sesji' : 'Pokaż szczegóły sesji'}
-                                    </Text>
-
-                                    <Ionicons
-                                        name={areSessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
-                                        size={20}
-                                        color={colors.grayIconColor}
-                                    />
-                                </View>
-                            </Pressable>
-
-                            {/* Hidden Cards */}
-                            <Animated.View
-                                pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}
-                                style={[
-                                    styles.expandableContent,
-                                    detailsAnimatedStyle,
-                                    !areSessionDetailsVisible && styles.expandableContentHidden,
-                                ]}
-                            >
-                                <View style={styles.statsGridHidden}>
-                                    {/* Card 2: Time */}
-                                    <View
-                                        style={[
-                                            styles.gridCard,
-                                            {
-                                                backgroundColor: colors.cardInCardBackground,
-                                                borderColor: colors.border,
-                                            },
-                                        ]}
-                                    >
-                                        <View style={styles.gridCardContent}>
-                                            <Ionicons
-                                                name="time-outline"
-                                                size={24}
-                                                style={[
-                                                    styles.cardIcon,
-                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                                ]}
-                                            />
-                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                                Czas
-                                            </Text>
-                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                                {sessionTime ? formatElapsed(sessionTime) : '00:00:00'}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    {/* Card 3: Pallets */}
-                                    <View
-                                        style={[
-                                            styles.gridCard,
-                                            {
-                                                backgroundColor: colors.cardInCardBackground,
-                                                borderColor: colors.border,
-                                            },
-                                        ]}
-                                    >
-                                        <View style={styles.gridCardContent}>
-                                            <Ionicons
-                                                name="layers-outline"
-                                                size={28}
-                                                style={[
-                                                    styles.cardIcon,
-                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                                ]}
-                                            />
-                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                                Palety
-                                            </Text>
-                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                                {palletsLoaded}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    {/* Card 4: Truck loaded */}
-                                    <View
-                                        style={[
-                                            styles.gridCard,
-                                            {
-                                                backgroundColor: colors.cardInCardBackground,
-                                                borderColor: colors.border,
-                                            },
-                                        ]}
-                                    >
-                                        <View style={styles.gridCardContent}>
-                                            <MaterialCommunityIcons
-                                                name="truck-check-outline"
-                                                size={28}
-                                                style={[
-                                                    styles.cardIcon,
-                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                                ]}
-                                            />
-                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                                Dostawy
-                                            </Text>
-                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                                {trucksLoadedCount}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    {/* Card 5: Forced finish */}
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.gridCard,
-                                            {
-                                                backgroundColor: colors.cardInCardBackground,
-                                                borderColor: colors.border,
-                                            },
-                                        ]}
-                                        onPress={() => setShowAdjustFinishTimeModal(true)}
-                                    >
-                                        <View style={styles.gridCardContent}>
-                                            <MaterialIcons
-                                                name="alarm-off"
-                                                size={28}
-                                                style={[
-                                                    styles.cardIcon,
-                                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                                ]}
-                                            />
-                                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                                Koniec
-                                            </Text>
-                                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                                {forcedFinishTime
-                                                    ? new Date(forcedFinishTime).toLocaleTimeString()
-                                                    : 'Brak'}
-                                            </Text>
-                                        </View>
-                                    </TouchableOpacity>
-
-                                    {/* {forcedFinishTime && (
-                                        <View
-                                            style={[
-                                                styles.autoFinishNotice,
-                                                {
-                                                    backgroundColor: colors.cardInCardBackground,
-                                                    borderColor: colors.border,
-                                                },
-                                            ]}
-                                        >
-                                            <Text style={[styles.autoFinishNoticeText, { color: colors.cardTitle }]}>
-                                                ⏰ Koniec o {new Date(forcedFinishTime).toLocaleTimeString()}
-                                            </Text>
-                                        </View>
-                                    )} */}
-                                </View>
-                            </Animated.View>
-                        </View>
+                        </Animated.View>
                     </View>
-                )}
+                </View>
 
                 {/* Trucks section */}
                 <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>

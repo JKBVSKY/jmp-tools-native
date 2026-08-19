@@ -1,11 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { calculateLevelFromXP } from '../../../constants/LevelSystem';
 import { useCalculator } from '../../../context/CalculatorContext';
 import { useUserProfile } from '../../../context/UserProfileContext';
 import { useColors } from '../../../hooks/useColors';
+
 
 const SESSION_TYPE_LABEL = {
   'truck-loading': 'Załadunek',
@@ -24,20 +25,23 @@ const FALLBACK_MODE_SUBTITLE = 'Kalkulator sesji';
 function StatsBar({ stats, colors }) {
   return (
     <View style={styles.statsBar}>
-      {stats.map(({ icon, value }, index) => (
-        <View
+      {stats.map(({ icon, value, onPress }, index) => (
+        <Pressable
           key={index}
-          style={[
+          onPress={onPress}
+          disabled={!onPress}
+          style={({ pressed }) => [
             styles.stat,
             index < stats.length - 1 && styles.statWithDivider,
             { borderColor: colors.border },
+            pressed && styles.statPressed,
           ]}
         >
           {icon}
           <Text style={[styles.statValue, { color: colors.text }]} numberOfLines={1}>
             {value}
           </Text>
-        </View>
+        </Pressable>
       ))}
     </View>
   );
@@ -97,6 +101,7 @@ export default function CalculatorHeaderTitle() {
     {
       icon: <Ionicons name="speedometer" color={colors.iconColor} size={24} />,
       value: palletsRate,
+      onPress: () => calc.updateState({ showSessionInfoModal: true }, { persist: false }),
     },
     {
       icon: (
@@ -107,6 +112,7 @@ export default function CalculatorHeaderTitle() {
         />
       ),
       value: palletsLoaded,
+      onPress: () => calc.updateState({ showSessionInfoModal: true }, { persist: false }),
     },
     {
       icon: <Ionicons name="time" color={colors.iconColor} size={24} />,
@@ -124,7 +130,8 @@ export default function CalculatorHeaderTitle() {
         hour: '2-digit',
         minute: '2-digit',
         second: '2-digit'
-      })
+      }),
+      onPress: () => calc.updateState({ showAdjustFinishTimeModal: true }, { persist: false }),
     },
   ];
 

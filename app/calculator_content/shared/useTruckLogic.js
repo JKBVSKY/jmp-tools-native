@@ -28,7 +28,9 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
     const [showNewTransportModal, setShowNewTransportModal] = useState(false);
     const [showPauseModal, setShowPauseModal] = useState(false);
     const [expandedTruckId, setExpandedTruckId] = useState(null);
-    const [showAdjustFinishTimeModal, setShowAdjustFinishTimeModal] = useState(false);
+    const showAdjustFinishTimeModal = Boolean(calc.showAdjustFinishTimeModal);
+    const setShowAdjustFinishTimeModal = (visible) =>
+        calc.updateState({ showAdjustFinishTimeModal: visible }, { persist: false });
     const [showPalletsModal, setShowPalletsModal] = useState(false);
     const [palletsInput, setPalletsInput] = useState("");
     const [pendingTruckId, setPendingTruckId] = useState(null);

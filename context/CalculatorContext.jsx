@@ -19,6 +19,8 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
     gateNum: 0,
     trailerNum: 0,
     forcedFinishTime: null,
+    showSessionInfoModal: false,
+    showAdjustFinishTimeModal: false,
     sessionStatus: 'active',
     sessionType,
     // Picking-specific state
