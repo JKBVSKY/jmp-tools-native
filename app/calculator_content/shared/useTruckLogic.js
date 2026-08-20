@@ -363,6 +363,13 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         });
     };
 
+    const handleRemoveTruck = (truckId) => {
+        calc.updateState({
+            trucks: trucks.filter(t => t.id !== truckId),
+            trucksHistory: trucksHistory.filter(t => t.id !== truckId),
+        });
+    };
+
     const handleSaveEditHistory = (updatedTruck) => {
         calc.updateState({
             trucksHistory: trucksHistory.map(t => t.id === updatedTruck.id ? { ...t, ...updatedTruck } : t)
@@ -455,6 +462,7 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         handleSaveEdit,
         handleSaveEditHistory,
         handleTruckDone,
+        handleRemoveTruck,
         handleRemoveHistoryTruck,
         handlePauseConfirm,
         handleResume,

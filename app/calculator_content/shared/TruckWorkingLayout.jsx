@@ -4,17 +4,14 @@ import { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     Modal,
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
-    Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { TabView } from 'react-native-tab-view';
 
 import SessionDetailsModal from '../../modals/SessionDetailsModal';
 import EditTruckModal from '../truckLoading/EditTruckModal';
@@ -57,8 +54,6 @@ export default function TruckWorkingLayout(props) {
         changeMode,
 
         // UI state
-        activeTab,
-        setActiveTab,
         showPauseModal,
         setShowPauseModal,
         showNewTransportModal,
@@ -73,8 +68,6 @@ export default function TruckWorkingLayout(props) {
         setPendingTruckId,
         expandedTruckId,
         setExpandedTruckId,
-        areSessionDetailsVisible,
-        setAreSessionDetailsVisible,
 
         // XP / notification
         currentXPPerMin,
@@ -85,14 +78,13 @@ export default function TruckWorkingLayout(props) {
         notificationState,
         setNotificationState,
         floatingAnim,
-        detailsAnimatedStyle,
 
         // handlers
         addTruck,
         handleSaveEdit,
         handleSaveEditHistory,
         handleTruckDone,
-        handleRemoveHistoryTruck,
+        handleRemoveTruck,
         handlePauseConfirm,
         handleResume,
         handleConfirmPallets,
@@ -224,182 +216,137 @@ export default function TruckWorkingLayout(props) {
     // SECTION 5: RENDER FUNCTIONS (AFTER ALL HOOKS & HELPER FUNCTIONS)
     // ============================================================================
 
-    // Define routes for TabView
-    const routes = [
-        { key: 'monitoring', title: 'Aktualne transporty' },
-        { key: 'history', title: 'Zakończone transporty' },
-    ];
+    const allTrucks = [
+        ...trucks.map((truck) => ({ ...truck, isHistory: false })),
+        ...trucksHistory.map((truck) => ({ ...truck, isHistory: true })),
+    ].sort((a, b) => {
+        if (a.isHistory !== b.isHistory) return a.isHistory ? 1 : -1;
+        return Number(b.displayId || 0) - Number(a.displayId || 0);
+    });
 
-    const navigationState = {
-        index: activeTab,
-        routes,
-    };
+    const renderScene = () => (
+        <View style={[styles.trucksList, { backgroundColor: colors.tListBackground }]}>
+            <View style={[styles.tableHeader, { borderBottomColor: colors.border }]}>
+                <Text style={[styles.tableHeaderText, styles.columnId, { color: colors.textSecondary }]}>ID</Text>
+                <Text style={[styles.tableHeaderText, styles.columnPallets, { color: colors.textSecondary }]}>PALETY</Text>
+                <Text style={[styles.tableHeaderText, styles.columnShop, { color: colors.textSecondary }]}>SKLEP</Text>
+                <Text style={[styles.tableHeaderText, styles.columnTrailer, { color: colors.textSecondary }]}>NACZEPA</Text>
+                <Text style={[styles.tableHeaderText, styles.columnGate, { color: colors.textSecondary }]}>BRAMA</Text>
+            </View>
 
-    const renderScene = ({ route }) => {
-        switch (route.key) {
-            case 'monitoring':
-                return (
-                    <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
-                        {trucks.length === 0 ? (
-                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                                <Text style={[styles.emptyText, { color: colors.text }]}>Rozpocznij nowy transport.</Text>
-                            </View>
-                        ) : (
-                            trucks.map(truck => renderTruckItem(truck, false))
-                        )}
-                    </ScrollView>
-                );
-            case 'history':
-                return (
-                    <ScrollView style={[styles.trucksList, { backgroundColor: colors.tListBackground, borderColor: colors.border }]} contentContainerStyle={{ flexGrow: 1 }}>
-                        {trucksHistory.length === 0 ? (
-                            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                                <Text style={[styles.emptyText, { color: colors.text }]}>Brak historii transportów.</Text>
-                            </View>
-                        ) : (
-                            [...trucksHistory]
-                                .sort((a, b) => b.displayId - a.displayId)
-                                .map(truck => renderTruckItem(truck, true))
-                        )}
-                    </ScrollView>
-                );
-            default:
-                return null;
-        }
-    };
-    // ✅ NEW: Render truck item with collapsible design
+            {allTrucks.length === 0 ? (
+                <View style={styles.emptyList}>
+                    <MaterialCommunityIcons name="truck-outline" size={40} color={colors.textSecondary} />
+                    <Text style={[styles.emptyText, { color: colors.text }]}>Dodaj pierwszy transport.</Text>
+                </View>
+            ) : allTrucks.map((truck) => renderTruckItem(truck, truck.isHistory))}
+        </View>
+    );
+
     const renderTruckItem = (truck, isHistory = false) => {
         const isExpanded = expandedTruckId === truck.id;
         const elapsedTime = truck.elapsedLoadingTime || 0;
+        const statusColor = isHistory ? (colors.success || '#10b981') : (colors.butBackground || '#3b82f6');
+        const shopLabel = [truck.shop, truck.secondShop].filter(Boolean).join(', ') || '—';
+
+        const confirmRemoveTruck = (truckToRemove) => {
+            Alert.alert(
+                'Usuń transport?',
+                `Czy na pewno chcesz usunąć transport #${truckToRemove.displayId || '—'}? Tej czynności nie można cofnąć.`,
+                [
+                    { text: 'Anuluj', style: 'cancel' },
+                    {
+                        text: 'Usuń',
+                        style: 'destructive',
+                        onPress: () => handleRemoveTruck(truckToRemove.id),
+                    },
+                ],
+            );
+        };
 
         return (
-            <View key={truck.id}>
-                <View style={[styles.truckItem, { borderBottomColor: colors.breakLine }]}>
-                    {/* LEFT SECTION: Truck header + expand */}
-                    <TouchableOpacity
-                        onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
-                        style={[
-                            styles.truckHeaderSection,
-                            {
-                                backgroundColor: colors.cardBackground,
-                                borderWidth: 2,
-                                borderColor: colors.border,
-                            },
-                        ]}
-                        activeOpacity={0.8}
-                    >
-                        <View style={styles.truckHeaderLeft}>
-                            <MaterialCommunityIcons
-                                name="shipping-pallet"
-                                size={24}
-                                color={colors.iconColor}
+            <View key={truck.id} style={styles.tableItemWrapper}>
+                <TouchableOpacity
+                    onPress={() => setExpandedTruckId(isExpanded ? null : truck.id)}
+                    activeOpacity={0.82}
+                    style={[
+                        styles.tableRow,
+                        {
+                            backgroundColor: isHistory ? `${statusColor}10` : colors.cardBackground,
+                            borderColor: isHistory ? `${statusColor}70` : colors.border,
+                            borderLeftColor: statusColor,
+                        },
+                    ]}
+                >
+                    <View style={[styles.tableCell, styles.columnId]}>
+                        <TouchableOpacity
+                            accessibilityLabel={isHistory ? 'Transport ukończony' : 'Oznacz transport jako ukończony'}
+                            accessibilityHint={isHistory ? undefined : 'Otwiera potwierdzenie zakończenia transportu'}
+                            disabled={isHistory}
+                            onPress={() => handleTruckDone(truck.id)}
+                            style={[styles.statusButton, { backgroundColor: `${statusColor}18` }]}
+                        >
+                            <Ionicons
+                                name={isHistory ? 'checkmark-circle' : 'checkmark-circle-outline'}
+                                size={19}
+                                color={statusColor}
                             />
-                            <Text style={[styles.truckId, { color: colors.iconColor }]}>
-                                {truck.pallets || 'WTRA'}
-                            </Text>
-                        </View>
-
-                        <MaterialCommunityIcons
-                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
-                            size={20}
-                            color={colors.text}
-                        />
-                    </TouchableOpacity>
-
-                    {/* RIGHT SECTION: Action Buttons */}
-                    <View style={styles.truckActionsRight}>
-                        <TouchableOpacity
-                            style={[styles.iconButton, { borderColor: colors.border }]}
-                            onPress={() => openReport(truck)}
-                            activeOpacity={0.8}
-                        >
-                            <MaterialIcons name="report-problem" size={24} color={colors.text} />
                         </TouchableOpacity>
-
-                        {/* Vertical divider */}
-                        <View style={{ width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
-
-                        <TouchableOpacity
-                            onPress={() => setEditingTruck(truck)}
-                            style={[styles.iconButton, { borderColor: colors.border }]}
-                        >
-                            <MaterialCommunityIcons name="pencil" size={24} color={colors.text} />
-                        </TouchableOpacity>
-
-                        {/* Vertical divider */}
-                        <View style={{ width: 1, alignSelf: 'stretch', marginVertical: 8, backgroundColor: colors.border }}></View>
-
-                        {!isHistory && (
-                            <TouchableOpacity
-                                onPress={() => handleTruckDone(truck.id)}
-                                style={[styles.iconButton, { borderColor: colors.border }]}
-                            >
-                                <MaterialCommunityIcons name="check" size={24} color={colors.success || '#10b981'} />
-                            </TouchableOpacity>
-                        )}
-
-                        {isHistory && (
-                            <TouchableOpacity
-                                onPress={() => handleRemoveHistoryTruck(truck.id)}
-                                style={[styles.iconButton, { borderColor: colors.border }]}
-                            >
-                                <MaterialCommunityIcons name="delete" size={24} color={colors.error || '#ef4444'} />
-                            </TouchableOpacity>
-                        )}
+                        <Text numberOfLines={1} style={[styles.tableValue, { color: colors.text }]}>#{truck.displayId || '—'}</Text>
                     </View>
-                </View>
-                <View>
-                    {/* EXPANDED VIEW - Additional Details */}
-                    {isExpanded && (
-                        <>
-                            <View style={[styles.expandedDetails, { borderColor: colors.breakLine }]}>
-                                {/* Shop Row*/}
-                                <View style={styles.detailRow}>
-                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep:</Text>
-                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.shop || '—'}</Text>
-                                </View>
+                    <Text numberOfLines={1} style={[styles.tableValue, styles.columnPallets, { color: colors.text }]}>
+                        {truck.palletsInProgress ? '—' : (truck.pallets || '—')}
+                    </Text>
+                    <Text numberOfLines={1} ellipsizeMode="tail" style={[styles.tableValue, styles.columnShop, { color: colors.text }]}>{shopLabel}</Text>
+                    <Text numberOfLines={1} style={[styles.tableValue, styles.columnTrailer, { color: colors.text }]}>{truck.trailer || '—'}</Text>
+                    <View style={[styles.tableCell, styles.columnGate]}>
+                        <Text numberOfLines={1} style={[styles.tableValue, { color: colors.text }]}>{truck.gate || '—'}</Text>
+                        <Ionicons name={isExpanded ? 'chevron-up' : 'chevron-down'} size={17} color={colors.textSecondary} />
+                    </View>
+                </TouchableOpacity>
 
-                                {/* Shop 2 Row*/}
-                                {truck.secondShop && (
-                                    <View style={styles.detailRow}>
-                                        <Text style={[styles.detailLabel, { color: colors.text }]}>Sklep 2:</Text>
-                                        <Text style={[styles.detailValue, { color: colors.text }]}>{truck.secondShop || '—'}</Text>
-                                    </View>
-                                )}
-                                {/* Gate Row */}
-                                <View style={styles.detailRow}>
-                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Brama:</Text>
-                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.gate || '—'}</Text>
-                                </View>
-
-                                {/* Trailer Row */}
-                                <View style={styles.detailRow}>
-                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Naczepa:</Text>
-                                    <Text style={[styles.detailValue, { color: colors.text }]}>{truck.trailer || '—'}</Text>
-                                </View>
-
-                                {/* Full Elapsed Time Display */}
-                                <View style={styles.detailRow}>
-                                    <Text style={[styles.detailLabel, { color: colors.text }]}>Całkowity Czas:</Text>
-                                    <Text style={[styles.detailValue, { color: colors.text }]}>{formatElapsed(elapsedTime)}</Text>
-                                </View>
-                            </View>
+                {isExpanded && (
+                    <View style={[styles.expandedDetails, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
+                        <View style={styles.expandedHeader}>
                             <View>
-                                {/* Truck ID */}
-                                {/* <View style={[styles.truckIdSection, {
-                                    backgroundColor: colors.cardBackground,
-                                    borderWidth: 2,
-                                    borderColor: colors.border,
-                                }]}>
-                                    <Text style={{ marginRight: 8 }}>
-                                        <MaterialCommunityIcons name="truck-outline" size={24} style={{ color: colors.iconColor }} />
-                                    </Text>
-                                    <Text style={[styles.truckId, { color: colors.iconColor }]}>#{truck.displayId}</Text>
-                                </View> */}
+                                <Text style={[styles.expandedStatus, { color: statusColor }]}>{isHistory ? 'Ukończony transport' : 'Aktywny transport'}</Text>
+                                <Text style={[styles.expandedTime, { color: colors.textSecondary }]}>Czas ładowania: {formatElapsed(elapsedTime)}</Text>
                             </View>
-                        </>
-                    )}
-                </View>
+                            <View style={styles.expandedActions}>
+                                <TouchableOpacity
+                                    accessibilityLabel="Zgłoś problem"
+                                    onPress={() => openReport(truck)}
+                                    style={[styles.actionButton, { borderColor: colors.border }]}
+                                >
+                                    <MaterialIcons name="report-problem" size={19} color={colors.text} />
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    accessibilityLabel="Edytuj transport"
+                                    onPress={() => setEditingTruck(truck)}
+                                    style={[styles.actionButton, { borderColor: colors.border }]}
+                                >
+                                    <MaterialCommunityIcons name="pencil-outline" size={19} color={colors.text} />
+                                </TouchableOpacity>
+                                {!isHistory && (
+                                    <TouchableOpacity
+                                        accessibilityLabel="Oznacz jako ukończony"
+                                        onPress={() => handleTruckDone(truck.id)}
+                                        style={[styles.actionButton, { borderColor: `${statusColor}80`, backgroundColor: `${statusColor}18` }]}
+                                    >
+                                        <MaterialCommunityIcons name="check" size={20} color={statusColor} />
+                                    </TouchableOpacity>
+                                )}
+                                <TouchableOpacity
+                                    accessibilityLabel="Usuń transport"
+                                    onPress={() => confirmRemoveTruck(truck)}
+                                    style={[styles.actionButton, { borderColor: `${colors.error || '#ef4444'}70` }]}
+                                >
+                                    <MaterialCommunityIcons name="trash-can-outline" size={19} color={colors.error || '#ef4444'} />
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    </View>
+                )}
             </View>
         );
     };
@@ -437,7 +384,7 @@ export default function TruckWorkingLayout(props) {
                     showProgressCard={false}
                 />
 
-                <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                {/* <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
                     <View style={styles.statsHeader}>
                         <View>
                             <Text style={[styles.gridTitle, { color: colors.text }]}>
@@ -458,7 +405,6 @@ export default function TruckWorkingLayout(props) {
                     </View>
                     <View style={styles.statsGrid}>
 
-                        {/* Card 1: Score */}
                         <View style={[styles.gridCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
                             <Ionicons name="flash-outline" size={28}
                                 style={[
@@ -474,7 +420,6 @@ export default function TruckWorkingLayout(props) {
                             </Text>
                         </View>
 
-                        {/* Expand / collapse button */}
                         <Pressable
                             onPress={() => setAreSessionDetailsVisible(prev => !prev)}
                             style={({ pressed }) => [
@@ -499,17 +444,15 @@ export default function TruckWorkingLayout(props) {
                             </View>
                         </Pressable>
 
-                        {/* Hidden Cards */}
                         <Animated.View
                             pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}
                             style={[
                                 styles.expandableContent,
-                                detailsAnimatedStyle,
-                                !areSessionDetailsVisible && styles.expandableContentHidden,
+                                                        !areSessionDetailsVisible && styles.expandableContentHidden,
                             ]}
                         >
                             <View style={styles.statsGridHidden}>
-                                {/* Card 2: Time */}
+
                                 <View
                                     style={[
                                         styles.gridCard,
@@ -537,7 +480,6 @@ export default function TruckWorkingLayout(props) {
                                     </View>
                                 </View>
 
-                                {/* Card 3: Pallets */}
                                 <View
                                     style={[
                                         styles.gridCard,
@@ -565,7 +507,6 @@ export default function TruckWorkingLayout(props) {
                                     </View>
                                 </View>
 
-                                {/* Card 4: Truck loaded */}
                                 <View
                                     style={[
                                         styles.gridCard,
@@ -593,7 +534,6 @@ export default function TruckWorkingLayout(props) {
                                     </View>
                                 </View>
 
-                                {/* Card 5: Forced finish */}
                                 <TouchableOpacity
                                     style={[
                                         styles.gridCard,
@@ -626,28 +566,22 @@ export default function TruckWorkingLayout(props) {
                             </View>
                         </Animated.View>
                     </View>
-                </View>
+                </View> */}
 
                 {/* Trucks section */}
                 <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
                     <View style={styles.tabHeader}>
-                        <View style={{ flexDirection: 'column' }}>
-                            <Text style={[styles.gridTitle, { color: colors.text, paddingTop: 16, }]}>
-                                {activeTab === 0 ? "Transporty" : "Zakończone transporty"}
-                            </Text>
+                        <View style={styles.listTitleBlock}>
+                            <Text style={[styles.gridTitle, { color: colors.text, paddingTop: 16 }]}>Transporty</Text>
                             <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
-                                {activeTab === 0 ? "Lista załadunków w trakcie" : "Lista ukończonych załadunków"}
+                                {trucks.length} aktywne · {trucksHistory.length} ukończone · {allTrucks.length} wszystkie
                             </Text>
-                        </View>
-                        <View style={[styles.tabDots, { flexDirection: 'row' }]}>
-                            <TouchableOpacity
-                                style={[styles.tabDot, activeTab === 0 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
-                            />
-                            <TouchableOpacity
-                                style={[styles.tabDot, activeTab === 1 ? { backgroundColor: colors.tabDotActive } : { backgroundColor: colors.tabDotInactive }]}
-                            />
+                            <TouchableOpacity onPress={() => setShowSessionInfoModal(true)}>
+                                <Text style={[styles.sessionDetailsLink, { color: colors.outButText }]}>ⓘ Szczegóły sesji</Text>
+                            </TouchableOpacity>
                         </View>
                         <TouchableOpacity
+                            accessibilityLabel="Dodaj transport"
                             style={[styles.btnOutline, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
                             onPress={() => setShowNewTransportModal(true)}
                         >
@@ -655,13 +589,7 @@ export default function TruckWorkingLayout(props) {
                         </TouchableOpacity>
                     </View>
 
-                    <TabView
-                        navigationState={navigationState}
-                        renderScene={renderScene}
-                        onIndexChange={setActiveTab}
-                        renderTabBar={() => null} // Hide default tab bar since using custom dots
-                        style={{ minHeight: 100 }} // or another explicit height
-                    />
+                    {renderScene()}
                 </View>
             </ScrollView>
             <SessionActionBar
@@ -762,7 +690,7 @@ export default function TruckWorkingLayout(props) {
                 visible={!!editingTruck}
                 truck={editingTruck}
                 onClose={() => setEditingTruck(null)}
-                onSave={activeTab === 0 ? handleSaveEdit : handleSaveEditHistory}
+                onSave={trucksHistory.some((truck) => truck.id === editingTruck?.id) ? handleSaveEditHistory : handleSaveEdit}
             />
 
             <PauseModal
@@ -1095,16 +1023,127 @@ const styles = StyleSheet.create({
     },
     // Truck List Section
     trucksList: {
-        borderWidth: 1,
+        paddingTop: 4,
+        borderWidth: 0,
         borderRadius: 12,
+    },
+    trucksListContent: {
+        paddingTop: 4,
+        paddingBottom: 8,
+    },
+    listTitleBlock: {
+        flex: 1,
+        paddingRight: 12,
+    },
+    sessionDetailsLink: {
+        fontSize: 13,
+        fontWeight: '700',
+        paddingBottom: 12,
+    },
+    tableHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: 28,
+        paddingHorizontal: 10,
+        borderBottomWidth: 1,
+        marginBottom: 6,
+    },
+    tableHeaderText: {
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+    },
+    tableItemWrapper: {
+        marginBottom: 7,
+    },
+    tableRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: 58,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        borderWidth: 1,
+        borderLeftWidth: 4,
+        borderRadius: 10,
+    },
+    tableCell: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
+    statusButton: {
+        width: 27,
+        height: 27,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tableValue: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    columnId: {
+        width: '19%',
+    },
+    columnPallets: {
+        width: '17%',
+    },
+    columnShop: {
+        width: '31%',
+        paddingRight: 5,
+    },
+    columnTrailer: {
+        width: '18%',
+        paddingRight: 4,
+    },
+    columnGate: {
+        width: '15%',
+        justifyContent: 'space-between',
+    },
+    emptyList: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingVertical: 48,
+    },
+    expandedHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 10,
+    },
+    expandedStatus: {
+        fontSize: 13,
+        fontWeight: '800',
+        marginBottom: 3,
+    },
+    expandedTime: {
+        fontSize: 12,
+    },
+    expandedActions: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    actionButton: {
+        width: 34,
+        height: 34,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderRadius: 8,
+    },
+    detailGrid: {
+        marginTop: 14,
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        rowGap: 8,
     },
     truckItem: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        padding: 12,
-        minHeight: 60,
-        borderBottomWidth: 1,
+        borderBottomWidth: 0,
+        marginBottom: 8,
     },
     truckId: {
         fontWeight: '700',
@@ -1167,6 +1206,7 @@ const styles = StyleSheet.create({
         paddingLeft: 12,
         paddingRight: 8,
         paddingBottom: 12,
+        marginBottom: 8,
         gap: 10,
         borderBottomWidth: 1,
     },
@@ -1237,19 +1277,20 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     truckHeaderSection: {
+        flex: 1,
         minWidth: 110,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 12,
-        paddingVertical: 10,
+        paddingVertical: 0,
         borderRadius: 8,
     },
 
     truckHeaderLeft: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 16,
     },
     sessionInfoBackdrop: {
         flex: 1,

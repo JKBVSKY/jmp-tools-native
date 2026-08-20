@@ -280,9 +280,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    marginTop: 10,
     paddingTop: 8,
-    borderTopWidth: StyleSheet.hairlineWidth,
+    // borderTopWidth: StyleSheet.hairlineWidth,
   },
   stat: {
     flex: 1,
