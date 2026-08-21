@@ -30,6 +30,7 @@ export default function Calculator() {
       sessionStatus: 'active',
       endTime: null,
       sessionTime: 0,
+      sessionXPEarned: 0,
       isPaused: false,
       pauseStart: null,
       totalPausedTime: 0,

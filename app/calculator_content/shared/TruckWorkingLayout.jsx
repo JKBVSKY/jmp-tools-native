@@ -3,7 +3,9 @@ import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-ic
 import { useEffect, useRef, useState } from 'react';
 import {
     Alert,
+    Animated,
     Modal,
+    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -97,6 +99,7 @@ export default function TruckWorkingLayout(props) {
     } = useTruckLogic(props);
 
     const [reportVisible, setReportVisible] = useState(false);
+    const [showTimeLeft, setShowTimeLeft] = useState(false);
     const [reportTruckNumber, setReportTruckNumber] = useState('');
     const [reportModalKey, setReportModalKey] = useState(0);
     const openReportTimerRef = useRef(null);
@@ -118,12 +121,63 @@ export default function TruckWorkingLayout(props) {
         getPalletsRateColor(Number(palletsRate) || 0)
     );
 
+    const [xpRewardAmount, setXpRewardAmount] = useState(0);
+    const [xpRewardPosition, setXpRewardPosition] = useState(null);
+    const xpStatRef = useRef(null);
+    const xpRewardAnimation = useRef(new Animated.Value(0)).current;
+    const previousSessionXPRef = useRef(Number(sessionXPEarned) || 0);
+
+    useEffect(() => {
+        const previousXP = previousSessionXPRef.current;
+        const nextXP = Number(sessionXPEarned) || 0;
+        previousSessionXPRef.current = nextXP;
+
+        if (nextXP <= previousXP || !xpStatRef.current?.measureInWindow) return undefined;
+
+        let cancelled = false;
+        let animation;
+
+        xpStatRef.current.measureInWindow((x, y, width) => {
+            if (cancelled || !width) return;
+
+            setXpRewardPosition({ left: x, top: y, width });
+            setXpRewardAmount(nextXP - previousXP);
+            xpRewardAnimation.stopAnimation();
+            xpRewardAnimation.setValue(0);
+
+            animation = Animated.timing(xpRewardAnimation, {
+                toValue: 1,
+                duration: 1000,
+                useNativeDriver: true,
+            });
+
+            animation.start(({ finished }) => {
+                if (finished) setXpRewardAmount(0);
+            });
+        });
+
+        return () => {
+            cancelled = true;
+            animation?.stop();
+        };
+    }, [sessionXPEarned, xpRewardAnimation]);
+
     // Keep highlighted palletsRate fresh while modal is open
     useEffect(() => {
         const value = Number(palletsRate) || 0;
         setAnimatedRate(palletsRate);
         setRateColor(getPalletsRateColor(value));
     }, [palletsRate]);
+
+    const sessionDuration = startTime && forcedFinishTime
+        ? Math.max(0, Math.floor((forcedFinishTime - startTime) / 1000))
+        : 0;
+    const elapsedSessionTime = Math.max(0, Number(sessionTime) || 0);
+    const sessionProgress = sessionDuration > 0
+        ? Math.min(1, elapsedSessionTime / sessionDuration)
+        : 0;
+    const sessionTimeLeft = Math.max(0, sessionDuration - elapsedSessionTime);
+    const hasSessionDeadline = sessionDuration > 0;
 
     useEffect(() => {
         return () => {
@@ -202,6 +256,35 @@ export default function TruckWorkingLayout(props) {
                 value: formatElapsed(goalReachedUntilSeconds),
             }]
             : []),
+    ];
+
+    const truckStats = [
+        {
+            icon: <Ionicons name="speedometer" color={colors.iconColor} size={24} />,
+            value: palletsRate,
+            onPress: () => setShowSessionInfoModal(true),
+        },
+        {
+            icon: <MaterialCommunityIcons name="shipping-pallet" color={colors.iconColor} size={24} />,
+            value: palletsLoaded,
+            onPress: () => setShowSessionInfoModal(true),
+        },
+        {
+            icon: <Text style={{ color: colors.iconColor, fontWeight: '700', fontSize: 18 }}>XP</Text>,
+            value: sessionXPEarned,
+            isXpStat: true,
+        },
+        {
+            icon: <MaterialCommunityIcons name="flag-checkered" color={colors.iconColor} size={24} />,
+            value: forcedFinishTime
+                ? new Date(forcedFinishTime).toLocaleTimeString('pl-PL', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                })
+                : '—',
+            onPress: () => setShowAdjustFinishTimeModal(true),
+        },
     ];
 
     const handleFinishSession = () => {
@@ -363,6 +446,46 @@ export default function TruckWorkingLayout(props) {
                 onClose={closeReport}
                 initialTruckNumber={reportTruckNumber}
             />
+            <Modal
+                visible={Boolean(xpRewardAmount && xpRewardPosition)}
+                transparent
+                animationType="none"
+                statusBarTranslucent
+                onRequestClose={() => {}}
+            >
+                <View style={styles.xpRewardPortal} pointerEvents="none">
+                    <Animated.View
+                        style={[
+                            styles.xpRewardPortalItem,
+                            {
+                                left: xpRewardPosition?.left || 0,
+                                top: Math.max(8, (xpRewardPosition?.top || 0) + 32),
+                                width: xpRewardPosition?.width || 0,
+                                opacity: xpRewardAnimation.interpolate({
+                                    inputRange: [0, 0.15, 1],
+                                    outputRange: [0, 1, 0],
+                                }),
+                                transform: [
+                                    {
+                                        translateY: xpRewardAnimation.interpolate({
+                                            inputRange: [0, 1],
+                                            outputRange: [6, -28],
+                                        }),
+                                    },
+                                    {
+                                        scale: xpRewardAnimation.interpolate({
+                                            inputRange: [0, 0.2, 1],
+                                            outputRange: [0.9, 1.05, 1],
+                                        }),
+                                    },
+                                ],
+                            },
+                        ]}
+                    >
+                        <Text style={styles.xpRewardText}>+{xpRewardAmount} XP</Text>
+                    </Animated.View>
+                </View>
+            </Modal>
             <ScrollView
                 style={{ flex: 1 }}
                 contentContainerStyle={styles.scrollContent}
@@ -384,189 +507,52 @@ export default function TruckWorkingLayout(props) {
                     showProgressCard={false}
                 />
 
-                {/* <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                    <View style={styles.statsHeader}>
-                        <View>
-                            <Text style={[styles.gridTitle, { color: colors.text }]}>
-                                Sesja aktywna
-                            </Text>
-                            <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
-                                Twoje statystyki bieżącej sesji.
-                            </Text>
-                        </View>
-                        <View>
-                            <TouchableOpacity
-                                style={styles.infoButton}
-                                onPress={() => setShowSessionInfoModal(true)}
-                            >
-                                <Ionicons name="information-circle-outline" size={26} color={colors.text} />
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                    <View style={styles.statsGrid}>
-
-                        <View style={[styles.gridCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}>
-                            <Ionicons name="flash-outline" size={28}
-                                style={[
-                                    styles.cardIcon,
-                                    { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
+                <View style={[styles.statsSection, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                    <View style={styles.statsBar}>
+                        {truckStats.map(({ icon, value, onPress, isXpStat }, index) => (
+                            <Pressable
+                                key={index}
+                                ref={isXpStat ? xpStatRef : undefined}
+                                onPress={onPress}
+                                disabled={!onPress}
+                                style={({ pressed }) => [
+                                    styles.stat,
+                                    index < truckStats.length - 1 && styles.statWithDivider,
+                                    { borderColor: colors.border },
+                                    pressed && styles.statPressed,
                                 ]}
-                            />
-                            <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                Średnia aktualna
-                            </Text>
-                            <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 32, fontWeight: '600' }]}>
-                                {palletsRate}
-                            </Text>
-                        </View>
-
-                        <Pressable
-                            onPress={() => setAreSessionDetailsVisible(prev => !prev)}
-                            style={({ pressed }) => [
-                                styles.expandButton,
-                                {
-                                    backgroundColor: colors.cardInCardBackground,
-                                    borderColor: colors.border,
-                                    opacity: pressed ? 0.85 : 1,
-                                },
-                            ]}
-                        >
-                            <View style={styles.expandButtonContent}>
-                                <Text style={[styles.expandButtonText, { color: colors.cardTitle }]}>
-                                    {areSessionDetailsVisible ? 'Ukryj szczegóły sesji' : 'Pokaż szczegóły sesji'}
+                            >
+                                {icon}
+                                <Text style={[styles.statValue, { color: colors.text }]} numberOfLines={1}>
+                                    {value}
                                 </Text>
-
-                                <Ionicons
-                                    name={areSessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
-                                    size={20}
-                                    color={colors.grayIconColor}
-                                />
-                            </View>
-                        </Pressable>
-
-                        <Animated.View
-                            pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}
-                            style={[
-                                styles.expandableContent,
-                                                        !areSessionDetailsVisible && styles.expandableContentHidden,
-                            ]}
-                        >
-                            <View style={styles.statsGridHidden}>
-
-                                <View
-                                    style={[
-                                        styles.gridCard,
-                                        {
-                                            backgroundColor: colors.cardInCardBackground,
-                                            borderColor: colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <View style={styles.gridCardContent}>
-                                        <Ionicons
-                                            name="time-outline"
-                                            size={24}
-                                            style={[
-                                                styles.cardIcon,
-                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                            ]}
-                                        />
-                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                            Czas
-                                        </Text>
-                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                            {sessionTime ? formatElapsed(sessionTime) : '00:00:00'}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <View
-                                    style={[
-                                        styles.gridCard,
-                                        {
-                                            backgroundColor: colors.cardInCardBackground,
-                                            borderColor: colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <View style={styles.gridCardContent}>
-                                        <Ionicons
-                                            name="layers-outline"
-                                            size={28}
-                                            style={[
-                                                styles.cardIcon,
-                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                            ]}
-                                        />
-                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                            Palety
-                                        </Text>
-                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                            {palletsLoaded}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <View
-                                    style={[
-                                        styles.gridCard,
-                                        {
-                                            backgroundColor: colors.cardInCardBackground,
-                                            borderColor: colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <View style={styles.gridCardContent}>
-                                        <MaterialCommunityIcons
-                                            name="truck-check-outline"
-                                            size={28}
-                                            style={[
-                                                styles.cardIcon,
-                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                            ]}
-                                        />
-                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                            Dostawy
-                                        </Text>
-                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                            {trucksLoadedCount}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                <TouchableOpacity
-                                    style={[
-                                        styles.gridCard,
-                                        {
-                                            backgroundColor: colors.cardInCardBackground,
-                                            borderColor: colors.border,
-                                        },
-                                    ]}
-                                    onPress={() => setShowAdjustFinishTimeModal(true)}
-                                >
-                                    <View style={styles.gridCardContent}>
-                                        <MaterialIcons
-                                            name="alarm-off"
-                                            size={28}
-                                            style={[
-                                                styles.cardIcon,
-                                                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                                            ]}
-                                        />
-                                        <Text style={[styles.gridCardTitle, { color: colors.cardTitle }]}>
-                                            Koniec
-                                        </Text>
-                                        <Text style={[styles.gridCardValue, { color: colors.cardValue, fontSize: 24 }]}>
-                                            {forcedFinishTime
-                                                ? new Date(forcedFinishTime).toLocaleTimeString()
-                                                : 'Brak'}
-                                        </Text>
-                                    </View>
-                                </TouchableOpacity>
-                            </View>
-                        </Animated.View>
+                            </Pressable>
+                        ))}
                     </View>
-                </View> */}
+                    <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Postęp sesji"
+                        accessibilityHint="Przełącza między czasem sesji a czasem pozostałym"
+                        onPress={() => setShowTimeLeft((visible) => !visible)}
+                        style={({ pressed }) => [
+                            styles.sessionProgress,
+                            { backgroundColor: colors.inputBackground, borderColor: colors.border },
+                            pressed && styles.statPressed,
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.sessionProgressFill,
+                                { backgroundColor: '#F44336', width: `${sessionProgress * 100}%` },
+                            ]}
+                        />
+                        <Text style={[styles.sessionProgressText, { color: colors.text }]}>
+                            {showTimeLeft
+                                ? (hasSessionDeadline ? formatElapsed(sessionTimeLeft) : '—')
+                                : formatElapsed(elapsedSessionTime)}
+                        </Text>
+                    </Pressable>
+                </View>
 
                 {/* Trucks section */}
                 <View style={[styles.infoContainer, { backgroundColor: colors.cardBackground }]}>
@@ -582,7 +568,7 @@ export default function TruckWorkingLayout(props) {
                         </View>
                         <TouchableOpacity
                             accessibilityLabel="Dodaj transport"
-                            style={[styles.btnOutline, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
+                            style={[styles.btnOutline, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder, marginTop: 16 }]}
                             onPress={() => setShowNewTransportModal(true)}
                         >
                             <Ionicons name="add-outline" size={24} color={colors.outButText} />
@@ -804,10 +790,76 @@ const styles = StyleSheet.create({
         shadowRadius: 4,
         paddingHorizontal: 16,
     },
-    statsHeader: {
+    statsBar: {
         flexDirection: 'row',
+        alignItems: 'center',
         justifyContent: 'space-between',
+        width: '100%',
         paddingTop: 16,
+        paddingBottom: 12,
+    },
+    stat: {
+        flex: 1,
+        minWidth: 0,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 4,
+        paddingHorizontal: 2,
+    },
+    statWithDivider: {
+        borderRightWidth: StyleSheet.hairlineWidth,
+    },
+    statValue: {
+        flexShrink: 1,
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    statPressed: {
+        opacity: 0.65,
+    },
+    xpRewardPortal: {
+        ...StyleSheet.absoluteFillObject,
+        zIndex: 9999,
+        elevation: 9999,
+    },
+    xpRewardPortalItem: {
+        position: 'absolute',
+        alignItems: 'center',
+        zIndex: 9999,
+        elevation: 9999,
+    },
+    xpRewardText: {
+        color: '#F59E0B',
+        fontSize: 14,
+        fontWeight: '800',
+        textShadowColor: 'rgba(0,0,0,0.18)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+    },
+    sessionProgress: {
+        position: 'relative',
+        height: 24,
+        width: '100%',
+        overflow: 'hidden',
+        borderWidth: 1,
+        borderRadius: 10,
+        justifyContent: 'center',
+        marginBottom: 14,
+    },
+    sessionProgressFill: {
+        position: 'absolute',
+        top: 0,
+        bottom: 0,
+        left: 0,
+    },
+    sessionProgressText: {
+        textAlign: 'center',
+        fontSize: 13,
+        fontWeight: '800',
+        textShadowColor: 'rgba(255,255,255,0.65)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
     },
     statsGrid: {
         flexDirection: 'row',
@@ -907,7 +959,7 @@ const styles = StyleSheet.create({
     tabHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
+        alignItems: 'flex-start',
     },
     gridTitle: {
         fontSize: 24,
@@ -948,7 +1000,7 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     infoButton: {
-        paddingVertical: 6,
+        paddingVertical: 4,
     },
     iconButton: {
         padding: 6,
@@ -1205,7 +1257,7 @@ const styles = StyleSheet.create({
         marginTop: 12,
         paddingLeft: 12,
         paddingRight: 8,
-        paddingBottom: 12,
+        paddingVertical: 12,
         marginBottom: 8,
         gap: 10,
         borderBottomWidth: 1,

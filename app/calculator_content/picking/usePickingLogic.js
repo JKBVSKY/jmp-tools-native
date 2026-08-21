@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 
-import { PendingXPService } from '../../../services/PendingXPService';
 import { calculateLevelFromXP } from '../../../constants/LevelSystem';
 import { useCalculator } from '../../../context/CalculatorContext';
 import { useUserProfile } from '../../../context/UserProfileContext';
@@ -37,7 +36,7 @@ export function usePickingLogic({
     setForcedFinishTime = noop,
 }) {
     const calc = useCalculator();
-    const { profile, awardXP } = useUserProfile();
+    const { profile } = useUserProfile();
     const colors = useColors();
     const isWeb = Platform.OS === 'web';
     const [showPauseModal, setShowPauseModal] = useState(false);
@@ -141,8 +140,6 @@ export function usePickingLogic({
 
     const session = useSessionEngine({
         calc,
-        profile,
-        awardXP,
         changeMode,
         startTime,
         setSessionTime,
@@ -151,8 +148,6 @@ export function usePickingLogic({
         pausedMode: 'paused',
         resultsMode: 'results',
         sessionStorageKey: 'pickingSessionState',
-        sessionRate: String(boxesRate.toFixed(2)),
-        calculateXPPerMin: () => 10,
         onForcedFinish: async ({ forcedFinishTimestamp, sessionTimeAtDeadline }) => {
             const { nextStatsMap } = flushActiveSubsectionTime(forcedFinishTimestamp);
 
@@ -168,13 +163,6 @@ export function usePickingLogic({
 
             setSessionTime(sessionTimeAtDeadline);
             setEndTime(forcedFinishTimestamp);
-        },
-        recordPendingXPAction: async (xpAmount, payload) => {
-            await PendingXPService.recordXPAction(xpAmount, {
-                rate: payload.rate,
-                timestamp: payload.timestamp,
-                reason: payload.reason,
-            });
         },
     });
 

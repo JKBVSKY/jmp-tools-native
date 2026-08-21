@@ -16,6 +16,23 @@ import { useSessionEngine } from './useSessionEngine';
 
 // plus any other hooks you need from Working.jsx
 
+const getTruckCompletionXP = (truck) => {
+    const hasPallets = truck?.pallets !== undefined
+        && truck?.pallets !== null
+        && String(truck.pallets).trim() !== '';
+
+    if (!hasPallets) return 0;
+
+    // A connected/secondary shop counts as the same optional category as shop.
+    const optionalFieldsFilled = [
+        truck.shop || truck.secondShop,
+        truck.trailer,
+        truck.gate,
+    ].filter((value) => value !== undefined && value !== null && String(value).trim() !== '').length;
+
+    return Math.min(250, 100 + optionalFieldsFilled * 50);
+};
+
 export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, setSessionTime, setStartTime, setEndTime, forcedFinishTime, setForcedFinishTime }) {
     const calc = useCalculator();
     const { profile, awardXP } = useUserProfile();
@@ -37,6 +54,11 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
     const [areSessionDetailsVisible, setAreSessionDetailsVisible] = useState(false);
     const [elapsedTick, setElapsedTick] = useState(0);
 
+    const sessionXPEarned = Math.max(0, Number(calc.sessionXPEarned) || 0);
+    const sessionXPEarnedRef = useRef(sessionXPEarned);
+    sessionXPEarnedRef.current = sessionXPEarned;
+    const rewardedTruckIdsRef = useRef(new Set());
+
     const [lastLevelBeforeSession] = useState(profile?.level || 1);
 
     const colors = useColors();
@@ -49,8 +71,6 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
             NavigationBar.setButtonStyleAsync('light'); // or 'dark'
         }
     }, [colors]);
-
-    const calculateXPPerMin = useCallback(() => 10, []);
 
     // Compute context-backed values before wiring the session engine.
     const trucks = calc.trucks || [];
@@ -81,7 +101,6 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
 
     const {
         currentXPPerMin,
-        sessionXPEarned,
         showXPFloatingText,
         floatingXPAmount,
         leveledUpMessage,
@@ -95,14 +114,10 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         handleResume,
     } = useSessionEngine({
         calc,
-        profile,
-        awardXP,
         changeMode,
         startTime,
         setSessionTime,
         forcedFinishTime,
-        sessionRate: palletsRate,
-        calculateXPPerMin,
         sessionMode: 'working',
         pausedMode: 'paused',
         resultsMode: 'results',
@@ -132,14 +147,6 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
 
             setSessionTime(sessionTimeAtDeadline);
             setEndTime(forcedFinishTimestamp);
-        },
-        recordPendingXPAction: async (xpAmount, payload) => {
-            await PendingXPService.recordXPAction(xpAmount, {
-                rate: payload.rate,
-                trucksLoaded: trucksLoadedCount,
-                timestamp: payload.timestamp,
-                reason: payload.reason,
-            });
         },
     });
 
@@ -314,6 +321,41 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         });
     };
 
+    const grantTruckCompletionXP = useCallback(async (truck) => {
+        if (!truck?.id || rewardedTruckIdsRef.current.has(truck.id)) return;
+
+        rewardedTruckIdsRef.current.add(truck.id);
+        const xpAmount = getTruckCompletionXP(truck);
+        if (!xpAmount) return;
+
+        const timestamp = Date.now();
+
+        try {
+            const result = await awardXP(xpAmount);
+
+            if (!result) {
+                await PendingXPService.recordXPAction(xpAmount, {
+                    rate: palletsRate,
+                    trucksLoaded: trucksHistory.length + 1,
+                    timestamp,
+                    reason: 'truck-completed',
+                });
+            }
+        } catch (error) {
+            console.error('❌ Error awarding truck completion XP:', error);
+            await PendingXPService.recordXPAction(xpAmount, {
+                rate: palletsRate,
+                trucksLoaded: trucksHistory.length + 1,
+                timestamp,
+                reason: 'truck-completed',
+            });
+        } finally {
+            const nextSessionXP = sessionXPEarnedRef.current + xpAmount;
+            sessionXPEarnedRef.current = nextSessionXP;
+            calc.updateState({ sessionXPEarned: nextSessionXP });
+        }
+    }, [awardXP, calc, palletsRate, trucksHistory.length]);
+
     const finalizeTruckDone = (truck, palletsValue) => {
         if (!truck) return;
 
@@ -333,6 +375,8 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
             trucksHistory: [updatedTruck, ...trucksHistory],
             palletsInProgress: false       // if this flag is global in calc
         });
+
+        void grantTruckCompletionXP(updatedTruck);
     };
 
     const handleTruckDone = (truckId) => {

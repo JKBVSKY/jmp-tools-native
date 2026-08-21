@@ -71,21 +71,14 @@ export default function CalculatorHeaderTitle() {
   const { profile } = useUserProfile();
   const colors = useColors();
 
-  const palletsLoaded = (calc.trucksHistory || []).reduce(
-    (sum, truck) => sum + Number(truck.pallets || 0),
-    0,
-  );
-  const sessionTime = Number(calc.sessionTime || 0);
-  const palletsRate = sessionTime > 0
-    ? (palletsLoaded / (sessionTime / 3600)).toFixed(2)
-    : '0.00';
-  const forcedFinishTime = calc.forcedFinishTime;
-
   const { title, subtitle } = getHeaderContent(calc);
 
   const levelData = profile ? calculateLevelFromXP(profile.totalXP) : null;
   const xpForNextLevel = profile ? profile.level * 1000 : 1000;
   const levelProgress = levelData ? (levelData.currentXP / xpForNextLevel) * 100 : 0;
+
+  const sessionTime = Number(calc.sessionTime || 0);
+  const forcedFinishTime = calc.forcedFinishTime;
 
   const formatTime = (totalSeconds) => {
     const hours = Math.floor(totalSeconds / 3600);
@@ -96,44 +89,6 @@ export default function CalculatorHeaderTitle() {
 
     return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
   };
-
-  const truckStats = [
-    {
-      icon: <Ionicons name="speedometer" color={colors.iconColor} size={24} />,
-      value: palletsRate,
-      onPress: () => calc.updateState({ showSessionInfoModal: true }, { persist: false }),
-    },
-    {
-      icon: (
-        <MaterialCommunityIcons
-          name="shipping-pallet"
-          color={colors.iconColor}
-          size={24}
-        />
-      ),
-      value: palletsLoaded,
-      onPress: () => calc.updateState({ showSessionInfoModal: true }, { persist: false }),
-    },
-    {
-      icon: <Ionicons name="time" color={colors.iconColor} size={24} />,
-      value: formatTime(sessionTime),
-    },
-    {
-      icon: (
-        <MaterialCommunityIcons
-          name="flag-checkered"
-          color={colors.iconColor}
-          size={24}
-        />
-      ),
-      value: new Date(forcedFinishTime).toLocaleTimeString('pl-PL', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      }),
-      onPress: () => calc.updateState({ showAdjustFinishTimeModal: true }, { persist: false }),
-    },
-  ];
 
   const boxesCount = Number(calc.boxesCount || 0);
   const subsectionStats = calc.subsection
@@ -211,12 +166,9 @@ export default function CalculatorHeaderTitle() {
         </View>
       ) : null}
 
-      {['truck-loading', 'picking'].includes(calc.sessionType) &&
+      {calc.sessionType === 'picking' &&
         ['working', 'paused'].includes(calc.mode) && (
-          <StatsBar
-            stats={calc.sessionType === 'picking' ? pickingStats : truckStats}
-            colors={colors}
-          />
+          <StatsBar stats={pickingStats} colors={colors} />
         )}
     </View>
   );

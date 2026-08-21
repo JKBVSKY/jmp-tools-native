@@ -9,6 +9,7 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
     startTime: null,
     endTime: null,
     sessionTime: 0,
+    sessionXPEarned: 0,
     totalPausedTime: 0,
     isPaused: false,
     pauseStart: null,
@@ -40,6 +41,10 @@ export function CalculatorProvider({ children, storageKey = 'calculatorState', t
 
     if (typeof next.sessionTime !== 'number') {
       next.sessionTime = Number(next.loadingTime) || 0;
+    }
+
+    if (typeof next.sessionXPEarned !== 'number' || next.sessionXPEarned < 0) {
+      next.sessionXPEarned = 0;
     }
 
     if ('loadingTime' in next) {
