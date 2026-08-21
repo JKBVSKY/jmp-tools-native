@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import * as Notifications from 'expo-notifications';
 import {
-    SafeAreaView,
     View,
     Text,
     StyleSheet,
@@ -13,6 +12,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -1440,6 +1440,7 @@ const Timetable = () => {
 
     return (
         <SafeAreaView
+            edges={['top']}
             style={[
                 styles.container,
                 { backgroundColor: colors.background },
@@ -1629,147 +1630,6 @@ const Timetable = () => {
                 </GestureDetector>
             </ScrollView>
 
-            {/* BOTTOM */}
-
-            <View
-                style={[
-                    styles.bottomActions,
-                    {
-                        backgroundColor: colors.botBarBackground,
-                        borderTopColor: colors.headerBorder,
-                    },
-                ]}
-            >
-                {selectionMode ? (
-                    <Pressable
-                        onPress={openMultiDayModal}
-                        disabled={selectedDays.length === 0}
-                        style={({ pressed }) => [
-                            styles.actionButton,
-                            {
-                                backgroundColor:
-                                    selectedDays.length > 0
-                                        ? colors.butBackground
-                                        : colors.disabledButBackground,
-
-                                borderColor:
-                                    selectedDays.length > 0
-                                        ? colors.butBorder
-                                        : colors.disabledButBorder,
-                            },
-                            pressed && styles.pressed,
-                        ]}
-                    >
-                        <Ionicons
-                            name="checkmark-circle-outline"
-                            size={21}
-                            color={
-                                selectedDays.length > 0
-                                    ? colors.butText
-                                    : colors.disabledButText
-                            }
-                        />
-
-                        <Text
-                            style={[
-                                styles.actionButtonText,
-                                {
-                                    color:
-                                        selectedDays.length > 0
-                                            ? colors.butText
-                                            : colors.disabledButText,
-                                },
-                            ]}
-                        >
-                            Ustaw zaznaczone
-                            {selectedDays.length > 0
-                                ? ` (${selectedDays.length})`
-                                : ''}
-                        </Text>
-                    </Pressable>
-                ) : (
-                    <>
-                        {/* <Pressable
-                            onPress={sendTestNotification}
-                            style={({ pressed }) => [
-                                styles.actionButton,
-                                { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder },
-                                pressed && styles.pressed,
-                            ]}
-                        >
-                            <Ionicons name="notifications-outline" size={21} color={colors.outButText} />
-                            <Text style={styles.actionButtonText}>Test powiadomień</Text>
-                        </Pressable>*/}
-
-                        {/* <Pressable
-                            onPress={testScheduleAllShifts }
-                            style={({ pressed }) => [
-                                styles.actionButton,
-                                { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder },
-                                pressed && styles.pressed,
-                            ]}
-                        >
-                            <Ionicons name="flash-outline" size={21} color={colors.outButText} />
-                            <Text style={styles.actionButtonText}>Test powiad. teraz</Text>
-                        </Pressable>  */}
-
-                        {/* <Pressable
-                            onPress={() => openSingleDay(null)}
-                            style={({ pressed }) => [
-                                styles.actionButton,
-                                {
-                                    backgroundColor:
-                                        colors.outButBackground,
-                                    borderColor: colors.outButBorder,
-                                },
-                                pressed && styles.pressed,
-                            ]}
-                        >
-                            <Ionicons
-                                name="create-outline"
-                                size={21}
-                                color={colors.outButText}
-                            />
-
-                            <Text
-                                style={[
-                                    styles.actionButtonText,
-                                    { color: colors.outButText },
-                                ]}
-                            >
-                                Dodaj ręcznie
-                            </Text>
-                        </Pressable>
-
-                        <Pressable
-                            style={({ pressed }) => [
-                                styles.actionButton,
-                                {
-                                    backgroundColor: colors.butBackground,
-                                    borderColor: colors.butBorder,
-                                },
-                                pressed && styles.pressed,
-                            ]}
-                        >
-                            <Ionicons
-                                name="scan-outline"
-                                size={21}
-                                color={colors.butText}
-                            />
-
-                            <Text
-                                style={[
-                                    styles.actionButtonText,
-                                    { color: colors.butText },
-                                ]}
-                            >
-                                Skanuj grafik
-                            </Text>
-                        </Pressable> */}
-                    </>
-                )}
-            </View>
-
             {renderModal()}
         </SafeAreaView>
     );
@@ -1804,7 +1664,7 @@ const styles = StyleSheet.create({
     content: {
         paddingHorizontal: 16,
         paddingTop: 18,
-        paddingBottom: 120,
+        paddingBottom: 24,
     },
 
     monthHeader: {
@@ -1937,38 +1797,6 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
 
-    /*
-     * BOTTOM
-     */
-
-    bottomActions: {
-        position: 'absolute',
-        left: 0,
-        right: 0,
-        bottom: 0,
-        paddingHorizontal: 16,
-        paddingTop: 12,
-        paddingBottom: 16,
-        borderTopWidth: 1,
-        flexDirection: 'row',
-        gap: 10,
-    },
-
-    actionButton: {
-        flex: 1,
-        minHeight: 52,
-        borderRadius: 13,
-        borderWidth: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
-
-    actionButtonText: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
 
     pressed: {
         opacity: 0.7,

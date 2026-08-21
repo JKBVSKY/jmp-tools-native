@@ -154,8 +154,8 @@ function RootNavigator() {
           options={{ title: 'O aplikacji', headerShown: true }}
         />
         <Stack.Screen
-          name="misc/Timetable"
-          options={{ title: 'Grafik pracy', headerShown: true }}
+          name="misc/profile"
+          options={{ title: 'Profil', headerShown: true }}
         />
       </Stack>
     </>

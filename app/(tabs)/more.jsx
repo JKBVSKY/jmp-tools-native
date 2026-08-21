@@ -146,11 +146,11 @@ export default function More() {
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
               activeOpacity={0.8}
               onPress={() => {
-                router.push('/misc/Timetable');
+                router.push('/misc/profile');
               }}
             >
-              <Ionicons name="calendar" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
-              <Text style={[styles.cardText, { color: colors.text }]}>Twój Grafik</Text>
+              <Ionicons name="person-circle-outline" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
+              <Text style={[styles.cardText, { color: colors.text }]}>Profil</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}

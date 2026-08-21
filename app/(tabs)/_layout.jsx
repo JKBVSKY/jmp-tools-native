@@ -195,11 +195,11 @@ export default function TabLayout() {
             }}
           >
             <Tabs.Screen
-              name="scoreHistory"
+              name="Timetable"
               options={{
-                title: 'Statystyki',
+                title: 'Grafik',
                 tabBarIcon: ({ color }) => (
-                  <Ionicons name="analytics-outline" size={28} color={color} />
+                  <Ionicons name="calendar" size={28} color={color} />
                 ),
               }}
             />
@@ -222,11 +222,11 @@ export default function TabLayout() {
               }}
             />
             <Tabs.Screen
-              name="profile"
+              name="scoreHistory"
               options={{
-                title: 'Profil',
+                title: 'Statystyki',
                 tabBarIcon: ({ color }) => (
-                  <Ionicons name="person-circle-outline" size={28} color={color} />
+                  <Ionicons name="analytics-outline" size={28} color={color} />
                 ),
               }}
             />
