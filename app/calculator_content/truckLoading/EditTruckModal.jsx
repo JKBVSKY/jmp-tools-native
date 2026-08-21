@@ -46,11 +46,13 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
     if (visible && truck) {
       setForm({
         shop: truck.shop || "",
+        secondShop: truck.secondShop || "",
         gate: truck.gate || "",
         trailer: truck.trailer || "",
         pallets: truck.pallets || "",
       });
       setPalletsInProgress(truck.palletsInProgress || false);
+      setConnectedShops(Boolean(truck.secondShop));
     }
   }, [truck, visible]);
 
@@ -85,6 +87,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
       const dataToSave = {
         ...truck,
         ...form,
+        secondShop: connectedShops ? form.secondShop : "",
         palletsInProgress: palletsInProgress,
       };
       onSave(dataToSave);
