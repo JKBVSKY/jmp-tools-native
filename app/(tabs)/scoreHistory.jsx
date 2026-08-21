@@ -19,6 +19,7 @@ import {
   deleteDoc,
   doc,
 } from 'firebase/firestore';
+import { getUserScoreHistoryCache, setUserScoreHistoryCache, invalidateScoreDataCache } from '../../services/ScoreDataCache';
 
 const { width } = Dimensions.get('window');
 const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
@@ -174,7 +175,7 @@ export default function ScoreHistory() {
   }, [calculatePickingSummary, sectionType, sessionsForMonth]);
 
   // Load saved sessions from Firestore
-  const loadSessions = useCallback(async () => {
+  const loadSessions = useCallback(async ({ force = false } = {}) => {
     setLoading(true);
     // No user yet → no sessions
     if (!userId) {
@@ -185,6 +186,11 @@ export default function ScoreHistory() {
     }
 
     try {
+      if (!force) {
+        const cachedSessions = await getUserScoreHistoryCache(userId);
+        if (cachedSessions) { setSessions(cachedSessions); setLoading(false); setRefreshing(false); return; }
+      }
+
       const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
       const q = query(sessionsRef, orderBy('date', 'desc'));
       const snapshot = await getDocs(q);
@@ -198,6 +204,7 @@ export default function ScoreHistory() {
       });
 
       setSessions(fetchedSessions);
+      await setUserScoreHistoryCache(userId, fetchedSessions);
     } catch (error) {
       console.error('Failed to load sessions from Firestore:', error);
     } finally {
@@ -215,7 +222,7 @@ export default function ScoreHistory() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadSessions();
+    loadSessions({ force: true });
   }, [loadSessions]);
 
   const formatDate = (isoString) => {
@@ -800,6 +807,7 @@ export default function ScoreHistory() {
 
                                                       // Delete from Firestore
                                                       await deleteDoc(doc(db, 'users', userId, 'scoreHistory', session.id));
+                                                      await invalidateScoreDataCache(userId);
 
                                                       // Then update local state
                                                       const updatedSessions = sessions.filter((s) => s.id !== session.id);

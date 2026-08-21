@@ -23,6 +23,7 @@ import { useColors } from '../../hooks/useColors';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase/config';
 import { useUserProfile } from '../../context/UserProfileContext';
+import { getLeaderboardCache, setLeaderboardCache } from '../../services/ScoreDataCache';
 
 const PODIUM_STYLES = {
   1: {
@@ -100,36 +101,34 @@ export default function Leaderboards() {
   const monthInfo = useMemo(() => getMonthBounds(), []);
 
 
-  const loadLeaderboard = useCallback(async () => {
+  const loadLeaderboard = useCallback(async ({ force = false } = {}) => {
     try {
       setLoading(true);
 
-      const usersPromise = getDocs(collection(db, 'users'));
-      const sessionsPromise = getDocs(
-        query(
-          collectionGroup(db, 'scoreHistory'),
-          where('date', '>=', monthInfo.startIso),
-          where('date', '<', monthInfo.endIso)
-        )
-      );
-
-      const [usersSnapshot, sessionsSnapshot] = await Promise.all([usersPromise, sessionsPromise]);
-
-      const usersMap = new Map(
-        usersSnapshot.docs.map((docSnapshot) => [docSnapshot.id, docSnapshot.data()])
-      );
+      const cacheKey = monthInfo.startIso + ':' + monthInfo.endIso;
+      let cachedData = !force ? await getLeaderboardCache(cacheKey) : null;
+      if (!cachedData) {
+        const [usersSnapshot, sessionsSnapshot] = await Promise.all([
+          getDocs(collection(db, 'users')),
+          getDocs(query(collectionGroup(db, 'scoreHistory'), where('date', '>=', monthInfo.startIso), where('date', '<', monthInfo.endIso))),
+        ]);
+        cachedData = {
+          users: usersSnapshot.docs.map((docSnapshot) => ({ id: docSnapshot.id, ...docSnapshot.data() })),
+          sessions: sessionsSnapshot.docs.map((sessionDoc) => ({ id: sessionDoc.id, userId: sessionDoc.ref.parent.parent?.id, ...sessionDoc.data() })),
+        };
+        await setLeaderboardCache(cacheKey, cachedData);
+      }
+      const usersMap = new Map(cachedData.users.map((userProfile) => [userProfile.id, userProfile]));
 
       const grouped = new Map();
 
-      sessionsSnapshot.forEach((sessionDoc) => {
-        const ownerRef = sessionDoc.ref.parent.parent;
-        const userId = ownerRef?.id;
+      cachedData.sessions.forEach((session) => {
+        const userId = session.userId;
 
         if (!userId || userId.startsWith('guest_')) {
           return;
         }
 
-        const session = sessionDoc.data();
         const current = grouped.get(userId) || {
           userId,
           totalUnits: 0,
@@ -217,7 +216,7 @@ export default function Leaderboards() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    loadLeaderboard();
+    loadLeaderboard({ force: true });
   }, [loadLeaderboard]);
 
   return (

@@ -89,7 +89,7 @@ function RootNavigator() {
   }, [user?.id, pushToken]);
 
   if (!isNotificationsReady || isLoading) {
-    return <StartupLoadingScreen subtitle="Restoring your session..." />;
+    return <StartupLoadingScreen subtitle="Ładowanie aplikacji..." />;
   }
 
   return (

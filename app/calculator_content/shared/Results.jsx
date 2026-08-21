@@ -1,3 +1,4 @@
+import { invalidateScoreDataCache } from '../../../services/ScoreDataCache';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { addDoc, collection } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
@@ -145,6 +146,7 @@ export default function Results({
 
       const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
       await addDoc(sessionsRef, sessionData);
+      await invalidateScoreDataCache(userId);
 
       // ✅ STEP 2: Award session completion bonus
       const xpEarned = calculateXPFromScore(sessionScore);

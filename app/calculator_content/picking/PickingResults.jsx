@@ -1,3 +1,4 @@
+import { invalidateScoreDataCache } from '../../../services/ScoreDataCache';
 import { addDoc, collection } from 'firebase/firestore';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -202,6 +203,7 @@ export default function PickingResults({
 
       const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
       await addDoc(sessionsRef, sessionPayload);
+      await invalidateScoreDataCache(userId);
 
       const xpEarned = calculateXPFromScore(sessionScore);
       const xpResult = await awardXP(xpEarned);
