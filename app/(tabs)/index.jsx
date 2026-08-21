@@ -485,7 +485,7 @@ export default function Dashboard() {
   });
 
   const handleAvatarPress = () => {
-    router.push('/(app)/(tabs)/profile');
+    router.push('/(tabs)/profile');
   };
 
   const avatarUri = profile?.photoURL || 'https://via.placeholder.com/150/cccccc/ffffff?text=Avatar';
