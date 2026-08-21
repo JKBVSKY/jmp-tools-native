@@ -200,6 +200,16 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         ),
     })), [trucks, elapsedTick]);
 
+    const getCurrentTruckElapsedTime = (truck) => {
+        const storedElapsedTime = Number(truck?.elapsedLoadingTime) || 0;
+        if (!truck?.startLoadingTime) return storedElapsedTime;
+
+        return Math.max(
+            storedElapsedTime,
+            Math.floor((Date.now() - truck.startLoadingTime) / 1000),
+        );
+    };
+
     // Focus the pallets input when the modal opens
     useEffect(() => {
         if (showPalletsModal) {
@@ -359,8 +369,8 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
     const finalizeTruckDone = (truck, palletsValue) => {
         if (!truck) return;
 
-        // Calculate final elapsed time
-        const finalElapsedTime = truck.elapsedLoadingTime || 0;
+        // Persist the live timer value before moving the truck to history.
+        const finalElapsedTime = getCurrentTruckElapsedTime(truck);
 
         const updatedTruck = {
             ...truck,
@@ -376,6 +386,7 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
             palletsInProgress: false       // if this flag is global in calc
         });
 
+        setExpandedTruckId((expandedId) => expandedId === truck.id ? null : expandedId);
         void grantTruckCompletionXP(updatedTruck);
     };
 

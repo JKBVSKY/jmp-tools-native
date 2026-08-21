@@ -166,12 +166,12 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
               <View style={[styles.modalContent, { backgroundColor: colors.background }] }>
 
                 {/* Title */}
-                <Text style={[styles.title, { color: colors.text }]}>
-                  Nowy Transport
-                </Text>
-                <Text style={[styles.description, { color: colors.phText }]}>
+                {/* <Text style={[styles.title, { color: colors.text }]}>
+                  Dodawanie nowego transportu
+                </Text> */}
+                {/* <Text style={[styles.description, { color: colors.phText }]}>
                   Dodaj szczegóły dotyczące nowego transportu.
-                </Text>
+                </Text> */}
 
                 {/* First Row: Pallets and Shop */}
                 <View style={styles.inputRow}>
@@ -232,6 +232,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       ]}
                       value={form.pallets}
                       onChangeText={(value) => handleChange("pallets", value)}
+                      onSubmitEditing={handleAdd}
                       placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
                       placeholderTextColor={palletsInProgress ? "red" : colors.phText}
                       keyboardType="numeric"

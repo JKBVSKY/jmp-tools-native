@@ -244,6 +244,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                       ]}
                       value={form.pallets}
                       onChangeText={(value) => handleChange("pallets", value)}
+                      onSubmitEditing={handleSave}
                       placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
                       placeholderTextColor={palletsInProgress ? "red" : colors.phText}
                       keyboardType="numeric"
