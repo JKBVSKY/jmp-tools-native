@@ -12,6 +12,8 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -451,7 +453,7 @@ export default function TruckWorkingLayout(props) {
                 transparent
                 animationType="none"
                 statusBarTranslucent
-                onRequestClose={() => {}}
+                onRequestClose={() => { }}
             >
                 <View style={styles.xpRewardPortal} pointerEvents="none">
                     <Animated.View
@@ -600,60 +602,65 @@ export default function TruckWorkingLayout(props) {
                     setPendingTruckId(null);
                 }}
             >
-                <View style={styles.palletsModalBackdrop}>
-                    <View style={[styles.palletsModalContent, { backgroundColor: colors.cardBackground }]}>
-                        <Text style={[styles.palletsModalTitle, { color: colors.text }]}>
-                            Podaj liczbę palet!
-                        </Text>
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    style={{ flex: 1, }}
+                >
+                    <View style={styles.palletsModalBackdrop}>
+                        <View style={[styles.palletsModalContent, { backgroundColor: colors.cardBackground }]}>
+                            <Text style={[styles.palletsModalTitle, { color: colors.text }]}>
+                                Podaj liczbę palet!
+                            </Text>
 
-                        <Text style={[styles.palletsModalSubtitle, { color: colors.textSecondary }]}>
-                            Skończyłeś ładować ten transport, ale nie podałeś liczby palet. Wpisz liczbę palet (np. 12.75) i zatwierdź, aby zakończyć transport.
-                        </Text>
+                            <Text style={[styles.palletsModalSubtitle, { color: colors.textSecondary }]}>
+                                Skończyłeś ładować ten transport, ale nie podałeś liczby palet. Wpisz liczbę palet (np. 12.75) i zatwierdź, aby zakończyć transport.
+                            </Text>
 
-                        <TextInput
-                            ref={palletsInputRef}
-                            style={[
-                                styles.palletsInput,
-                                { borderColor: colors.border, color: colors.text }
-                            ]}
-                            value={palletsInput}
-                            onChangeText={setPalletsInput}
-                            keyboardType="decimal-pad"
-                            placeholder="Np. 12.75"
-                            placeholderTextColor={colors.textSecondary}
-                        />
-
-                        <View style={styles.palletsButtonsRow}>
-                            <TouchableOpacity
-                                onPress={() => {
-                                    setShowPalletsModal(false);
-                                    setPendingTruckId(null);
-                                    setPalletsInput("");
-                                }}
+                            <TextInput
+                                ref={palletsInputRef}
                                 style={[
-                                    styles.btnOutline,
-                                    {
-                                        borderColor: colors.outButBorder,
-                                        backgroundColor: colors.outButBackground
-                                    }
+                                    styles.palletsInput,
+                                    { borderColor: colors.border, color: colors.text }
                                 ]}
-                            >
-                                <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>
-                                    Anuluj
-                                </Text>
-                            </TouchableOpacity>
+                                value={palletsInput}
+                                onChangeText={setPalletsInput}
+                                keyboardType="decimal-pad"
+                                placeholder="Np. 12.75"
+                                placeholderTextColor={colors.textSecondary}
+                            />
 
-                            <TouchableOpacity
-                                onPress={handleConfirmPallets}
-                                style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
-                            >
-                                <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>
-                                    OK
-                                </Text>
-                            </TouchableOpacity>
+                            <View style={styles.palletsButtonsRow}>
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        setShowPalletsModal(false);
+                                        setPendingTruckId(null);
+                                        setPalletsInput("");
+                                    }}
+                                    style={[
+                                        styles.btnOutline,
+                                        {
+                                            borderColor: colors.outButBorder,
+                                            backgroundColor: colors.outButBackground
+                                        }
+                                    ]}
+                                >
+                                    <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>
+                                        Anuluj
+                                    </Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    onPress={handleConfirmPallets}
+                                    style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+                                >
+                                    <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>
+                                        OK
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
             </Modal>
 
             {/* Session details modal */}
