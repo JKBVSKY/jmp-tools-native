@@ -6,7 +6,7 @@ import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
 import { useThemeContext } from '../../context/ThemeContext';
-import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase/config';
 import {
@@ -68,10 +68,9 @@ const Settings = () => {
     setNotificationLeadHours(value);
     if (!user?.id) return;
     try {
-      await setDoc(
+      await updateDoc(
         doc(db, 'users', user.id),
-        { preferences: { notificationLeadHours: value } },
-        { merge: true }
+        { 'preferences.notificationLeadHours': value }
       );
     } catch (error) {
       console.error('Błąd zapisu lead hours:', error);
@@ -119,18 +118,16 @@ const Settings = () => {
         }
 
         await saveUserPushTokenAsync(user.id, token);
-        await setDoc(
+        await updateDoc(
           doc(db, 'users', user.id),
-          { notifications: { enabled: true } },
-          { merge: true }
+          { 'notifications.enabled': true }
         );
         setNotificationsEnabled(true);
       } else {
         await clearUserPushTokenAsync(user.id);
-        await setDoc(
+        await updateDoc(
           doc(db, 'users', user.id),
-          { notifications: { enabled: false } },
-          { merge: true }
+          { 'notifications.enabled': false }
         );
         await Notifications.cancelAllScheduledNotificationsAsync();
         setNotificationsEnabled(false);

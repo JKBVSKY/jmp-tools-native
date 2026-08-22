@@ -65,14 +65,13 @@ export function UserProfileProvider({ children }) {
         // User profile exists
         const existingProfile = userSnap.data();
 
-        const parsedXP = Number(existingProfile.totalXP);
+        const parsedXP = Number(existingProfile.totalXP ?? existingProfile.xp ?? 0);
         const hasValidXP = Number.isFinite(parsedXP) && parsedXP >= 0;
         let totalXP = hasValidXP ? parsedXP : 0;
+        let xp = Number.isFinite(Number(existingProfile.xp)) ? Number(existingProfile.xp) : totalXP;
 
-        const parsedLevel = Number(existingProfile.level);
-        let level = Number.isFinite(parsedLevel) && parsedLevel >= 1
-          ? Math.floor(parsedLevel)
-          : calculateLevelFromXP(totalXP).level;
+        const calculatedLevelResult = calculateLevelFromXP(totalXP);
+        let level = calculatedLevelResult.level;
 
         const identityFallbacks = {
           displayName: existingProfile.displayName || user?.name || '',
@@ -101,11 +100,12 @@ export function UserProfileProvider({ children }) {
           stats,
           achievements,
           totalXP,
+          xp,
           level,
         };
         const schemaBackfill = {};
 
-        if (!Number.isFinite(parsedLevel) || parsedLevel < 1) {
+        if (Number(existingProfile.level) !== level) {
           schemaBackfill.level = level;
         }
         if (!existingProfile.stats || typeof existingProfile.stats !== 'object') {

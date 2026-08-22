@@ -1,6 +1,6 @@
 import { invalidateScoreDataCache } from '../../../services/ScoreDataCache';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc, getDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -176,10 +176,17 @@ export default function Results({
 
       // ✅ STEP 4: Check achievements with NEW stats (BEFORE updating!)
       console.log('🔍 Checking achievements with NEW stats...');
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+      const freshProfileData = userSnap.exists() ? userSnap.data() : {};
+      const currentAchievements = Array.isArray(freshProfileData.achievements) && freshProfileData.achievements.length > 0
+        ? freshProfileData.achievements
+        : (Array.isArray(profile?.achievements) ? profile.achievements : []);
+
       const newAchievements = checkAchievements(
         newStats,
         sessionScore,
-        profile.achievements || []
+        currentAchievements
       );
       console.log('🏆 Achievements to unlock:', newAchievements);
 
@@ -199,7 +206,6 @@ export default function Results({
       }
 
       // ✅ STEP 6.5: Update user document in 'users' collection with increment and leaderboards transaction
-      const userRef = doc(db, 'users', userId);
       const userUpdatePayload = {
         xp: increment(xpEarned),
         totalXP: increment(xpEarned),

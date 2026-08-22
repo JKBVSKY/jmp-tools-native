@@ -1,5 +1,5 @@
 import { invalidateScoreDataCache } from '../../../services/ScoreDataCache';
-import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc, getDoc } from 'firebase/firestore';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -237,10 +237,17 @@ export default function PickingResults({
         totalXP: xpResult.newTotalXP,
       };
 
+      const userRef = doc(db, 'users', userId);
+      const userSnap = await getDoc(userRef);
+      const freshProfileData = userSnap.exists() ? userSnap.data() : {};
+      const currentAchievements = Array.isArray(freshProfileData.achievements) && freshProfileData.achievements.length > 0
+        ? freshProfileData.achievements
+        : (Array.isArray(profile?.achievements) ? profile.achievements : []);
+
       const newAchievements = checkAchievements(
         achievementsStats,
         sessionScore,
-        profile.achievements || []
+        currentAchievements
       );
 
       await updateStats(newStats);
@@ -256,7 +263,6 @@ export default function PickingResults({
       }
 
       // ✅ STEP 6.5: Update user document in 'users' collection with increment and leaderboards transaction
-      const userRef = doc(db, 'users', userId);
       const userUpdatePayload = {
         xp: increment(xpEarned),
         totalXP: increment(xpEarned),

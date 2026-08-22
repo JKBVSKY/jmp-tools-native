@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 
 export const DEFAULT_ANDROID_CHANNEL_ID = 'default';
@@ -107,14 +107,13 @@ export async function saveUserPushTokenAsync(userId, token) {
   }
 
   const userRef = doc(db, 'users', userId);
-  await setDoc(
+  await updateDoc(
     userRef,
     {
       'notifications.expoPushToken': token,
       'notifications.platform': Platform.OS,
       'notifications.updatedAt': new Date().toISOString(),
-    },
-    { merge: true }
+    }
   );
 }
 
@@ -124,15 +123,14 @@ export async function clearUserPushTokenAsync(userId) {
   }
 
   const userRef = doc(db, 'users', userId);
-  await setDoc(
+  await updateDoc(
     userRef,
     {
       'notifications.expoPushToken': null,
       'notifications.enabled': false,
       'notifications.platform': Platform.OS,
       'notifications.updatedAt': new Date().toISOString(),
-    },
-    { merge: true }
+    }
   );
 }
 
