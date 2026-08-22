@@ -6,7 +6,7 @@ import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
 import { useThemeContext } from '../../context/ThemeContext';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, onSnapshot } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase/config';
 import {
@@ -31,38 +31,38 @@ const Settings = () => {
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [isSavingNotification, setIsSavingNotification] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isDataReady, setIsDataReady] = useState(false);
 
   useEffect(() => {
-    let cancelled = false;
+    if (!user?.id) {
+      setNotificationsEnabled(false);
+      setIsDataReady(true);
+      return;
+    }
 
-    const loadNotificationState = async () => {
-      if (!user?.id) {
-        if (!cancelled) setNotificationsEnabled(false);
-        return;
-      }
-
-      try {
-        const userSnapshot = await getDoc(doc(db, 'users', user.id));
-        const userData = userSnapshot.data();
+    const unsubscribe = onSnapshot(
+      doc(db, 'users', user.id),
+      (docSnap) => {
+        const userData = docSnap.exists() ? docSnap.data() : null;
         const notificationSettings = userData?.notifications;
         const enabled = notificationSettings?.enabled === true;
         const prefsLeadHours = userData?.preferences?.notificationLeadHours;
         const leadHours = prefsLeadHours !== undefined ? prefsLeadHours : 10;
 
-        if (!cancelled) {
-          setNotificationsEnabled(enabled);
-          setNotificationLeadHours(leadHours);
-        }
-      } catch (error) {
-        console.error('Błąd odczytu ustawień powiadomień:', error);
+        setNotificationsEnabled(enabled);
+        setNotificationLeadHours(leadHours);
+        setIsDataReady(true);
+      },
+      (error) => {
+        console.error('Błąd nasłuchiwania ustawień powiadomień:', error);
+        setIsDataReady(true);
       }
-    };
+    );
 
-    loadNotificationState();
     return () => {
-      cancelled = true;
+      unsubscribe();
     };
-  }, [user]);
+  }, [user?.id]);
 
   const handleNotificationLeadChange = async (value) => {
     setNotificationLeadHours(value);
@@ -305,20 +305,24 @@ const Settings = () => {
                 <option value="disabled">Disabled</option>
               </select>
             ) : (
-              <Picker
-                selectedValue={notificationLeadHours !== null ? notificationLeadHours : 'disabled'}
-                onValueChange={(itemValue) => {
-                  handleNotificationLeadChange(itemValue === 'disabled' ? null : Number(itemValue));
-                }}
-                style={{ width: 140, color: colors.text }}
-                dropdownIconColor={colors.text}
-              >
-                <Picker.Item label="1h" value={1} />
-                <Picker.Item label="2h" value={2} />
-                <Picker.Item label="5h" value={5} />
-                <Picker.Item label="10h" value={10} />
-                <Picker.Item label="Disabled" value="disabled" />
-              </Picker>
+              !isDataReady ? (
+                <ActivityIndicator size="small" color={colors.text} />
+              ) : (
+                <Picker
+                  selectedValue={notificationLeadHours !== null ? notificationLeadHours : 'disabled'}
+                  onValueChange={(itemValue) => {
+                    handleNotificationLeadChange(itemValue === 'disabled' ? null : Number(itemValue));
+                  }}
+                  style={{ width: 140, color: colors.text }}
+                  dropdownIconColor={colors.text}
+                >
+                  <Picker.Item label="1h" value={1} />
+                  <Picker.Item label="2h" value={2} />
+                  <Picker.Item label="5h" value={5} />
+                  <Picker.Item label="10h" value={10} />
+                  <Picker.Item label="Disabled" value="disabled" />
+                </Picker>
+              )
             )}
           </View>
         </>
