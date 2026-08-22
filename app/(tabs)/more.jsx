@@ -160,7 +160,7 @@ export default function More() {
               }}
             >
               <Ionicons name="settings" size={28} color={colors.iconColor} style={{ marginBottom: 6 }} />
-              <Text style={[styles.cardText, { color: colors.textSecondary }]}>Ustawienia</Text>
+              <Text style={[styles.cardText, { color: colors.text }]}>Ustawienia</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.card, { backgroundColor: colors.cardButBackground }]}
