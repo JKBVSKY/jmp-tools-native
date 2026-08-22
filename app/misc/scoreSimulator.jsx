@@ -6,11 +6,10 @@ import {
     TextInput,
     TouchableOpacity,
     StyleSheet,
-    useColorScheme,
     Platform,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Colors } from '../../constants/Colors.js';
+import { useColors } from '../../hooks/useColors';
 
 const CALCULATION_MODES = {
     detailed: 'detailed',
@@ -25,10 +24,7 @@ const RESULT_COLORS = {
 };
 
 const ScoreSimulator = () => {
-    const colorScheme = useColorScheme();
-    const isDark = colorScheme === 'dark';
-
-    const palette = isDark ? Colors.dark : Colors.light;
+    const palette = useColors();
     const styles = useMemo(() => createStyles(palette), [palette]);
 
     const [calculationMode, setCalculationMode] = useState(CALCULATION_MODES.detailed);

@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { useColors } from '../../hooks/useColors';
+import { useThemeContext } from '../../context/ThemeContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase/config';
@@ -19,6 +20,7 @@ const Settings = () => {
     isGuest,
   } = useAuth();
   const colors = useColors();
+  const { theme, toggleTheme } = useThemeContext();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
@@ -147,8 +149,36 @@ const Settings = () => {
         Ustawienia
       </Text>
 
-      {/* Powiadomienia */}
+      {/* Motyw */}
       <View
+        style={[
+          styles.section,
+          {
+            backgroundColor: colors.cardBackground,
+            borderColor: colors.border,
+          },
+        ]}
+      >
+        <Text style={[styles.label, { color: colors.text }]}>Tryb ciemny</Text>
+        <Switch
+          value={theme === 'dark'}
+          onValueChange={toggleTheme}
+          thumbColor={
+            theme === 'dark'
+              ? (colors.butBackground || colors.textRed)
+              : (colors.grayIconColor || colors.textSecondary)
+          }
+          trackColor={{
+            true: colors.butBackground || colors.selection,
+            false: colors.breakLine || colors.border,
+          }}
+        />
+      </View>
+
+      {!isGuest && (
+        <>
+          {/* Powiadomienia */}
+          <View
         style={[
           styles.section,
           {
@@ -179,9 +209,13 @@ const Settings = () => {
             false: colors.breakLine || colors.border,
           }}
         />
-      </View>
+          </View>
+        </>
+      )}
 
-      {/* Usuń konto – placeholder */}
+      {!isGuest && (
+        <>
+          {/* Usuń konto – placeholder */}
       <View
         style={[
           styles.section,
@@ -218,7 +252,9 @@ const Settings = () => {
             Usuń konto
           </Text>
         </TouchableOpacity>
-      </View>
+          </View>
+        </>
+      )}
     </View>
   );
 };
