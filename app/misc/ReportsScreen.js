@@ -30,6 +30,7 @@ const REPORT_STATUSES = {
     submitted: 'submitted',
     fixed: 'fixed',
 };
+const ALL_STATUS = 'all';
 
 const getValidStatus = (status) => {
     if (
@@ -41,6 +42,12 @@ const getValidStatus = (status) => {
     }
 
     return REPORT_STATUSES.reported;
+};
+
+const filterReportsByStatus = (reports, status) => {
+    if (status === ALL_STATUS) return reports;
+
+    return reports.filter((item) => getValidStatus(item.status) === status);
 };
 
 const getInitials = (value) => {
@@ -82,6 +89,7 @@ const ReportsScreen = () => {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [activeTab, setActiveTab] = useState('all');
+    const [statusFilter, setStatusFilter] = useState(ALL_STATUS);
     const [reportVisible, setReportVisible] = useState(false);
     const [reportTruckNumber, setReportTruckNumber] = useState('');
     const [editingReport, setEditingReport] = useState(null);
@@ -131,8 +139,9 @@ const ReportsScreen = () => {
 
     const filteredReports = useMemo(() => {
         const queryText = search.trim().toLowerCase();
+        const statusFilteredReports = filterReportsByStatus(reports, statusFilter);
         const searchedReports = queryText
-            ? reports.filter((item) => {
+            ? statusFilteredReports.filter((item) => {
                 const truckStr = String(item.truckNumber || '').toLowerCase();
                 const typeStr = getReportTypeLabel(item.type).toLowerCase();
                 const descStr = String(item.description || '').toLowerCase();
@@ -145,14 +154,14 @@ const ReportsScreen = () => {
                     reporterNameStr.includes(queryText)
                 );
             })
-            : reports;
+            : statusFilteredReports;
 
         if (activeTab === 'mine' && !queryText) {
             return searchedReports.filter((item) => item.reporterId === user?.id);
         }
 
         return searchedReports;
-    }, [reports, search, activeTab, user?.id]);
+    }, [reports, search, activeTab, statusFilter, user?.id]);
 
     const openReport = () => {
         setEditingReport(null);
@@ -398,6 +407,43 @@ const ReportsScreen = () => {
                             </TouchableOpacity>
                         </View>
 
+                        <View style={styles.statusFiltersRow}>
+                            <TouchableOpacity
+                                onPress={() => setStatusFilter(ALL_STATUS)}
+                                style={[
+                                    styles.statusFilterButton,
+                                    statusFilter === ALL_STATUS && {
+                                        backgroundColor: colors.butBackground,
+                                        borderColor: colors.butBorder,
+                                    },
+                                    { borderColor: colors.border },
+                                ]}
+                            >
+                                <Text style={[styles.tabText, { color: statusFilter === ALL_STATUS ? colors.butText : colors.textSecondary }]}>
+                                    Wszystkie
+                                </Text>
+                            </TouchableOpacity>
+
+                            {Object.entries(statusStyles).map(([status, config]) => (
+                                <TouchableOpacity
+                                    key={status}
+                                    onPress={() => setStatusFilter(status)}
+                                    style={[
+                                        styles.statusFilterButton,
+                                        statusFilter === status && {
+                                            backgroundColor: config.color + '18',
+                                            borderColor: config.color,
+                                        },
+                                        { borderColor: colors.border },
+                                    ]}
+                                >
+                                    <Text style={[styles.tabText, { color: statusFilter === status ? config.color : colors.textSecondary }]}>
+                                        {config.label}
+                                    </Text>
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+
                         <View style={styles.headerActions}>
                             <View
                                 style={[
@@ -461,6 +507,12 @@ const styles = StyleSheet.create({
         gap: 8,
         marginBottom: 10,
     },
+    statusFiltersRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: 10,
+    },
     tabButton: {
         flex: 1,
         borderWidth: 1,
@@ -471,6 +523,12 @@ const styles = StyleSheet.create({
     tabText: {
         fontSize: 12,
         fontWeight: '600',
+    },
+    statusFilterButton: {
+        borderWidth: 1,
+        borderRadius: 999,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
     },
     headerActions: {
         flexDirection: 'row',
