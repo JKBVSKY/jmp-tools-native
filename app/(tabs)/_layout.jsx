@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter, usePathname, Redirect } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../../context/AuthContext';
 
 // inside app/(tabs)/_layout.jsx
@@ -21,6 +22,7 @@ export default function TabLayout() {
   const pathname = usePathname();
   const { user, isLoading, signOut } = useAuth();
   const colors = useColors();
+  const insets = useSafeAreaInsets();
 
   const isWeb = Platform.OS === 'web';
 
@@ -170,7 +172,8 @@ export default function TabLayout() {
               tabBarActiveTintColor: 'red',
               tabBarInactiveTintColor: colors.tabInactive || '#9ca3af',
               tabBarStyle: {
-                height: 70,
+                height: 70 + insets.bottom,
+                paddingTop: 8,
                 backgroundColor: colors.botBarBackground,
                 borderTopColor: 'transparent',
                 overflow: 'hidden',
@@ -178,19 +181,15 @@ export default function TabLayout() {
               },
               tabBarLabelPosition: 'below-icon',
               tabBarLabelStyle: {
-                fontSize: 10,
-                lineHeight: 14,
+                fontSize: 12,
+                lineHeight: 24,
                 textAlign: 'center',
               },
               tabBarIconStyle: Platform.OS === 'web' ? { marginBottom: 2 } : undefined,
-              tabBarItemStyle: Platform.OS === 'web'
-                ? {
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  paddingVertical: 4,
-                }
-                : undefined,
+              tabBarItemStyle: {
+                justifyContent: 'center',
+                alignItems: 'center',
+              },
               unmountOnBlur: true,
             }}
           >
@@ -235,7 +234,7 @@ export default function TabLayout() {
               options={{
                 title: 'Więcej',
                 tabBarIcon: ({ color }) => (
-                  <Ionicons name="ellipsis-horizontal" size={22} color={color} />
+                  <Ionicons name="ellipsis-horizontal" size={28} color={color} />
                 ),
               }}
             />
