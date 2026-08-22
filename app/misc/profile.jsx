@@ -907,8 +907,10 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     paddingVertical: 25,
+    marginTop: 12,
+    marginHorizontal: 12,
     borderRadius: 12,
-    marginBottom: 20,
+    marginBottom: 24,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -1066,6 +1068,7 @@ const styles = StyleSheet.create({
   guestCard: {
     borderRadius: 12,
     padding: 20,
+    marginHorizontal: 12,
     marginBottom: 20,
     alignItems: 'center',
   },
@@ -1101,6 +1104,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     marginBottom: 10,
+    marginHorizontal: 12,
     gap: 8,
   },
   loginButton: {

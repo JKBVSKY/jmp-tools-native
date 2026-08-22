@@ -20,7 +20,8 @@ import {
     GestureDetector,
 } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
-import { useColors } from '../../hooks/useColors';
+import { useColors } from "../../hooks/useColors";
+import { useAuth } from "../../context/AuthContext";
 
 const STORAGE_KEY = '@jmp_tools_timetable';
 const NOTIFICATIONS_ENABLED_KEY =
@@ -80,6 +81,7 @@ const SHIFT_PRESETS = {
 
 const Timetable = () => {
     const colors = useColors();
+    const { isGuest } = useAuth();
 
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -472,8 +474,13 @@ const Timetable = () => {
      */
 
     useEffect(() => {
+        if (isGuest) {
+            setLoading(false);
+            return;
+        }
+
         loadSchedule();
-    }, []);
+    }, [isGuest]);
 
     const loadSchedule = async () => {
         try {
@@ -1438,6 +1445,23 @@ const Timetable = () => {
      * --------------------------------------------------
      */
 
+    if (isGuest) {
+        return (
+            <SafeAreaView
+                edges={["top"]}
+                style={[styles.guestContainer, { backgroundColor: colors.background }]}
+            >
+                <Ionicons name="lock-closed-outline" size={48} color={colors.iconColor} />
+                <Text style={[styles.guestTitle, { color: colors.title }]}>
+                    Grafik pracy jest niedostępny
+                </Text>
+                <Text style={[styles.guestMessage, { color: colors.textSecondary }]}>
+                    Zarejestruj konto, aby korzystać z grafiku pracy.
+                </Text>
+            </SafeAreaView>
+        );
+    }
+
     return (
         <SafeAreaView
             edges={['top']}
@@ -1638,6 +1662,27 @@ const Timetable = () => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+    },
+
+    guestContainer: {
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 24,
+    },
+
+    guestTitle: {
+        marginTop: 16,
+        fontSize: 20,
+        fontWeight: "700",
+        textAlign: "center",
+    },
+
+    guestMessage: {
+        marginTop: 8,
+        fontSize: 15,
+        lineHeight: 22,
+        textAlign: "center",
     },
 
     header: {

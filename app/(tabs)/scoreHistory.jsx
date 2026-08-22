@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, Dimensions, Pressable, RefreshControl, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useColors } from '../../hooks/useColors';
 import ThemedView from '../../components/ThemedView';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { LineChart } from 'react-native-chart-kit';
@@ -50,7 +50,7 @@ const formatMonthLabel = ({ month, year }) => {
 
 export default function ScoreHistory() {
   const colors = useColors();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
   const userId = user?.id;
   const [sessions, setSessions] = useState([]);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'graph'
@@ -288,6 +288,23 @@ export default function ScoreHistory() {
   };
 
   const hasVisibleData = visibleSessionsForMonth.length > 0;
+
+  if (isGuest) {
+    return (
+      <SafeAreaView
+        edges={["top"]}
+        style={[styles.guestContainer, { backgroundColor: colors.background }]}
+      >
+        <Ionicons name="lock-closed-outline" size={48} color={colors.iconColor} />
+        <Text style={[styles.guestTitle, { color: colors.title }]}>
+          Historia wyników jest niedostępna
+        </Text>
+        <Text style={[styles.guestMessage, { color: colors.textSecondary }]}>
+          Zarejestruj konto, aby korzystać z historii wyników.
+        </Text>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <ThemedView style={styles.container}>
@@ -865,6 +882,24 @@ export const calculateSummary = (sessionsArray) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  guestContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  guestTitle: {
+    marginTop: 16,
+    fontSize: 20,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  guestMessage: {
+    marginTop: 8,
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: "center",
   },
   header: {
     justifyContent: 'space-between',
