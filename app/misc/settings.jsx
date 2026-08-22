@@ -1,7 +1,9 @@
 // Settings.jsx
 import React, { useEffect, useState } from 'react';
-import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { Picker } from '@react-native-picker/picker';
+import { useRouter } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
 import { useThemeContext } from '../../context/ThemeContext';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
@@ -18,12 +20,17 @@ const Settings = () => {
     user,
     isLoading: authLoading,
     isGuest,
+    deleteAccount,
   } = useAuth();
   const colors = useColors();
   const { theme, toggleTheme } = useThemeContext();
+  const router = useRouter();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationLeadHours, setNotificationLeadHours] = useState(10);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
+  const [isSavingNotification, setIsSavingNotification] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -35,17 +42,17 @@ const Settings = () => {
       }
 
       try {
-        const [userSnapshot, permission] = await Promise.all([
-          getDoc(doc(db, 'users', user.id)),
-          Notifications.getPermissionsAsync(),
-        ]);
-        const notificationSettings = userSnapshot.data()?.notifications;
-        const enabled = notificationSettings?.enabled !== false && (
-          permission.status === 'granted' ||
-          !!notificationSettings?.expoPushToken
-        );
+        const userSnapshot = await getDoc(doc(db, 'users', user.id));
+        const userData = userSnapshot.data();
+        const notificationSettings = userData?.notifications;
+        const enabled = notificationSettings?.enabled === true;
+        const prefsLeadHours = userData?.preferences?.notificationLeadHours;
+        const leadHours = prefsLeadHours !== undefined ? prefsLeadHours : 10;
 
-        if (!cancelled) setNotificationsEnabled(enabled);
+        if (!cancelled) {
+          setNotificationsEnabled(enabled);
+          setNotificationLeadHours(leadHours);
+        }
       } catch (error) {
         console.error('Błąd odczytu ustawień powiadomień:', error);
       }
@@ -56,6 +63,21 @@ const Settings = () => {
       cancelled = true;
     };
   }, [user]);
+
+  const handleNotificationLeadChange = async (value) => {
+    setNotificationLeadHours(value);
+    if (!user?.id) return;
+    try {
+      await setDoc(
+        doc(db, 'users', user.id),
+        { preferences: { notificationLeadHours: value } },
+        { merge: true }
+      );
+    } catch (error) {
+      console.error('Błąd zapisu lead hours:', error);
+      Alert.alert('Błąd', 'Nie udało się zapisać ustawienia powiadomień.');
+    }
+  };
 
   if (authLoading) {
     return (
@@ -78,8 +100,9 @@ const Settings = () => {
       return;
     }
 
-    if (loadingNotifications) return;
+    if (isSavingNotification || loadingNotifications) return;
 
+    setIsSavingNotification(true);
     setLoadingNotifications(true);
 
     try {
@@ -98,12 +121,17 @@ const Settings = () => {
         await saveUserPushTokenAsync(user.id, token);
         await setDoc(
           doc(db, 'users', user.id),
-          { 'notifications.enabled': true },
+          { notifications: { enabled: true } },
           { merge: true }
         );
         setNotificationsEnabled(true);
       } else {
         await clearUserPushTokenAsync(user.id);
+        await setDoc(
+          doc(db, 'users', user.id),
+          { notifications: { enabled: false } },
+          { merge: true }
+        );
         await Notifications.cancelAllScheduledNotificationsAsync();
         setNotificationsEnabled(false);
       }
@@ -115,20 +143,49 @@ const Settings = () => {
         error?.message || 'Nie udało się zmienić ustawień powiadomień.'
       );
     } finally {
+      setIsSavingNotification(false);
       setLoadingNotifications(false);
     }
   };
 
   const handleDeleteAccountPress = () => {
-    // Placeholder – tutaj kiedyś:
-    // 1) usunięcie konta i danych z Firestore
-    // 2) reset nawigacji / przejście do Welcome.jsx
     Alert.alert(
       'Usuń konto',
-      'Tutaj zaimplementuj logikę usuwania konta z Firestore i przejście do ekranu Welcome.',
+      'Czy na pewno chcesz usunąć swoje konto? Tej operacji nie można cofnąć.',
       [
         { text: 'Anuluj', style: 'cancel' },
-        { text: 'OK', onPress: () => console.log('Delete account placeholder pressed') },
+        {
+          text: 'Tak',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Ostatnie ostrzeżenie',
+              'Wszystkie Twoje dane, wyniki i postępy zostaną trwale usunięte z aplikacji i bazy danych. Czy na pewno kontynuować?',
+              [
+                { text: 'Anuluj', style: 'cancel' },
+                {
+                  text: 'Usuń trwale',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setIsDeleting(true);
+                    try {
+                      const result = await deleteAccount();
+                      if (result.success) {
+                        router.replace({ pathname: '/(auth)/welcome', params: { deleted: 'true' } });
+                      } else {
+                        setIsDeleting(false);
+                        Alert.alert('Błąd', result.error || 'Nie udało się usunąć konta.');
+                      }
+                    } catch (_error) {
+                      setIsDeleting(false);
+                      Alert.alert('Błąd', 'Wystąpił nieoczekiwany błąd.');
+                    }
+                  },
+                },
+              ]
+            );
+          },
+        },
       ]
     );
   };
@@ -198,7 +255,7 @@ const Settings = () => {
         <Switch
           value={notificationsEnabled}
           onValueChange={handleToggleNotifications}
-          disabled={authLoading || loadingNotifications || isGuest}
+          disabled={authLoading || loadingNotifications || isGuest || isSavingNotification}
           thumbColor={
             notificationsEnabled
               ? (colors.butBackground || colors.textRed)
@@ -209,6 +266,60 @@ const Settings = () => {
             false: colors.breakLine || colors.border,
           }}
         />
+          </View>
+
+          {/* Czas powiadomienia o pracy */}
+          <View
+            style={[
+              styles.section,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Text style={[styles.label, { color: colors.text }]}>
+              Czas powiadomienia o pracy
+            </Text>
+            {Platform.OS === 'web' ? (
+              <select
+                value={notificationLeadHours !== null ? notificationLeadHours : 'disabled'}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  handleNotificationLeadChange(val === 'disabled' ? null : Number(val));
+                }}
+                style={{
+                  padding: 8,
+                  borderRadius: 8,
+                  backgroundColor: colors.inputBackground || colors.cardBackground,
+                  color: colors.text,
+                  borderColor: colors.border,
+                  borderWidth: 1,
+                  fontSize: 16,
+                }}
+              >
+                <option value="1">1h</option>
+                <option value="2">2h</option>
+                <option value="5">5h</option>
+                <option value="10">10h</option>
+                <option value="disabled">Disabled</option>
+              </select>
+            ) : (
+              <Picker
+                selectedValue={notificationLeadHours !== null ? notificationLeadHours : 'disabled'}
+                onValueChange={(itemValue) => {
+                  handleNotificationLeadChange(itemValue === 'disabled' ? null : Number(itemValue));
+                }}
+                style={{ width: 140, color: colors.text }}
+                dropdownIconColor={colors.text}
+              >
+                <Picker.Item label="1h" value={1} />
+                <Picker.Item label="2h" value={2} />
+                <Picker.Item label="5h" value={5} />
+                <Picker.Item label="10h" value={10} />
+                <Picker.Item label="Disabled" value="disabled" />
+              </Picker>
+            )}
           </View>
         </>
       )}
@@ -255,6 +366,14 @@ const Settings = () => {
           </View>
         </>
       )}
+      {isDeleting && (
+        <View style={styles.loadingOverlay}>
+          <View style={[styles.loadingBox, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <ActivityIndicator size="large" color={colors.butBackground || colors.primary} />
+            <Text style={[styles.loadingText, { color: colors.text }]}>Usuwanie konta i danych...</Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };
@@ -290,6 +409,33 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   deleteButtonText: {
+    fontWeight: '600',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingBox: {
+    padding: 24,
+    borderRadius: 16,
+    alignItems: 'center',
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
     fontWeight: '600',
   },
 });

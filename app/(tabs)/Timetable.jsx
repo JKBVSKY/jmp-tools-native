@@ -22,10 +22,10 @@ import {
 import { runOnJS } from 'react-native-reanimated';
 import { useColors } from "../../hooks/useColors";
 import { useAuth } from "../../context/AuthContext";
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../firebase/config';
 
 const STORAGE_KEY = '@jmp_tools_timetable';
-const NOTIFICATIONS_ENABLED_KEY =
-    '@jmp_tools_notifications_enabled';
 
 const MONTHS = [
     'styczeń',
@@ -81,7 +81,7 @@ const SHIFT_PRESETS = {
 
 const Timetable = () => {
     const colors = useColors();
-    const { isGuest } = useAuth();
+    const { user, isGuest } = useAuth();
 
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -204,6 +204,7 @@ const Timetable = () => {
     */
 
     const testScheduleAllShifts = async () => {
+        // Wymuś ponowne przeliczenie na aktualnym stanie grafiku
         await scheduleShiftReminder(schedule);
 
         const futureShifts = getAllFutureWorkShifts(schedule);
@@ -220,10 +221,17 @@ const Timetable = () => {
             `Liczba przyszłych zmian: ${futureShifts.length}\n\n` +
             futureShifts
                 .map(
-                    ({ date }) =>
-                        `- ${date.toLocaleString('pl-PL')} (powiadomienie 10h przed)`
+                    ({ date }) => {
+                        // Obliczamy czas powiadomienia dokładnie tak samo jak funkcja Expo
+                        // Pobieramy leadHours (domyślnie 10, lub tyle ile wykrył system)
+                        const leadHours = 1; // Zmień na liczbę godzin, którą aktualnie testujesz (np. 1 lub 2)
+                        const reminderDate = new Date(date.getTime() - leadHours * 60 * 60 * 1000);
+
+                        return `- Zmiana: ${date.toLocaleDateString('pl-PL')} o ${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}\n  👉 PUSH PRZYJDZIE O: ${reminderDate.toLocaleTimeString('pl-PL')}`;
+                    }
                 )
-                .join('\n');
+                .join('\n\n');
+
 
         Alert.alert('Test powiadomień', message);
     };
@@ -328,13 +336,37 @@ const Timetable = () => {
     };
 
     const scheduleShiftReminder = async (schedule) => {
-        const notificationsEnabled = await AsyncStorage.getItem(
-            NOTIFICATIONS_ENABLED_KEY
-        );
-
-        if (notificationsEnabled !== 'true') {
-            await Notifications.cancelAllScheduledNotificationsAsync();
+        let leadHours = 10;
+        if (!user?.id) {
             return;
+        }
+
+        try {
+            // 1. Fetch doc(db, 'users', user.id)
+            const userSnap = await getDoc(doc(db, 'users', user.id));
+            const userData = userSnap.exists() ? userSnap.data() : null;
+
+            // 2. Check userData?.notifications?.enabled !== false. If false, run await Notifications.cancelAllScheduledNotificationsAsync() and return.
+            if (userData?.notifications?.enabled === false) {
+                await Notifications.cancelAllScheduledNotificationsAsync();
+                return;
+            }
+
+            // 3. Check userData?.preferences?.notificationLeadHours. If it is null or 'disabled', run await Notifications.cancelAllScheduledNotificationsAsync() and return.
+            const leadHoursPref = userData?.preferences?.notificationLeadHours;
+            if (leadHoursPref === null || leadHoursPref === 'disabled') {
+                await Notifications.cancelAllScheduledNotificationsAsync();
+                console.log('Powiadomienia o zmianach wyłączone (leadHours = null)');
+                return;
+            }
+
+            // 4. Otherwise, parse leadHours securely
+            if (userData?.preferences?.notificationLeadHours) {
+                const parsed = parseInt(userData.preferences.notificationLeadHours, 10);
+                if (!isNaN(parsed)) leadHours = parsed;
+            }
+        } catch (e) {
+            console.error('Błąd pobierania preferences.notificationLeadHours:', e);
         }
 
         // 1. Anuluj wszystkie wcześniej zaplanowane powiadomienia o zmianach
@@ -364,7 +396,7 @@ const Timetable = () => {
         const scheduledIds = [];
 
         for (const { shift, date } of futureShifts) {
-            const reminderDate = new Date(date.getTime() - 10 * 60 * 60 * 1000);
+            const reminderDate = new Date(date.getTime() - leadHours * 60 * 60 * 1000);
             const now = new Date();
 
             // Nie planuj powiadomień w przeszłości
@@ -392,6 +424,8 @@ const Timetable = () => {
                 type: Notifications.SchedulableTriggerInputTypes.DATE,
                 date: reminderDate,
             };
+
+            console.log('Scheduling notification for shift at:', date, 'with reminderDate:', reminderDate, 'leadHours:', leadHours);
 
             const notificationId = await Notifications.scheduleNotificationAsync({
                 content,
@@ -941,7 +975,7 @@ const Timetable = () => {
                     </Text>
                 </View>
 
-                        <View style={{ alignItems: 'stretch' }}></View>
+                <View style={{ alignItems: 'stretch' }}></View>
                 {/* SHIFT */}
 
                 <View style={styles.shiftContainer}>
@@ -1538,14 +1572,11 @@ const Timetable = () => {
                     </Pressable>
 
                     <View style={styles.monthTitleContainer}>
-                        <Text
-                            style={[
-                                styles.monthTitle,
-                                { color: colors.title },
-                            ]}
-                        >
-                            {monthTitle} {currentDate.getFullYear()}
-                        </Text>
+                        <Pressable onPress={testScheduleAllShifts}>
+                            <Text style={[styles.monthTitle, { color: colors.title }]}>
+                                {monthTitle} {currentDate.getFullYear()} 🧪
+                            </Text>
+                        </Pressable>
 
                         <Text
                             style={[

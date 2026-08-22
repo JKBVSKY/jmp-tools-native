@@ -11,9 +11,10 @@ import {
   signOut as firebaseSignOut,
   onAuthStateChanged,
   updateProfile,
+  deleteUser,
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
 import { StorageManager } from '../utils/StorageManager';
 import { clearUserPushTokenAsync } from '../services/NotificationService';
 
@@ -218,6 +219,67 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const deleteAccount = async () => {
+    try {
+      const currentUser = auth.currentUser;
+      const currentUserId = user?.id || currentUser?.uid;
+
+      if (!currentUserId) {
+        return { success: false, error: 'Nie znaleziono aktywnej sesji użytkownika.' };
+      }
+
+      // 1. Delete Firestore data related to user
+      try {
+        const subcollections = ['scoreHistory', 'scheduleItems', 'palletMappings'];
+        for (const subcol of subcollections) {
+          const snapshot = await getDocs(collection(db, 'users', currentUserId, subcol));
+          if (!snapshot.empty) {
+            const batch = writeBatch(db);
+            snapshot.docs.forEach((docItem) => {
+              batch.delete(doc(db, 'users', currentUserId, subcol, docItem.id));
+            });
+            await batch.commit();
+          }
+        }
+
+        // Delete main user document
+        await deleteDoc(doc(db, 'users', currentUserId));
+      } catch (firestoreError) {
+        console.error('Error deleting user Firestore data:', firestoreError);
+      }
+
+      // 2. Clear push token
+      try {
+        await clearUserPushTokenAsync(currentUserId);
+      } catch (error) {
+        console.error('Failed to clear push token on account deletion:', error);
+      }
+
+      // 3. Delete Firebase Auth user
+      if (currentUser) {
+        await deleteUser(currentUser);
+      }
+
+      // 4. Reset local state and storage
+      setUser(null);
+      setIsGuest(false);
+      await StorageManager.removeItem('isGuest');
+      await StorageManager.removeItem('user');
+
+      console.log('✅ Account and associated data deleted successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('Error deleting account:', error);
+      if (error.code === 'auth/requires-recent-login') {
+        return {
+          success: false,
+          error: 'Ta operacja wymaga ponownego zalogowania ze względów bezpieczeństwa. Zaloguj się ponownie i spróbuj jeszcze raz.',
+        };
+      }
+      return { success: false, error: error.message || 'Nie udało się usunąć konta.' };
+    }
+  };
+
   const updateUserName = (newName) => {
     setUser((prev) =>
       prev
@@ -238,6 +300,7 @@ export function AuthProvider({ children }) {
     signOut,
     continueAsGuest,
     updateUserName,
+    deleteAccount,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
