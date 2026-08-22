@@ -429,7 +429,7 @@ export default function Profile() {
       <ScrollView style={styles.profileShell} showsVerticalScrollIndicator={false}>
 
         <View style={[styles.headerSection, { backgroundColor: colors.navBackground }]}>
-          <View style={[styles.profileHeaderCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+          <View style={[styles.profileHeaderCard, { backgroundColor: colors.navBackground, borderColor: colors.border }]}>
             <TouchableOpacity
               style={styles.editButton}
               onPress={() => router.push('/(app)/editProfile')}

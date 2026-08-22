@@ -1,6 +1,6 @@
 import { invalidateScoreDataCache } from '../../../services/ScoreDataCache';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { addDoc, collection } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -197,6 +197,126 @@ export default function Results({
           }
         }
       }
+
+      // ✅ STEP 6.5: Update user document in 'users' collection with increment and leaderboards transaction
+      const userRef = doc(db, 'users', userId);
+      const userUpdatePayload = {
+        xp: increment(xpEarned),
+        totalXP: increment(xpEarned),
+        stats: newStats,
+      };
+      if (newAchievements.length > 0) {
+        userUpdatePayload.achievements = arrayUnion(...newAchievements);
+      }
+      await updateDoc(userRef, userUpdatePayload);
+
+      // ✅ STEP 6.6: Run transaction on 'leaderboards' for current month (YYYY-MM)
+      const now = new Date();
+      const docId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const leaderboardRef = doc(db, 'leaderboards', docId);
+
+      const rawSessionType = calc.sessionType || '';
+      const normalizedSessionType = String(rawSessionType).trim().toLowerCase();
+      const isPicking = normalizedSessionType === 'picking' || normalizedSessionType.includes('pick');
+      const selectedSubsection = String(calc.subsection || '').trim().toUpperCase();
+      const unitsToAdd = isPicking ? Number(calc.boxesCount || 0) : editedPalletsLoaded;
+      const timeToAdd = effectiveSessionTime;
+
+      console.log('🔍 [Leaderboards Transaction] Session Type:', rawSessionType, 'Normalized:', normalizedSessionType, 'IsPicking:', isPicking, 'Subsection:', selectedSubsection);
+
+      await runTransaction(db, async (transaction) => {
+        const lSnap = await transaction.get(leaderboardRef);
+        const data = lSnap.exists() ? lSnap.data() || {} : {};
+        const displayName = profile?.displayName || profile?.name || user?.name || user?.email || `Pracownik ${userId.slice(0, 6)}`;
+
+        if (isPicking) {
+          const pickingObj = data.picking && typeof data.picking === 'object' ? { ...data.picking } : {};
+          const subArray = Array.isArray(pickingObj[selectedSubsection]) ? [...pickingObj[selectedSubsection]] : [];
+
+          const existingIndex = subArray.findIndex((item) => item.userId === userId);
+
+          if (existingIndex >= 0) {
+            const entry = subArray[existingIndex];
+            entry.totalUnits = (Number(entry.totalUnits) || 0) + unitsToAdd;
+            entry.totalTime = (Number(entry.totalTime) || 0) + timeToAdd;
+            entry.sessionsCount = (Number(entry.sessionsCount) || 0) + 1;
+            entry.averageRate = entry.totalTime > 0 ? entry.totalUnits / (entry.totalTime / 3600) : 0;
+            entry.displayName = displayName;
+          } else {
+            const totalUnits = unitsToAdd;
+            const totalTime = timeToAdd;
+            const averageRate = totalTime > 0 ? totalUnits / (totalTime / 3600) : 0;
+            subArray.push({
+              userId,
+              displayName,
+              totalUnits,
+              totalTime,
+              sessionsCount: 1,
+              averageRate,
+            });
+          }
+
+          subArray.sort((a, b) => {
+            if (b.averageRate !== a.averageRate) {
+              return b.averageRate - a.averageRate;
+            }
+            if (b.totalUnits !== a.totalUnits) {
+              return b.totalUnits - a.totalUnits;
+            }
+            return (a.displayName || '').localeCompare(b.displayName || '', 'pl');
+          });
+
+          pickingObj[selectedSubsection] = subArray;
+
+          transaction.set(leaderboardRef, {
+            ...data,
+            picking: pickingObj,
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+
+        } else {
+          const truckArray = Array.isArray(data.truck) ? [...data.truck] : [];
+
+          const existingIndex = truckArray.findIndex((item) => item.userId === userId);
+
+          if (existingIndex >= 0) {
+            const entry = truckArray[existingIndex];
+            entry.totalUnits = (Number(entry.totalUnits) || 0) + unitsToAdd;
+            entry.totalTime = (Number(entry.totalTime) || 0) + timeToAdd;
+            entry.sessionsCount = (Number(entry.sessionsCount) || 0) + 1;
+            entry.averageRate = entry.totalTime > 0 ? entry.totalUnits / (entry.totalTime / 3600) : 0;
+            entry.displayName = displayName;
+          } else {
+            const totalUnits = unitsToAdd;
+            const totalTime = timeToAdd;
+            const averageRate = totalTime > 0 ? totalUnits / (totalTime / 3600) : 0;
+            truckArray.push({
+              userId,
+              displayName,
+              totalUnits,
+              totalTime,
+              sessionsCount: 1,
+              averageRate,
+            });
+          }
+
+          truckArray.sort((a, b) => {
+            if (b.averageRate !== a.averageRate) {
+              return b.averageRate - a.averageRate;
+            }
+            if (b.totalUnits !== a.totalUnits) {
+              return b.totalUnits - a.totalUnits;
+            }
+            return (a.displayName || '').localeCompare(b.displayName || '', 'pl');
+          });
+
+          transaction.set(leaderboardRef, {
+            ...data,
+            truck: truckArray,
+            updatedAt: new Date().toISOString(),
+          }, { merge: true });
+        }
+      });
 
       // ✅ STEP 7: Show results to user
       let message = `🎯 Sesja Ukończona!\n+${xpEarned} XP zdobytych`;

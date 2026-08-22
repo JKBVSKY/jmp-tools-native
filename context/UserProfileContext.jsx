@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { calculateLevelFromXP, calculateXPFromScore, checkAchievements } from '../constants/LevelSystem';
-import { collection, doc, getDoc, getDocs, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { PendingXPService } from '../services/PendingXPService';
 
@@ -104,71 +104,6 @@ export function UserProfileProvider({ children }) {
           level,
         };
         const schemaBackfill = {};
-        if (!hasValidXP) {
-          // Recover progress from saved sessions created before the profile fields existed.
-          const historySnapshot = await getDocs(collection(db, 'users', userId, 'scoreHistory'));
-          if (!historySnapshot.empty) {
-            let recoveredXP = 0;
-            const recoveredStats = { ...DEFAULT_STATS };
-
-            historySnapshot.forEach((sessionDoc) => {
-              const session = sessionDoc.data();
-              const score = Number(session.score ?? session.picking?.score);
-              const safeScore = Number.isFinite(score) ? score : 0;
-              const sessionXP = calculateXPFromScore(safeScore);
-              const sessionTime = Number(session.sessionTime ?? session.loadingTime) || 0;
-              const isPicking = session.sessionType === 'picking';
-              const boxes = Number(session.picking?.totalBoxes) || 0;
-              const orders = Number(session.picking?.totalOrders) || 0;
-              const pallets = Number(session.palletsLoaded) || 0;
-
-              recoveredXP += sessionXP;
-              recoveredStats.totalSessions += 1;
-              recoveredStats.totalTimeWorked += sessionTime / 3600;
-              recoveredStats.totalScore += safeScore;
-              recoveredStats.bestScore = Math.max(recoveredStats.bestScore, safeScore);
-              recoveredStats.palletsLoaded += pallets;
-              recoveredStats.perfectScores += safeScore === 10 ? 1 : 0;
-              recoveredStats.nightShiftsCompleted += session.nightShift ? 1 : 0;
-
-              if (isPicking) {
-                recoveredStats.pickingTotalSessions += 1;
-                recoveredStats.pickingTotalTimeWorked += sessionTime / 3600;
-                recoveredStats.pickingTotalBoxes += boxes;
-                recoveredStats.pickingTotalOrders += orders;
-                recoveredStats.pickingTotalScore += safeScore;
-                recoveredStats.pickingBestScore = Math.max(recoveredStats.pickingBestScore, safeScore);
-                recoveredStats.pickingBoxesInSession = boxes;
-              }
-            });
-
-            totalXP = recoveredXP;
-            level = calculateLevelFromXP(totalXP).level;
-            stats = recoveredStats;
-            achievements = checkAchievements(
-              { ...stats, level, totalXP },
-              0,
-              []
-            );
-            schemaBackfill.totalXP = totalXP;
-            schemaBackfill.level = level;
-            schemaBackfill.stats = stats;
-            schemaBackfill.achievements = achievements;
-            console.log('🔧 Recovered profile progress from scoreHistory:', {
-              totalXP,
-              level,
-              achievements: achievements.length,
-              sessions: stats.totalSessions,
-            });
-          } else {
-            console.warn('⚠️ Profile has no valid totalXP and no sessions to recover.');
-          }
-        }
-        // Recovery may have changed these values; reflect them in the profile returned to React.
-        hydratedProfile.totalXP = totalXP;
-        hydratedProfile.level = level;
-        hydratedProfile.stats = stats;
-        hydratedProfile.achievements = achievements;
 
         if (!Number.isFinite(parsedLevel) || parsedLevel < 1) {
           schemaBackfill.level = level;

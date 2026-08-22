@@ -12,11 +12,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  collection,
-  collectionGroup,
-  getDocs,
-  query,
-  where,
+  doc,
+  getDoc,
 } from 'firebase/firestore';
 import ThemedView from '../../components/ThemedView';
 import { useColors } from '../../hooks/useColors';
@@ -105,98 +102,27 @@ export default function Leaderboards() {
     try {
       setLoading(true);
 
-      const cacheKey = monthInfo.startIso + ':' + monthInfo.endIso;
-      let cachedData = !force ? await getLeaderboardCache(cacheKey) : null;
-      if (!cachedData) {
-        const [usersSnapshot, sessionsSnapshot] = await Promise.all([
-          getDocs(collection(db, 'users')),
-          getDocs(query(collectionGroup(db, 'scoreHistory'), where('date', '>=', monthInfo.startIso), where('date', '<', monthInfo.endIso))),
-        ]);
-        cachedData = {
-          users: usersSnapshot.docs.map((docSnapshot) => ({ id: docSnapshot.id, ...docSnapshot.data() })),
-          sessions: sessionsSnapshot.docs.map((sessionDoc) => ({ id: sessionDoc.id, userId: sessionDoc.ref.parent.parent?.id, ...sessionDoc.data() })),
-        };
-        await setLeaderboardCache(cacheKey, cachedData);
+      const now = new Date();
+      const docId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const cacheKey = 'leaderboard:' + docId;
+      let docData = !force ? await getLeaderboardCache(cacheKey) : null;
+      if (!docData) {
+        const docRef = doc(db, 'leaderboards', docId);
+        const docSnap = await getDoc(docRef);
+        docData = docSnap.exists() ? docSnap.data() || {} : {};
+        await setLeaderboardCache(cacheKey, docData);
       }
-      const usersMap = new Map(cachedData.users.map((userProfile) => [userProfile.id, userProfile]));
 
-      const grouped = new Map();
+      const truckArray = Array.isArray(docData.truck) ? docData.truck : [];
+      const pickingObj = docData.picking || {};
+      const pickingArray = Array.isArray(pickingObj[pickingSubsection]) ? pickingObj[pickingSubsection] : [];
 
-      cachedData.sessions.forEach((session) => {
-        const userId = session.userId;
+      const rawList = sectionType === 'truck' ? truckArray : pickingArray;
 
-        if (!userId || userId.startsWith('guest_')) {
-          return;
-        }
-
-        const current = grouped.get(userId) || {
-          userId,
-          totalUnits: 0,
-          totalTime: 0,
-          sessionsCount: 0,
-        };
-
-        if (sectionType === 'truck') {
-          if (session.sessionType === 'picking') {
-            return;
-          }
-
-          current.totalUnits += parseFloat(session.palletsLoaded) || 0;
-          current.totalTime += parseFloat(session.sessionTime ?? session.loadingTime) || 0;
-          current.sessionsCount += 1;
-          grouped.set(userId, current);
-          return;
-        }
-
-        if (session.sessionType !== 'picking') {
-          return;
-        }
-
-        const entries = Array.isArray(session.picking?.subsectionEntries)
-          ? session.picking.subsectionEntries
-          : [];
-        const subsectionEntry = entries.find((item) => item?.subsection === pickingSubsection);
-
-        if (!subsectionEntry) {
-          return;
-        }
-
-        current.totalUnits += parseFloat(subsectionEntry.boxesCount) || 0;
-        current.totalTime += parseFloat(subsectionEntry.sessionTime) || 0;
-        current.sessionsCount += 1;
-
-        grouped.set(userId, current);
-      });
-
-      const ranked = Array.from(grouped.values())
-        .map((entry) => {
-          const userProfile = usersMap.get(entry.userId) || {};
-          const averageRate = entry.totalTime > 0
-            ? entry.totalUnits / (entry.totalTime / 3600)
-            : 0;
-
-          return {
-            ...entry,
-            ...userProfile,
-            averageRate,
-          };
-        })
-        .filter((entry) => entry.averageRate > 0)
-        .sort((a, b) => {
-          if (b.averageRate !== a.averageRate) {
-            return b.averageRate - a.averageRate;
-          }
-
-          if (b.totalUnits !== a.totalUnits) {
-            return b.totalUnits - a.totalUnits;
-          }
-
-          return getDisplayName(a, user, profile).localeCompare(getDisplayName(b, user, profile), 'pl');
-        })
-        .map((entry, index) => ({
-          ...entry,
-          place: index + 1,
-        }));
+      const ranked = rawList.map((entry, index) => ({
+        ...entry,
+        place: index + 1,
+      }));
 
       setLeaderboard(ranked);
     } catch (error) {
@@ -206,7 +132,7 @@ export default function Leaderboards() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [monthInfo.endIso, monthInfo.startIso, pickingSubsection, profile, sectionType, user]);
+  }, [pickingSubsection, sectionType]);
 
   useFocusEffect(
     useCallback(() => {
