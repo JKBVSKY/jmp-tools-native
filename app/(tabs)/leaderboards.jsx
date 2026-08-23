@@ -384,7 +384,6 @@ const styles = StyleSheet.create({
     padding: 18,
     marginBottom: 18,
     marginHorizontal: 24,
-    borderWidth: 1,
     elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },

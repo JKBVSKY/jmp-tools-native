@@ -1,12 +1,13 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { CalculatorProvider } from '../context/CalculatorContext';
 import { ThemeProvider, useThemeContext } from '../context/ThemeContext';
-import { UserProfileProvider } from '../context/UserProfileContext';
+import { UserProfileProvider, useUserProfile } from '../context/UserProfileContext';
 import { useColors } from '../hooks/useColors';
 import CalculatorHeaderTitle from './calculator_content/shared/CalculatorHeaderTitle';
 import StartupLoadingScreen from '../components/StartupLoadingScreen';
@@ -20,6 +21,7 @@ import {
 // inside app/_layout.jsx
 function RootNavigator() {
   const { isLoading, user } = useAuth();
+  const { profile, isLoading: isProfileLoading } = useUserProfile();
   const { theme } = useThemeContext();
   const colors = useColors();
   const [isNotificationsReady, setIsNotificationsReady] = useState(false);
@@ -88,8 +90,12 @@ function RootNavigator() {
       });
   }, [user?.id, pushToken]);
 
-  if (!isNotificationsReady || isLoading) {
-    return <StartupLoadingScreen subtitle="Ładowanie aplikacji..." />;
+  if (!isNotificationsReady || isLoading || (user && isProfileLoading)) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
   }
 
   return (

@@ -188,6 +188,39 @@ export default function Profile() {
     };
   }, [userId]);
 
+  useEffect(() => {
+    const loadSessions = async () => {
+      if (!userId) {
+        setSessions([]);
+        setSessionsLoading(false);
+        return;
+      }
+
+      try {
+        setSessionsLoading(true);
+        const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
+        const q = query(sessionsRef, orderBy('date', 'desc'));
+        const snapshot = await getDocs(q);
+
+        const fetchedSessions = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }));
+
+        setSessions(fetchedSessions);
+      } catch (error) {
+        console.error('Failed to load profile sessions:', error);
+      } finally {
+        setSessionsLoading(false);
+      }
+    };
+
+    loadSessions();
+  }, [userId]);
+
+  const allTimeStats = useMemo(() => calculateAggregateStats(sessions), [sessions]);
+  const pickingAllTimeStats = useMemo(() => calculatePickingAggregateStats(sessions), [sessions]);
+
   const persistStatCards = async (nextCards) => {
     setStatCards(nextCards);
 
@@ -326,10 +359,10 @@ export default function Profile() {
   };
 
   // ✅ CALCULATE LEVEL PROGRESS CORRECTLY
-  const levelData = calculateLevelFromXP(profile.totalXP);
+  const levelData = calculateLevelFromXP(profile?.totalXP ?? 0);
 
   // Calculate XP needed for NEXT level
-  const xpForNextLevel = profile.level * 1000;
+  const xpForNextLevel = (profile?.level || 1) * 1000;
 
   // Calculate current XP in this level (how much we've earned towards next level)
   const xpInCurrentLevel = levelData.currentXP;
@@ -338,39 +371,6 @@ export default function Profile() {
   const levelProgress = (xpInCurrentLevel / xpForNextLevel) * 100;
   const remainingXP = xpForNextLevel - xpInCurrentLevel;
   const remainingPercent = 100 - levelProgress;
-
-  useEffect(() => {
-    const loadSessions = async () => {
-      if (!userId) {
-        setSessions([]);
-        setSessionsLoading(false);
-        return;
-      }
-
-      try {
-        setSessionsLoading(true);
-        const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
-        const q = query(sessionsRef, orderBy('date', 'desc'));
-        const snapshot = await getDocs(q);
-
-        const fetchedSessions = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        setSessions(fetchedSessions);
-      } catch (error) {
-        console.error('Failed to load profile sessions:', error);
-      } finally {
-        setSessionsLoading(false);
-      }
-    };
-
-    loadSessions();
-  }, [userId]);
-
-  const allTimeStats = useMemo(() => calculateAggregateStats(sessions), [sessions]);
-  const pickingAllTimeStats = useMemo(() => calculatePickingAggregateStats(sessions), [sessions]);
 
   // ✅ FORMAT TIME
   const formatTime = (seconds) => {
@@ -385,9 +385,9 @@ export default function Profile() {
   const pickingAvgScore = pickingAllTimeStats.averageScore.toFixed(1);
 
   const achievementStats = {
-    ...profile.stats,
-    level: profile.level,
-    totalXP: profile.totalXP,
+    ...(profile?.stats || {}),
+    level: profile?.level || 1,
+    totalXP: profile?.totalXP || 0,
   };
 
   const statValues = {
@@ -401,7 +401,7 @@ export default function Profile() {
     unlocked: isAchievementUnlocked(
       achievement.id,
       achievementStats,
-      profile.achievements || []
+      profile?.achievements || []
     ),
   }));
 
@@ -450,7 +450,7 @@ export default function Profile() {
                 </Text>
                 <View style={styles.profileSummaryRow}>
                   <View style={[styles.compactCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                    <Text style={[styles.compactCardTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
+                    <Text style={[styles.compactCardTitle, { color: colors.title }]}>Poziom {profile?.level || 1}</Text>
                   </View>
 
                   <View style={[styles.compactCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -467,7 +467,7 @@ export default function Profile() {
             <View style={[styles.featuredStatCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <Ionicons name="sparkles-outline" size={20} color={colors.iconColor} />
               <Text style={[styles.featuredStatLabel, { color: colors.textSecondary }]}>XP łącznie</Text>
-              <Text style={[styles.featuredStatValue, { color: colors.text }]}>{profile.totalXP}</Text>
+              <Text style={[styles.featuredStatValue, { color: colors.text }]}>{profile?.totalXP || 0}</Text>
             </View>
 
             {statCards.map((statKey, cardIndex) => {
@@ -730,20 +730,20 @@ export default function Profile() {
           achievement={selectedAchievement}
           onClose={() => setModalVisible(false)}
           userStats={{
-            ...profile.stats,
-            level: profile.level,
-            totalXP: profile.totalXP
+            ...(profile?.stats || {}),
+            level: profile?.level || 1,
+            totalXP: profile?.totalXP || 0
           }}
           isUnlocked={
             selectedAchievement
               ? isAchievementUnlocked(
                 selectedAchievement.id,
                 {
-                  ...profile.stats,
-                  level: profile.level,
-                  totalXP: profile.totalXP,
+                  ...(profile?.stats || {}),
+                  level: profile?.level || 1,
+                  totalXP: profile?.totalXP || 0,
                 },
-                profile.achievements || []
+                profile?.achievements || []
               )
               : false
           } />

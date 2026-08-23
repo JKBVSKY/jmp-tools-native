@@ -142,7 +142,7 @@ export default function CalculatorHeaderTitle() {
 
         {profile ? (
           <View style={[styles.levelPill, { backgroundColor: colors.inputBackground, borderColor: colors.border }]}>
-            <Text style={[styles.levelPillText, { color: colors.text }]}>Lv {profile.level}</Text>
+            <Text style={[styles.levelPillText, { color: colors.text }]}>Lv {profile?.level || 1}</Text>
           </View>
         ) : null}
       </View>

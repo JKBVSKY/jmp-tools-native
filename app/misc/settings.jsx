@@ -1,13 +1,14 @@
 // Settings.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
 import { useThemeContext } from '../../context/ThemeContext';
-import { doc, updateDoc, onSnapshot } from 'firebase/firestore';
+import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
+import { useUserProfile } from '../../context/UserProfileContext';
 import { db } from '../../firebase/config';
 import {
   registerForPushNotificationsAsync,
@@ -22,6 +23,7 @@ const Settings = () => {
     isGuest,
     deleteAccount,
   } = useAuth();
+  const { profile, isLoading: profileLoading, loadUserProfile } = useUserProfile();
   const colors = useColors();
   const { theme, toggleTheme } = useThemeContext();
   const router = useRouter();
@@ -31,57 +33,41 @@ const Settings = () => {
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [isSavingNotification, setIsSavingNotification] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [isDataReady, setIsDataReady] = useState(false);
 
   useEffect(() => {
-    if (!user?.id) {
-      setNotificationsEnabled(false);
-      setIsDataReady(true);
-      return;
+    if (profile?.notifications?.enabled !== undefined) {
+      setNotificationsEnabled(profile.notifications.enabled === true);
     }
+    if (profile?.preferences?.notificationLeadHours !== undefined && profile?.preferences?.notificationLeadHours !== null) {
+      setNotificationLeadHours(profile.preferences.notificationLeadHours);
+    }
+  }, [profile?.notifications?.enabled, profile?.preferences?.notificationLeadHours]);
 
-    const unsubscribe = onSnapshot(
-      doc(db, 'users', user.id),
-      (docSnap) => {
-        const userData = docSnap.exists() ? docSnap.data() : null;
-        const notificationSettings = userData?.notifications;
-        const enabled = notificationSettings?.enabled === true;
-        const prefsLeadHours = userData?.preferences?.notificationLeadHours;
-        const leadHours = prefsLeadHours !== undefined ? prefsLeadHours : 10;
-
-        setNotificationsEnabled(enabled);
-        setNotificationLeadHours(leadHours);
-        setIsDataReady(true);
-      },
-      (error) => {
-        console.error('Błąd nasłuchiwania ustawień powiadomień:', error);
-        setIsDataReady(true);
-      }
-    );
-
-    return () => {
-      unsubscribe();
-    };
-  }, [user?.id]);
+  const isDataReady = !authLoading && !profileLoading && (user || profile);
 
   const handleNotificationLeadChange = async (value) => {
     setNotificationLeadHours(value);
-    if (!user?.id) return;
+    const userId = user?.id || profile?.userId;
+    if (!userId) return;
     try {
       await updateDoc(
-        doc(db, 'users', user.id),
+        doc(db, 'users', userId),
         { 'preferences.notificationLeadHours': value }
       );
+      if (loadUserProfile) {
+        await loadUserProfile(userId);
+      }
     } catch (error) {
       console.error('Błąd zapisu lead hours:', error);
       Alert.alert('Błąd', 'Nie udało się zapisać ustawienia powiadomień.');
     }
   };
 
-  if (authLoading) {
+  if (authLoading || profileLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.text }}>
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.text} />
+        <Text style={{ color: colors.text, marginTop: 12 }}>
           Ładowanie ustawień...
         </Text>
       </View>
@@ -89,9 +75,8 @@ const Settings = () => {
   }
 
   const handleToggleNotifications = async () => {
-    console.log('Aktualny user:', user);
-
-    if (!user?.id) {
+    const userId = user?.id || profile?.userId;
+    if (!userId) {
       Alert.alert(
         'Logowanie wymagane',
         'Nie znaleziono aktywnej sesji użytkownika.'
@@ -104,37 +89,46 @@ const Settings = () => {
     setIsSavingNotification(true);
     setLoadingNotifications(true);
 
-    try {
-      if (!notificationsEnabled) {
-        const { token, error } =
-          await registerForPushNotificationsAsync();
+    const nextEnabledState = !notificationsEnabled;
+    setNotificationsEnabled(nextEnabledState);
 
-        if (!token) {
-          Alert.alert(
-            'Nie udało się włączyć powiadomień',
-            error || 'Brak tokena Expo Push.'
-          );
-          return;
+    try {
+      if (nextEnabledState) {
+        try {
+          const { token, error } = await registerForPushNotificationsAsync();
+          if (token) {
+            await saveUserPushTokenAsync(userId, token);
+          } else if (error) {
+            console.log('Push notification token warning:', error);
+          }
+        } catch (pushRegErr) {
+          console.log('Push notification registration skipped or failed in preview/simulator:', pushRegErr);
         }
 
-        await saveUserPushTokenAsync(user.id, token);
         await updateDoc(
-          doc(db, 'users', user.id),
+          doc(db, 'users', userId),
           { 'notifications.enabled': true }
         );
-        setNotificationsEnabled(true);
       } else {
-        await clearUserPushTokenAsync(user.id);
+        try {
+          await clearUserPushTokenAsync(userId);
+          await Notifications.cancelAllScheduledNotificationsAsync();
+        } catch (clearErr) {
+          console.log('Clear push notifications error:', clearErr);
+        }
+
         await updateDoc(
-          doc(db, 'users', user.id),
+          doc(db, 'users', userId),
           { 'notifications.enabled': false }
         );
-        await Notifications.cancelAllScheduledNotificationsAsync();
-        setNotificationsEnabled(false);
+      }
+
+      if (loadUserProfile) {
+        await loadUserProfile(userId);
       }
     } catch (error) {
       console.error('Błąd zmiany powiadomień:', error);
-
+      setNotificationsEnabled(!nextEnabledState);
       Alert.alert(
         'Błąd',
         error?.message || 'Nie udało się zmienić ustawień powiadomień.'
@@ -249,20 +243,24 @@ const Settings = () => {
         >
           Powiadomienia
         </Text>
-        <Switch
-          value={notificationsEnabled}
-          onValueChange={handleToggleNotifications}
-          disabled={authLoading || loadingNotifications || isGuest || isSavingNotification}
-          thumbColor={
-            notificationsEnabled
-              ? (colors.butBackground || colors.textRed)
-              : (colors.grayIconColor || colors.textSecondary)
-          }
-          trackColor={{
-            true: colors.butBackground || colors.selection,
-            false: colors.breakLine || colors.border,
-          }}
-        />
+        {!isDataReady ? (
+          <ActivityIndicator size="small" color={colors.text} />
+        ) : (
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={handleToggleNotifications}
+            disabled={!isDataReady || loadingNotifications || isGuest || isSavingNotification}
+            thumbColor={
+              notificationsEnabled
+                ? (colors.butBackground || colors.textRed)
+                : (colors.grayIconColor || colors.textSecondary)
+            }
+            trackColor={{
+              true: colors.butBackground || colors.selection,
+              false: colors.breakLine || colors.border,
+            }}
+          />
+        )}
           </View>
 
           {/* Czas powiadomienia o pracy */}

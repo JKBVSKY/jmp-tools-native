@@ -127,7 +127,6 @@ export async function clearUserPushTokenAsync(userId) {
     userRef,
     {
       'notifications.expoPushToken': null,
-      'notifications.enabled': false,
       'notifications.platform': Platform.OS,
       'notifications.updatedAt': new Date().toISOString(),
     }

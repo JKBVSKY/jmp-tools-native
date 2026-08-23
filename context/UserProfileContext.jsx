@@ -39,19 +39,23 @@ export function UserProfileProvider({ children }) {
 
   // Initialize or load user profile
   useEffect(() => {
-    if (user) {
-      console.log('📱 Loading profile for user:', user.id); // DEBUG LOG
+    let isMounted = true;
+    if (user?.id) {
+      console.log('📱 Loading profile for user:', user?.id); // DEBUG LOG
       setIsLoading(true);
-      loadUserProfile(user.id);
+      loadUserProfile(user?.id, () => isMounted);
     } else {
       loadRequestRef.current += 1;
       console.log('❌ No user logged in');
       setProfile(null);
       setIsLoading(false);
     }
-  }, [user]);
+    return () => {
+      isMounted = false;
+    };
+  }, [user?.id]);
 
-  const loadUserProfile = async (userId) => {
+  const loadUserProfile = async (userId, getIsMounted = () => true) => {
     const requestId = ++loadRequestRef.current;
 
     try {
@@ -60,6 +64,10 @@ export function UserProfileProvider({ children }) {
       // Fetch user profile from Firestore
       const userRef = doc(db, 'users', userId);
       const userSnap = await getDoc(userRef);
+
+      if (!getIsMounted() || requestId !== loadRequestRef.current) {
+        return;
+      }
 
       if (userSnap.exists()) {
         // User profile exists

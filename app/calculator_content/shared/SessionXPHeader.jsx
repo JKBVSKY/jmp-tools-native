@@ -45,7 +45,7 @@ export default function SessionXPHeader({
           >
             <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
               <View>
-                <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {profile.level}</Text>
+                <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {profile?.level || 1}</Text>
               </View>
               <View style={styles.progressContainer}>
                 <View
