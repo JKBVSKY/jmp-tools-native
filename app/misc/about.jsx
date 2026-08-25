@@ -9,11 +9,17 @@ const About = () => {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const appVersion = 
-  Constants.expoConfig?.version ?? 
-  Updates.manifest?.version ?? 
-  Application.nativeApplicationVersion ?? 
-  '0.11.0'; // Bezpieczny fallback na nową wersję
+  const appVersion =
+    Constants.expoConfig?.version ??
+    Updates.manifest?.version ??
+    Application.nativeApplicationVersion ??
+    '0.11.0'; // Bezpieczny fallback na nową wersję
+
+  const buildNumber =
+    Application.nativeBuildVersion ??
+    Constants.expoConfig?.android?.versionCode ??
+    Constants.expoConfig?.ios?.buildNumber ??
+    '';
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -40,7 +46,9 @@ const About = () => {
           <Text style={[styles.title, { color: colors.text }]}>JMP Tools</Text>
 
           <View style={[styles.versionPill, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}>
-            <Text style={[styles.versionText, { color: colors.textSecondary }]}>v{appVersion}</Text>
+            <Text style={[styles.versionText, { color: colors.textSecondary }]}>
+              {`v${appVersion} (build ${buildNumber})`}
+            </Text>
           </View>
         </View>
 
