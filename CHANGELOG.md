@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - Picking Subsection Engine and Workflow Upgrade - 2026-08-25
+
+### Added
+- New picking architecture based on shared session engine + thin domain logic.
+- Added a new state-aware calculator header title that robustly reflects the current calculator state in real time, giving users clear context during the entire session flow.
+- Added notifications system.
+- Added statuses and attribution to reported items.
+- Added tab filtering for pallet finder.
+- Added simple mode for score simulating component.
+- Added a schedule component, introducing the OCR scanner feature that scans and turns the values from the scan into the table.
+- Added interactive warehouse map with pan, pinch-to-zoom, double-tap zoom, inertial scrolling, and zone focus animation.
+- Added Mapping screen to create, edit, and filter pallet location records, with “Show on map” navigation to the warehouse map.
+- Added timetable component.
+- Added settings screen component.
+- Moved active session statistics to the navigation section for better space management.
+
+### Changed
+- Optimized the app! See below for details.
+- Moved the XP progress bar into the new calculator header so progression feedback stays consistently visible and aligned with the current session state.
+- Polished and reorganized hooks across the calculator flow by separating responsibilities, extracting shared logic, and improving module structure for better maintainability and scalability.
+- SDK updated to 54.
+
+### Optimized
+- **Firestore Architecture:** Migrated the global leaderboards system from high-cost client-side aggregation (`collectionGroup` queries) to a highly efficient "Single-Document per Month" model (`leaderboards/YYYY-MM`). Reduced Firestore read queries by 99.9%.
+- **Ranking Engine:** Moved leaderboard sorting and updates to server-side atomic operations using Firestore `runTransaction` inside `Results.jsx` and `PickingResults.jsx` for both truck loading and picking subsections (P01-P28).
+- **User Progression:** Refactored XP, total XP, and achievements tracking. Eliminated historical session log parsing on app launch; player stats are now incremented directly in the user profile document using `FieldValue.increment`.
+
+## [Notification Module & Settings Synchronization Overhaul]
+
+### Enhancements (UX/UI):
+* **Switch Debouncing:** Introduced a temporary loading/disabled state (`isSavingNotification`) that locks the notification toggle during active database writes. This ensures perfectly smooth switch animations and prevents network congestion from rapid multi-clicking.
+* **Hidden Developer Test Mode:** Added a hidden developer testing feature bound to the month title (marked with a 🧪 emoji). It allows immediate confirmation of exact scheduled push notification trigger times without having to wait for a real shift.
+
+### Fixed
+* **Settings Desynchronization:** Removed conflicting local `AsyncStorage` logic from the timetable component, establishing `Firestore` as the absolute single source of truth. The notification toggle and time preference now properly persist when re-entering the screen.
+* **Native Crash Elimination:** Implemented strict type formatting and fallbacks (`parseInt`) before passing the calculated fire time to `Expo Notifications`. This completely prevents application-to-desktop native crashes caused by invalid date objects or `NaN` values.
+* **Navigation Race Conditions:** Secured asynchronous `useEffect` database calls with component unmount cleanup flags (`active`/`cancelled`). Rapidly navigating back and forth between screens no longer triggers background crashes.
+- **Profile Auto-Login:** Fixed a critical bug where user profiles (XP, levels, and stats) would reset to Level 1 on application startup. Ensure profile data is fetched completely during the auto-login state.
+- **Data Persistence:** Fixed data overwriting by replacing destructive `setDoc` calls with safe `updateDoc` updates during push token synchronization, protecting user achievements and metrics from being wiped out.
+- **Nested Fields:** Fixed malformed Firestore document keys by properly normalizing nested update paths instead of injecting raw dotted-string fields into the user document.
+- **App Stability:** Resolved critical navigation crashes (Race Conditions) caused by switching screens (e.g., to `more.jsx`, `Profile.jsx`, or `leaderboards.jsx`) before the Firestore user profile fetch was fully completed.
+- **Global Loading Guard:** Implemented a global application layout guard in `app/_layout.jsx` that blocks the navigation tree and displays a centered `<ActivityIndicator />` until the user profile `isLoading` flag turns false.
+- **State Cleanup:** Upgraded `context/UserProfileContext.jsx` with an `isMounted` flag and `requestId` tracking to cancel background Firestore async calls on unmounted components.
+- **Fail-Safe UI Rendering:** Secured all user-dependent data nodes across key dashboard widgets, score history, and leaderboards using optional chaining (`user?.id`, `profile?.level`).
+
+### Other fixes
+- Fixed a React list key warning in the active truck list by assigning the key to the top-level rendered truck item, preventing unstable list re-renders when adding the first transport during a session.
+- Fixed keyboard avoidance in the new/edit transport modals so the modal stays visible above the on-screen .keyboard and its content scrolls correctly while typing.
+- Fixed app crashing during truck loading session.
+- Fixed a bug causing invalid level data being saved to firestore.
+- Fixed several minor bugs.
+
 ## [0.10.0] - 2026-07-07
 
 ### Added
@@ -81,9 +133,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Leaderboard feature showing users, rank positions, and pallets/hour score.
 
 ### Fixed
-- (in progress) Achievements behavior tracked as known issue for 0.6.1/0.6.2.
-- (in progress) `Init.jsx` needs logic improvements (target 0.6.1).
-- (in progress) XP caching issue still exists, planned fix in 0.6.1.
+- Achievements behavior tracked as known issue for 0.6.1/0.6.2.
+- `Init.jsx` needs logic improvements (target 0.6.1).
+- XP caching issue still exists, planned fix in 0.6.1.
 
 ### Changed
 - The old side navigation bar got removed and replaced with the new bottom bar navigation.
@@ -177,13 +229,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - XP rewards system with animated notification
 - Robust XP reward system with online and offline caching
 - Profiles, level system, and achievements system
-- ...and more!
 
 ### Fixed
 - Corrected master_loader level progress and speed_hunter per-session tracking
 - Resolved dependency issues and removed invalid edgeToEdgeEnabled property
 - Fixed dependency issues and stabilized app on Expo SDK 51
-- ...and more!
 
 ### Technical
 - Initial project setup with Expo SDK 51

@@ -1,5 +1,5 @@
 # JMP-Tools-Native - Warehouse Performance Tracker
-![version](https://img.shields.io/badge/version-0.10.0-blue)
+![version](https://img.shields.io/badge/version-0.11.0-blue)
 
 A mobile app designed to help warehouse workers track, analyze, and improve their daily performance.
 
@@ -9,91 +9,99 @@ It also includes helpful tools for common warehouse tasks, a gamified motivation
 
 The app uses Firebase for authentication and Firestore for storing user sessions and statistics.
 
+Version 0.11.0 introduces a new picking architecture, a notification system, an interactive warehouse map with pallet mapping, and a smarter schedule workflow powered by OCR.
+
 ## Features
 
 - 📊 Track and save daily work sessions
 - 📈 Analyze performance (daily / monthly / overall)
-- 📈 Fully functional statistics dashboard with detailed performance insights
-- 🏆 Leaderboards for comparing results
-- 📝 Reporting flow and report management
-- 🔎 Detailed active session modal with richer information
-- 🎨 Improved user interface
+- 📈 Statistics dashboard with detailed performance insights
+- 🏆 Global and monthly leaderboards for comparing results (optimized Firestore usage)
 - 🧮 Built-in calculation tools for warehouse tasks
-- 🏅 Level and achievement system for motivation
+- 🚚 Unified session engine for truck loading and picking subsections (P01–P28)
+- 🧠 State-aware calculator header with live context and XP progress bar integration
+- 🏅 Level and achievement system for motivation with optimized XP and stats updates
 - 💾 Session history tracking
+- 📝 Reporting flow and report management with statuses and attribution for reported items
+- 🔔 Notification module with debounced settings and Firestore-based persistence
+- 🗺️ Interactive warehouse map with pan, pinch-to-zoom, inertial scrolling, and zone focus animation
+- 📍 Mapping screen to create, edit, and filter pallet locations, plus “Show on map” navigation
+- 📅 Timetable / schedule component with OCR scanner that turns scans into usable table values
+- ⚙️ Settings screen synchronized with Firestore as the single source of truth
 - 📱 Mobile-first interface
 
 
 ## Tech Stack
 
-Frontend
+**Frontend**
+
 - React Native
 - Expo
 - JavaScript
 
-Backend / Services
+**Backend / Services**
+
 - Firebase
 - Firestore
 - Firebase Authentication
 
-Other Tools
-- AsyncStorage
+**Other Tools**
+
 - Expo Router
+- AsyncStorage
+- Expo Notifications (for scheduled and shift-related notifications)
 
 ## Screenshots
 
 <p align="left">
-  <img src="screenshots/mockup.png" width="500"/>
+  <img src="assets/screenshots/mockup.png" width="500"/>
 </p>
 
-### Dashboard
+<!-- ### Leaderboards
 <p align="left">
-  <img src="screenshots/dashboard.png" width="250"/>
-</p>
-
-### Leaderboards
-<p align="left">
-  <img src="screenshots/leaderboards.png" width="250"/>
-</p>
+  <img src="assets/screenshots/leaderboards.png" width="250"/>
+</p> -->
 
 ### Statistics
 <p align="left">
-  <img src="screenshots/statistics.png" width="250"/>
+  <img src="assets/screenshots/statistics_1.png" width="250"/>
+  <img src="assets/screenshots/statistics_2.png" width="250"/>
 </p>
 
-### Session tracker (truck loading section)
+<!-- ### Tools
 <p align="left">
-  <img src="screenshots/session.png" width="250"/>
-</p>
-
-### Tools
-<p align="left">
-  <img src="screenshots/tools.png" width="250"/>
-</p>
+  <img src="assets/screenshots/tools.png" width="250"/>
+</p> -->
 
 ### Profile
 <p align="left">
-  <img src="screenshots/profile.png" width="250"/>
+  <img src="assets/screenshots/profile.png" width="250"/>
 </p>
+
+## Performance and Stability
+
+0.11.0 includes a major optimization and stability pass focused on Firestore usage, navigation safety, and profile integrity.[file:1]
+
+- 🔁 Leaderboards migrated from heavy `collectionGroup` aggregation to a single-document-per-month model (`leaderboards/YYYY-MM`), reducing Firestore reads by orders of magnitude.
+- 🧮 Leaderboard updates and ranking logic moved to Firestore transactions for both loading and picking results.
+- ⚡ XP, total XP, and achievements now update incrementally in the user profile document without parsing historical sessions on startup.
+- 🛡️ Profile data, nested fields, and push token synchronization hardened against overwrites and malformed paths.
+- 🚀 Global loading guard and improved cleanup logic prevent race-condition crashes when navigating between profile, dashboard, and leaderboards.
 
 ## Project Status
 
 🚧 The project is currently under active development.
 
-Current version: **0.10.0**
+Current version: **0.11.0**
 
-The latest update added a richer active session experience, a reporting flow, and report management tools to make day-to-day warehouse tracking more complete.
+The latest update delivers the new picking subsection engine, a notification and timetable workflow, interactive warehouse mapping with pallet locations, and a broad set of performance and stability optimizations to make daily warehouse tracking smoother and more reliable.
 
 ## Roadmap
-
-### Next planned feature
-- Calculator for picking section
 
 ### Future plans
 - English version of the app
 - Web version of the app for office workers
-- Add pallet locations and find them more easily in the app- Report truck damages for truck loaders
-- Exportable performance reports
+- Exportable docs for office workers
 
 ## Acknowledgements
 * Visual assets generated via [Device Frames](https://deviceframes.com/)

@@ -9,7 +9,11 @@ const About = () => {
   const colors = useColors();
   const insets = useSafeAreaInsets();
 
-  const appVersion = Application.nativeApplicationVersion ?? Constants.expoConfig?.version ?? '0.0.0';
+  const appVersion = 
+  Constants.expoConfig?.version ?? 
+  Updates.manifest?.version ?? 
+  Application.nativeApplicationVersion ?? 
+  '0.11.0'; // Bezpieczny fallback na nową wersję
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
