@@ -2,7 +2,7 @@
   "expo": {
     "name": "JMP-Tools-Native",
     "slug": "jmp-tools-native",
-    "version": "0.10.0",
+    "version": "0.11.0",
     "orientation": "portrait",
     "scheme": "jmp-tools-native",
     "userInterfaceStyle": "automatic",

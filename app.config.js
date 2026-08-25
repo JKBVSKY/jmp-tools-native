@@ -1,7 +1,23 @@
+const { execSync } = require('child_process');
+
+// Funkcja pobierająca liczbę commitów z historii Gita
+function getGitCommitCount() {
+  try {
+    const stdout = execSync('git rev-list --count HEAD');
+    const commitCount = parseInt(stdout.toString().trim(), 10);
+    return isNaN(commitCount) || commitCount === 0 ? 1 : commitCount;
+  } catch (error) {
+    console.warn("⚠️ Nie udało się pobrać liczby commitów z Gita, używam domyślnej wartości 1.");
+    return 1;
+  }
+}
+
 module.exports = ({ config }) => {
   const variant = process.env.APP_VARIANT || "production";
   const isDevelopment = variant === "development";
 
+  // Pobieramy unikalny numer buildu na podstawie historii Gita
+  const buildNumber = getGitCommitCount();
   const appName = isDevelopment ? "JMP-Tools-Native Dev" : config.name;
 
   const appScheme = isDevelopment
@@ -26,7 +42,7 @@ module.exports = ({ config }) => {
 
   return {
     ...config,
-
+    version: "0.11.0",
     name: appName,
     scheme: appScheme,
     icon: appIcon,
@@ -34,16 +50,18 @@ module.exports = ({ config }) => {
     ios: {
       ...config.ios,
       bundleIdentifier: iosBundleIdentifier,
+      buildNumber: String(buildNumber), // Wymagany String dla iOS
     },
 
     android: {
       ...config.android,
       package: androidPackage,
+      versionCode: buildNumber, // Wymagany Integer dla Androida
       googleServicesFile: isDevelopment
         ? "./google-services-dev.json"
         : "./google-services.json",
     },
-    
+
     plugins: [
       "expo-router",
 
