@@ -386,6 +386,7 @@ export default function Profile() {
 
   const achievementStats = {
     ...(profile?.stats || {}),
+    totalPallets: allTimeStats.totalPallets,
     level: profile?.level || 1,
     totalXP: profile?.totalXP || 0,
   };
@@ -731,6 +732,7 @@ export default function Profile() {
           onClose={() => setModalVisible(false)}
           userStats={{
             ...(profile?.stats || {}),
+            totalPallets: allTimeStats.totalPallets,
             level: profile?.level || 1,
             totalXP: profile?.totalXP || 0
           }}
@@ -740,6 +742,7 @@ export default function Profile() {
                 selectedAchievement.id,
                 {
                   ...(profile?.stats || {}),
+                  totalPallets: allTimeStats.totalPallets,
                   level: profile?.level || 1,
                   totalXP: profile?.totalXP || 0,
                 },

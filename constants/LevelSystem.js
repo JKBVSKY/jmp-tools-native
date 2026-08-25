@@ -204,15 +204,20 @@ const getAchievementStats = (userStats = {}) => {
   const totalScore = userStats.totalScore || 0;
   const averageScore = totalSessions > 0 ? totalScore / totalSessions : 0;
 
+  const totalPallets = userStats.totalPallets !== undefined
+    ? Number(userStats.totalPallets)
+    : (userStats.palletsLoaded !== undefined ? Number(userStats.palletsLoaded) : 0);
+
   return {
     totalSessions,
     totalScore,
     averageScore,
     palletsLoadedInSession: userStats.palletsLoadedInSession || 0,
     nightShiftsCompleted: userStats.nightShiftsCompleted || 0,
-    level: userStats.level || 0,
+    level: userStats.level || 1,
     perfectScores: userStats.perfectScores || 0,
-    palletsLoaded: userStats.palletsLoaded || 0,
+    totalPallets,
+    palletsLoaded: totalPallets,
     pickingTotalBoxes: userStats.pickingTotalBoxes || 0,
     totalTimeWorked: userStats.totalTimeWorked || 0,
   };
@@ -235,17 +240,17 @@ export const meetsAchievementRequirement = (achievementId, userStats = {}) => {
     case ACHIEVEMENTS.PERFECTIONIST.id:
       return stats.perfectScores >= 5;
     case ACHIEVEMENTS.PALLETS_1.id:
-      return stats.palletsLoaded >= 1000;
+      return stats.totalPallets >= 1000;
     case ACHIEVEMENTS.PALLETS_2.id:
-      return stats.palletsLoaded >= 5000;
+      return stats.totalPallets >= 5000;
     case ACHIEVEMENTS.PALLETS_3.id:
-      return stats.palletsLoaded >= 10000;
+      return stats.totalPallets >= 10000;
     case ACHIEVEMENTS.PALLETS_4.id:
-      return stats.palletsLoaded >= 25000;
+      return stats.totalPallets >= 25000;
     case ACHIEVEMENTS.PALLETS_5.id:
-      return stats.palletsLoaded >= 50000;
+      return stats.totalPallets >= 50000;
     case ACHIEVEMENTS.PALLETS_6.id:
-      return stats.palletsLoaded >= 100000;
+      return stats.totalPallets >= 100000;
     case ACHIEVEMENTS.PICKING_BOXES_1.id:
       return stats.pickingTotalBoxes >= 2000;
     case ACHIEVEMENTS.PICKING_BOXES_2.id:
@@ -342,50 +347,50 @@ export const getAchievementProgress = (achievementId, userStats = {}, alreadyUnl
 
     case ACHIEVEMENTS.PALLETS_1.id:
       return {
-        current: stats.palletsLoaded,
+        current: stats.totalPallets,
         total: 1000,
-        percent: Math.min((stats.palletsLoaded / 1000) * 100, 100),
-        label: `${stats.palletsLoaded} / 1000 palet`,
+        percent: Math.min((stats.totalPallets / 1000) * 100, 100),
+        label: `${stats.totalPallets} / 1000 palet`,
       };
 
     case ACHIEVEMENTS.PALLETS_2.id:
       return {
-        current: stats.palletsLoaded,
+        current: stats.totalPallets,
         total: 5000,
-        percent: Math.min((stats.palletsLoaded / 5000) * 100, 100),
-        label: `${stats.palletsLoaded} / 5000 palet`,
+        percent: Math.min((stats.totalPallets / 5000) * 100, 100),
+        label: `${stats.totalPallets} / 5000 palet`,
       };
 
     case ACHIEVEMENTS.PALLETS_3.id:
       return {
-        current: stats.palletsLoaded,
+        current: stats.totalPallets,
         total: 10000,
-        percent: Math.min((stats.palletsLoaded / 10000) * 100, 100),
-        label: `${stats.palletsLoaded} / 10000 palet`,
+        percent: Math.min((stats.totalPallets / 10000) * 100, 100),
+        label: `${stats.totalPallets} / 10000 palet`,
       };
 
     case ACHIEVEMENTS.PALLETS_4.id:
       return {
-        current: stats.palletsLoaded,
+        current: stats.totalPallets,
         total: 25000,
-        percent: Math.min((stats.palletsLoaded / 25000) * 100, 100),
-        label: `${stats.palletsLoaded} / 25000 palet`,
+        percent: Math.min((stats.totalPallets / 25000) * 100, 100),
+        label: `${stats.totalPallets} / 25000 palet`,
       };
 
     case ACHIEVEMENTS.PALLETS_5.id:
       return {
-        current: stats.palletsLoaded,
+        current: stats.totalPallets,
         total: 50000,
-        percent: Math.min((stats.palletsLoaded / 50000) * 100, 100),
-        label: `${stats.palletsLoaded} / 50000 palet`,
+        percent: Math.min((stats.totalPallets / 50000) * 100, 100),
+        label: `${stats.totalPallets} / 50000 palet`,
       };
 
     case ACHIEVEMENTS.PALLETS_6.id:
       return {
-        current: stats.palletsLoaded,
+        current: stats.totalPallets,
         total: 100000,
-        percent: Math.min((stats.palletsLoaded / 100000) * 100, 100),
-        label: `${stats.palletsLoaded} / 100000 palet`,
+        percent: Math.min((stats.totalPallets / 100000) * 100, 100),
+        label: `${stats.totalPallets} / 100000 palet`,
       };
 
     case ACHIEVEMENTS.PICKING_BOXES_1.id:

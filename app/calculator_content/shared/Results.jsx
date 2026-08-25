@@ -1,6 +1,6 @@
 import { invalidateScoreDataCache } from '../../../services/ScoreDataCache';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
-import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc, getDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc, getDoc, getDocs } from 'firebase/firestore';
 import { useEffect, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import Animated from 'react-native-reanimated';
@@ -148,6 +148,13 @@ export default function Results({
       await addDoc(sessionsRef, sessionData);
       await invalidateScoreDataCache(userId);
 
+      const querySnapshot = await getDocs(sessionsRef);
+      let cumulativeTotalPallets = 0;
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        cumulativeTotalPallets += Number(data.palletsLoaded || 0);
+      });
+
       // ✅ STEP 2: Award session completion bonus
       const xpEarned = calculateXPFromScore(sessionScore);
       const xpResult = await awardXP(xpEarned);
@@ -162,7 +169,8 @@ export default function Results({
       const newStats = {
         totalSessions: (currentStats.totalSessions || 0) + 1,
         totalTimeWorked: (currentStats.totalTimeWorked || 0) + (effectiveSessionTime / 3600),
-        palletsLoaded: (currentStats.palletsLoaded || 0) + editedPalletsLoaded,
+        totalPallets: cumulativeTotalPallets,
+        palletsLoaded: cumulativeTotalPallets,
         totalScore: (currentStats.totalScore || 0) + sessionScore,
         bestScore: Math.max(currentStats.bestScore || 0, sessionScore),
         palletsLoadedInSession: editedPalletsLoaded,
@@ -332,7 +340,7 @@ export default function Results({
           .map(id => Object.values(ACHIEVEMENTS).find(a => a.id === id)?.name)
           .filter(Boolean)
           .join(', ');
-        message += `\n🏆 Osiągnięcie${newAchievements.length > 1 ? 's' : ''} odblokowane: ${achievementNames}`;
+        message += `\n🏆 Osiągnięci${newAchievements.length = 1 ? 'e' : ''}${newAchievements.length > 1 ? 'a' : ''} odblokowane: ${achievementNames}`;
       }
 
       if (xpResult.leveledUp) {
