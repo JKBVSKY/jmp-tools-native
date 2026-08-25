@@ -1,5 +1,5 @@
 import { invalidateScoreDataCache } from '../../../services/ScoreDataCache';
-import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc, getDoc } from 'firebase/firestore';
+import { addDoc, collection, doc, runTransaction, increment, arrayUnion, updateDoc, getDoc, getDocs } from 'firebase/firestore';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -205,6 +205,13 @@ export default function PickingResults({
       await addDoc(sessionsRef, sessionPayload);
       await invalidateScoreDataCache(userId);
 
+      const querySnapshot = await getDocs(sessionsRef);
+      let cumulativeTotalBoxes = 0;
+      querySnapshot.forEach((docSnap) => {
+        const data = docSnap.data();
+        cumulativeTotalBoxes += Number(data.picking?.totalBoxes || data.boxesCount || 0);
+      });
+
       const xpEarned = calculateXPFromScore(sessionScore);
       const xpResult = await awardXP(xpEarned);
 
@@ -223,7 +230,7 @@ export default function PickingResults({
         nightShiftsCompleted: (currentStats.nightShiftsCompleted || 0) + (wasNightShift ? 1 : 0),
         pickingTotalSessions: (currentStats.pickingTotalSessions || 0) + 1,
         pickingTotalTimeWorked: (currentStats.pickingTotalTimeWorked || 0) + (effectiveSessionTime / 3600),
-        pickingTotalBoxes: (currentStats.pickingTotalBoxes || 0) + totals.boxes,
+        pickingTotalBoxes: cumulativeTotalBoxes,
         pickingTotalOrders: (currentStats.pickingTotalOrders || 0) + totals.orders,
         pickingBestRate: Math.max(currentStats.pickingBestRate || 0, boxesRate),
         pickingTotalScore: (currentStats.pickingTotalScore || 0) + sessionScore,

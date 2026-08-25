@@ -387,6 +387,7 @@ export default function Profile() {
   const achievementStats = {
     ...(profile?.stats || {}),
     totalPallets: allTimeStats.totalPallets,
+    pickingTotalBoxes: pickingAllTimeStats.totalBoxes,
     level: profile?.level || 1,
     totalXP: profile?.totalXP || 0,
   };
@@ -733,6 +734,7 @@ export default function Profile() {
           userStats={{
             ...(profile?.stats || {}),
             totalPallets: allTimeStats.totalPallets,
+            pickingTotalBoxes: pickingAllTimeStats.totalBoxes,
             level: profile?.level || 1,
             totalXP: profile?.totalXP || 0
           }}
@@ -743,6 +745,7 @@ export default function Profile() {
                 {
                   ...(profile?.stats || {}),
                   totalPallets: allTimeStats.totalPallets,
+                  pickingTotalBoxes: pickingAllTimeStats.totalBoxes,
                   level: profile?.level || 1,
                   totalXP: profile?.totalXP || 0,
                 },
