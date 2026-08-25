@@ -450,7 +450,7 @@ export default function PickingResults({
         </View>
       </ScrollView>
 
-      <View style={[styles.footer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}> 
+      <View style={[styles.footer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}> 
         <TouchableOpacity style={[styles.button, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]} onPress={handleDiscard}>
           <Ionicons name="close-circle-outline" size={20} color={colors.outButText} />
           <Text style={[styles.buttonText, { color: colors.outButText }]}>Odrzuć</Text>

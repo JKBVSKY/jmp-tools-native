@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
@@ -278,6 +279,7 @@ const getLocalScheduleKey = (userId) => {
 export default function ScheduleScreen() {
   const colors = useColors();
   const { user, isGuest } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const [items, setItems] = useState([]);
   const [searchText, setSearchText] = useState('');
@@ -863,7 +865,7 @@ export default function ScheduleScreen() {
               keyExtractor={(item) => item.id}
               renderItem={renderRow}
               style={styles.tableList}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + 20 }]}
               ListEmptyComponent={
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Brak zapisanych lokalnie pozycji.</Text>
               }

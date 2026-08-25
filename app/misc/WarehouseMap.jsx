@@ -21,6 +21,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import WarehouseMapSvg from '../../assets/maps/warehouse-map-light.svg';
 import { useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ZONES = {
     'Biuro': {
@@ -72,6 +73,7 @@ const clamp = (value, min, max) => {
 
 export default function WarehouseMap() {
     const { focusZoneName } = useLocalSearchParams();
+    const insets = useSafeAreaInsets();
 
     const [viewport, setViewport] = useState({
         width: 0,
@@ -523,7 +525,7 @@ export default function WarehouseMap() {
                     )}
                 </View>
 
-                <View style={styles.controls}>
+                <View style={[styles.controls, { bottom: Math.max(insets.bottom, 16) + 12 }]}>
                     <Pressable
                         style={styles.controlButton}
                         onPress={() => zoomBy(1.35)}

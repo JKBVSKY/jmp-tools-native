@@ -177,7 +177,7 @@ export default function Init({
       </ScrollView>
 
       {/* Buttons */}
-      <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}>
+      <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
         <TouchableOpacity
           style={[styles.startButton, { backgroundColor: colors.butBackground, opacity: (forcedFinishTime && isPickingStartAllowed) ? 1 : 0.5 }]}
           onPress={handleStart}

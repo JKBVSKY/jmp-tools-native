@@ -23,7 +23,7 @@ export default function SessionActionBar({
           {
             backgroundColor: colors.navBackground,
             borderTopColor: colors.border,
-            paddingBottom: Math.max(bottomInset, 12),
+            paddingBottom: Math.max(bottomInset, 20),
           },
         ]}
       >

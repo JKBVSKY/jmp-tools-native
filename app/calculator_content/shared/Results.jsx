@@ -592,7 +592,7 @@ export default function Results({
           </ScrollView> */}
         </ScrollView>
         {/* Action Buttons */}
-        <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: insets.bottom }]}>
+        <View style={[styles.buttonsContainer, { backgroundColor: colors.navBackground, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, 20) }]}>
           <Pressable
             style={[
               styles.button,
