@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { calculateLevelFromXP, calculateXPFromScore, checkAchievements } from '../constants/LevelSystem';
-import { doc, getDoc, runTransaction, setDoc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { PendingXPService } from '../services/PendingXPService';
 
@@ -41,9 +41,24 @@ export function UserProfileProvider({ children }) {
   useEffect(() => {
     let isMounted = true;
     if (user?.id) {
-      console.log('📱 Loading profile for user:', user?.id); // DEBUG LOG
-      setIsLoading(true);
-      loadUserProfile(user?.id, () => isMounted);
+      if (user?.isGuest) {
+        console.log('👤 Guest user, initializing local guest profile');
+        setProfile({
+          userId: user.id,
+          displayName: user.name || 'Gość',
+          name: user.name || 'Gość',
+          email: user.email || '',
+          level: 1,
+          totalXP: 0,
+          achievements: [],
+          stats: DEFAULT_STATS,
+        });
+        setIsLoading(false);
+      } else {
+        console.log('📱 Loading profile for user:', user?.id); // DEBUG LOG
+        setIsLoading(true);
+        loadUserProfile(user?.id, () => isMounted);
+      }
     } else {
       loadRequestRef.current += 1;
       console.log('❌ No user logged in');
@@ -53,7 +68,7 @@ export function UserProfileProvider({ children }) {
     return () => {
       isMounted = false;
     };
-  }, [user?.id]);
+  }, [user?.id, user?.isGuest]);
 
   const loadUserProfile = async (userId, getIsMounted = () => true) => {
     const requestId = ++loadRequestRef.current;
@@ -132,34 +147,9 @@ export function UserProfileProvider({ children }) {
           setError(null);
         }
       } else {
-        // First time user - create profile
-        console.log('🆕 First time user, creating profile...');
-        const newProfile = {
-          userId,
-          displayName: user?.name || '',
-          name: user?.name || '',
-          email: user?.email || '',
-          level: 1,
-          totalXP: 0,
-          achievements: [],
-          stats: {
-            totalTimeWorked: 0,
-            palletsLoaded: 0,
-            palletsLoadedInSession: 0,
-            totalSessions: 0,
-            bestScore: 0,
-            totalScore: 0,
-          },
-          lastPalletsUpdateDate: new Date().toDateString(),
-          createdAt: new Date().toISOString(),
-        };
-
-        await setDoc(userRef, newProfile);
-        console.log('✅ Profile created:', newProfile);
-        if (requestId === loadRequestRef.current) {
-          setProfile(newProfile);
-          setError(null);
-        }
+        // HARD LOCK: Profile creation is forbidden during login/reload flow. Throw error if missing!
+        console.error('❌ User profile document does not exist in Firestore for userId:', userId);
+        throw new Error('Profil użytkownika nie istnieje w bazie danych. Zaloguj się ponownie lub zarejestruj.');
       }
     } catch (error) {
       console.error('❌ Error loading profile:', error);

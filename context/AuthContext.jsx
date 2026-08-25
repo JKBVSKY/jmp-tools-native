@@ -14,7 +14,7 @@ import {
   deleteUser,
 } from 'firebase/auth';
 import ReactNativeAsyncStorage from '@react-native-async-storage/async-storage';
-import { getFirestore, doc, deleteDoc, collection, getDocs, writeBatch } from 'firebase/firestore';
+import { getFirestore, doc, deleteDoc, collection, getDocs, writeBatch, setDoc } from 'firebase/firestore';
 import { StorageManager } from '../utils/StorageManager';
 import { clearUserPushTokenAsync } from '../services/NotificationService';
 
@@ -64,6 +64,29 @@ export function AuthProvider({ children }) {
 
       // Update user profile with name
       await updateProfile(firebaseUser, { displayName: name });
+
+      // Create initial profile in Firestore
+      const userRef = doc(db, 'users', firebaseUser.uid);
+      const newProfile = {
+        userId: firebaseUser.uid,
+        displayName: name || '',
+        name: name || '',
+        email: email || '',
+        level: 1,
+        totalXP: 0,
+        achievements: [],
+        stats: {
+          totalTimeWorked: 0,
+          palletsLoaded: 0,
+          palletsLoadedInSession: 0,
+          totalSessions: 0,
+          bestScore: 0,
+          totalScore: 0,
+        },
+        lastPalletsUpdateDate: new Date().toDateString(),
+        createdAt: new Date().toISOString(),
+      };
+      await setDoc(userRef, newProfile);
 
       const userData = {
         id: firebaseUser.uid,

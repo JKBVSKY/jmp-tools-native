@@ -340,7 +340,7 @@ export default function Results({
           .map(id => Object.values(ACHIEVEMENTS).find(a => a.id === id)?.name)
           .filter(Boolean)
           .join(', ');
-        message += `\n🏆 Osiągnięci${newAchievements.length = 1 ? 'e' : ''}${newAchievements.length > 1 ? 'a' : ''} odblokowane: ${achievementNames}`;
+        message += `\n🏆 Osiągnięci${newAchievements.length === 1 ? 'e' : 'a'} odblokowane: ${achievementNames}`;
       }
 
       if (xpResult.leveledUp) {
@@ -654,7 +654,7 @@ export default function Results({
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[styles.palletsModal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+            <View style={[styles.palletsModal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <Text style={[styles.palletsModalTitle, { color: colors.title }]}>Edytuj liczbę palet</Text>
               <TextInput
                 value={palletsInput}
@@ -694,7 +694,7 @@ export default function Results({
       >
         <View style={styles.modalOverlay}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-            <View style={[styles.palletsModal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
+            <View style={[styles.palletsModal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
               <Text style={[styles.palletsModalTitle, { color: colors.title }]}>Edytuj liczbę dostaw</Text>
               <TextInput
                 value={trucksInput}
