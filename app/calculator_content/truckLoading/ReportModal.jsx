@@ -9,6 +9,7 @@ import {
     Platform,
     Animated,
     ScrollView,
+    Keyboard,
 } from 'react-native';
 import { collection, addDoc, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../../firebase/config';
@@ -33,11 +34,35 @@ const ReportModal = ({
     const [description, setDescription] = useState('');
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState(null);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
 
     const [showSuccess, setShowSuccess] = useState(false); // success state
 
     const scaleAnim = useRef(new Animated.Value(0.5)).current;
     const opacityAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (!visible) {
+            setKeyboardHeight(0);
+            return;
+        }
+
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const showSub = Keyboard.addListener(showEvent, (e) => {
+            setKeyboardHeight(e.endCoordinates?.height || 0);
+        });
+
+        const hideSub = Keyboard.addListener(hideEvent, () => {
+            setKeyboardHeight(0);
+        });
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, [visible]);
 
     useEffect(() => {
         if (!visible) {
@@ -166,183 +191,196 @@ const ReportModal = ({
             animationType="slide"
             transparent
             onRequestClose={handleCancel}
+            statusBarTranslucent={true}
+            navigationBarTranslucent={true}
         >
             <View style={styles.backdrop}>
-                <View style={[styles.container, { backgroundColor: colors.cardBackground }]}>
+                <View style={[
+                    styles.container,
+                    {
+                        backgroundColor: colors.cardBackground,
+                        marginBottom: keyboardHeight,
+                    }
+                ]}>
+                    <ScrollView
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                        contentContainerStyle={styles.scrollContent}
+                    >
+                            {showSuccess ? (
+                                // ✅ SUCCESS STATE
+                                <View style={styles.successWrapper}>
+                                    <Animated.View
+                                        style={[
+                                            styles.successIconWrapper,
+                                            {
+                                                backgroundColor: colors.cardInCardBackground,
+                                                transform: [{ scale: scaleAnim }],
+                                                opacity: opacityAnim,
+                                            },
+                                        ]}
+                                    >
+                                        <MaterialIcons
+                                            name="error-outline" // exclamation style icon; swap if you prefer
+                                            size={40}
+                                            color={colors.sIconColor}
+                                        />
+                                    </Animated.View>
 
-                    {showSuccess ? (
-                        // ✅ SUCCESS STATE
-                        <View style={styles.successWrapper}>
-                            <Animated.View
-                                style={[
-                                    styles.successIconWrapper,
-                                    {
-                                        backgroundColor: colors.cardInCardBackground,
-                                        transform: [{ scale: scaleAnim }],
-                                        opacity: opacityAnim,
-                                    },
-                                ]}
-                            >
-                                <MaterialIcons
-                                    name="error-outline" // exclamation style icon; swap if you prefer
-                                    size={40}
-                                    color={colors.sIconColor}
-                                />
-                            </Animated.View>
-
-                            <Text style={[styles.successText, { color: colors.title }]}>
-                                {editMode ? 'Zaktualizowano zgłoszenie!' : 'Dodano zgłoszenie!'}
-                            </Text>
-
-                            <TouchableOpacity
-                                onPress={handleSuccessOk}
-                                style={[
-                                    styles.successButton,
-                                    {
-                                        backgroundColor: colors.butBackground,
-                                        borderColor: colors.butBorder,
-                                    },
-                                ]}
-                            >
-                                <Text style={[styles.successButtonText, { color: colors.butText }]}>
-                                    OK
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
-                    ) : (
-                        <>
-                            <Text style={[styles.title, { color: colors.title }]}>Zgłoś problem</Text>
-
-                            {/* Truck number */}
-                            <Text style={[styles.label, { color: colors.textSecondary }]}>
-                                Numer ciężarówki
-                            </Text>
-                            <TextInput
-                                value={truckNumber}
-                                onChangeText={setTruckNumber}
-                                placeholder="Numer naczepy lub pojazdu"
-                                placeholderTextColor={colors.phText}
-                                style={[
-                                    styles.input,
-                                    {
-                                        backgroundColor: colors.inputBackground,
-                                        borderColor: colors.inputBorder,
-                                        color: colors.text,
-                                    },
-                                ]}
-                            />
-
-                            {/* Report type */}
-                            <Text style={[styles.label, { color: colors.textSecondary }]}>
-                                Typ zgłoszenia
-                            </Text>
-                            <View
-                                style={[
-                                    styles.optionList,
-                                    {
-                                        backgroundColor: colors.inputBackground,
-                                        borderColor: colors.inputBorder,
-                                    },
-                                ]}
-                            >
-                                <ScrollView
-                                    style={styles.optionScroll}
-                                    nestedScrollEnabled
-                                    showsVerticalScrollIndicator
-                                    indicatorStyle="black"
-                                >
-                                    {REPORT_TYPES.map((opt) => {
-                                        const selected = reportType === opt.value;
-                                        return (
-                                            <TouchableOpacity
-                                                key={opt.value}
-                                                onPress={() => setReportType(opt.value)}
-                                                style={[
-                                                    styles.optionButton,
-                                                    selected && {
-                                                        backgroundColor: colors.butBackground,
-                                                        borderColor: colors.butBorder,
-                                                    },
-                                                ]}
-                                            >
-                                                <Text
-                                                    style={[
-                                                        styles.optionText,
-                                                        { color: selected ? colors.butText : colors.text },
-                                                    ]}
-                                                >
-                                                    {opt.label}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        );
-                                    })}
-                                </ScrollView>
-                            </View>
-
-                            {/* Optional description */}
-                            <Text style={[styles.label, { color: colors.textSecondary }]}>
-                                Opis (opcjonalnie)
-                            </Text>
-                            <TextInput
-                                value={description}
-                                onChangeText={setDescription}
-                                placeholder="Dodaj szczegóły, jeśli chcesz"
-                                placeholderTextColor={colors.phText}
-                                multiline
-                                style={[
-                                    styles.textArea,
-                                    {
-                                        backgroundColor: colors.inputBackground,
-                                        borderColor: colors.inputBorder,
-                                        color: colors.text,
-                                    },
-                                ]}
-                            />
-
-                            {error ? (
-                                <Text style={[styles.error, { color: colors.textRed }]}>{error}</Text>
-                            ) : null}
-
-                            {/* Buttons */}
-                            <View style={styles.buttonsRow}>
-                                <TouchableOpacity
-                                    style={[
-                                        styles.outlinedButton,
-                                        {
-                                            borderColor: colors.outButBorder,
-                                            backgroundColor: colors.outButBackground,
-                                        },
-                                    ]}
-                                    onPress={handleCancel}
-                                    disabled={saving}
-                                >
-                                    <Text style={[styles.outlinedText, { color: colors.outButText }]}>
-                                        Anuluj
+                                    <Text style={[styles.successText, { color: colors.title }]}>
+                                        {editMode ? 'Zaktualizowano zgłoszenie!' : 'Dodano zgłoszenie!'}
                                     </Text>
-                                </TouchableOpacity>
 
-                                <TouchableOpacity
-                                    style={[
-                                        styles.primaryButton,
-                                        {
-                                            backgroundColor: colors.butBackground,
-                                            borderColor: colors.butBorder,
-                                            opacity: saving ? 0.7 : 1,
-                                        },
-                                    ]}
-                                    onPress={handleSave}
-                                    disabled={saving}
-                                >
-                                    <Text style={[styles.primaryText, { color: colors.butText }]}>
-                                        {saving ? 'Zapisywanie...' : editMode ? 'Zapisz zmiany' : 'Zapisz'}
+                                    <TouchableOpacity
+                                        onPress={handleSuccessOk}
+                                        style={[
+                                            styles.successButton,
+                                            {
+                                                backgroundColor: colors.butBackground,
+                                                borderColor: colors.butBorder,
+                                            },
+                                        ]}
+                                    >
+                                        <Text style={[styles.successButtonText, { color: colors.butText }]}>
+                                            OK
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+                            ) : (
+                                <>
+                                    <Text style={[styles.title, { color: colors.title }]}>Zgłoś problem</Text>
+
+                                    {/* Truck number */}
+                                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                                        Numer ciężarówki
                                     </Text>
-                                </TouchableOpacity>
-                            </View>
-                        </>
-                    )}
+                                    <TextInput
+                                        value={truckNumber}
+                                        onChangeText={setTruckNumber}
+                                        placeholder="Numer naczepy lub pojazdu"
+                                        placeholderTextColor={colors.phText}
+                                        style={[
+                                            styles.input,
+                                            {
+                                                backgroundColor: colors.inputBackground,
+                                                borderColor: colors.inputBorder,
+                                                color: colors.text,
+                                            },
+                                        ]}
+                                    />
+
+                                    {/* Report type */}
+                                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                                        Typ zgłoszenia
+                                    </Text>
+                                    <View
+                                        style={[
+                                            styles.optionList,
+                                            {
+                                                backgroundColor: colors.inputBackground,
+                                                borderColor: colors.inputBorder,
+                                            },
+                                        ]}
+                                    >
+                                        <ScrollView
+                                            style={styles.optionScroll}
+                                            nestedScrollEnabled
+                                            showsVerticalScrollIndicator
+                                            indicatorStyle="black"
+                                        >
+                                            {REPORT_TYPES.map((opt) => {
+                                                const selected = reportType === opt.value;
+                                                return (
+                                                    <TouchableOpacity
+                                                        key={opt.value}
+                                                        onPress={() => setReportType(opt.value)}
+                                                        style={[
+                                                            styles.optionButton,
+                                                            selected && {
+                                                                backgroundColor: colors.butBackground,
+                                                                borderColor: colors.butBorder,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        <Text
+                                                            style={[
+                                                                styles.optionText,
+                                                                { color: selected ? colors.butText : colors.text },
+                                                            ]}
+                                                        >
+                                                            {opt.label}
+                                                        </Text>
+                                                    </TouchableOpacity>
+                                                );
+                                            })}
+                                        </ScrollView>
+                                    </View>
+
+                                    {/* Optional description */}
+                                    <Text style={[styles.label, { color: colors.textSecondary }]}>
+                                        Opis (opcjonalnie)
+                                    </Text>
+                                    <TextInput
+                                        value={description}
+                                        onChangeText={setDescription}
+                                        placeholder="Dodaj szczegóły, jeśli chcesz"
+                                        placeholderTextColor={colors.phText}
+                                        multiline
+                                        style={[
+                                            styles.textArea,
+                                            {
+                                                backgroundColor: colors.inputBackground,
+                                                borderColor: colors.inputBorder,
+                                                color: colors.text,
+                                            },
+                                        ]}
+                                    />
+
+                                    {error ? (
+                                        <Text style={[styles.error, { color: colors.textRed }]}>{error}</Text>
+                                    ) : null}
+
+                                    {/* Buttons */}
+                                    <View style={styles.buttonsRow}>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.outlinedButton,
+                                                {
+                                                    borderColor: colors.outButBorder,
+                                                    backgroundColor: colors.outButBackground,
+                                                },
+                                            ]}
+                                            onPress={handleCancel}
+                                            disabled={saving}
+                                        >
+                                            <Text style={[styles.outlinedText, { color: colors.outButText }]}>
+                                                Anuluj
+                                            </Text>
+                                        </TouchableOpacity>
+
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.primaryButton,
+                                                {
+                                                    backgroundColor: colors.butBackground,
+                                                    borderColor: colors.butBorder,
+                                                    opacity: saving ? 0.7 : 1,
+                                                },
+                                            ]}
+                                            onPress={handleSave}
+                                            disabled={saving}
+                                        >
+                                            <Text style={[styles.primaryText, { color: colors.butText }]}>
+                                                {saving ? 'Zapisywanie...' : editMode ? 'Zapisz zmiany' : 'Zapisz'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                </>
+                            )}
+                        </ScrollView>
+                    </View>
                 </View>
-            </View>
-        </Modal>
+            </Modal>
     );
 };
 
@@ -350,16 +388,23 @@ const styles = StyleSheet.create({
     backdrop: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.4)',
-        justifyContent: 'center',
-        paddingHorizontal: 16,
+        justifyContent: 'flex-end',
     },
     container: {
-        borderRadius: 16,
+        width: '100%',
+        minHeight: '55%',
+        maxHeight: '80%',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
         padding: 16,
         ...Platform.select({
             ios: { shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 } },
             android: { elevation: 6 },
         }),
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingBottom: 8,
     },
     title: {
         fontSize: 18,
