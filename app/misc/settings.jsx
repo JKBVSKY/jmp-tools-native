@@ -25,7 +25,7 @@ const Settings = () => {
   } = useAuth();
   const { profile, isLoading: profileLoading, loadUserProfile } = useUserProfile();
   const colors = useColors();
-  const { theme, toggleTheme } = useThemeContext();
+  const { themeMode, setThemeMode } = useThemeContext();
   const router = useRouter();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
@@ -207,20 +207,41 @@ const Settings = () => {
           },
         ]}
       >
-        <Text style={[styles.label, { color: colors.text }]}>Tryb ciemny</Text>
-        <Switch
-          value={theme === 'dark'}
-          onValueChange={toggleTheme}
-          thumbColor={
-            theme === 'dark'
-              ? (colors.butBackground || colors.textRed)
-              : (colors.grayIconColor || colors.textSecondary)
-          }
-          trackColor={{
-            true: colors.butBackground || colors.selection,
-            false: colors.breakLine || colors.border,
-          }}
-        />
+        <Text style={[styles.label, { color: colors.text }]}>Motyw</Text>
+        {Platform.OS === 'web' ? (
+          <select
+            value={themeMode}
+            onChange={(e) => {
+              setThemeMode(e.target.value);
+            }}
+            style={{
+              padding: 8,
+              borderRadius: 8,
+              backgroundColor: colors.inputBackground || colors.cardBackground,
+              color: colors.text,
+              borderColor: colors.border,
+              borderWidth: 1,
+              fontSize: 16,
+            }}
+          >
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+            <option value="system">System Settings</option>
+          </select>
+        ) : (
+          <Picker
+            selectedValue={themeMode}
+            onValueChange={(itemValue) => {
+              setThemeMode(itemValue);
+            }}
+            style={{ width: 160, color: colors.text }}
+            dropdownIconColor={colors.text}
+          >
+            <Picker.Item label="Light" value="light" />
+            <Picker.Item label="Dark" value="dark" />
+            <Picker.Item label="System Settings" value="system" />
+          </Picker>
+        )}
       </View>
 
       {!isGuest && (
