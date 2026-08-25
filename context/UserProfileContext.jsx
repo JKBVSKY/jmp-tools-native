@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { calculateLevelFromXP, calculateXPFromScore, checkAchievements } from '../constants/LevelSystem';
-import { doc, getDoc, runTransaction, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, getDocFromServer, runTransaction, updateDoc } from 'firebase/firestore';
 import { db } from '../firebase/config';
 import { PendingXPService } from '../services/PendingXPService';
 
@@ -78,7 +78,24 @@ export function UserProfileProvider({ children }) {
 
       // Fetch user profile from Firestore
       const userRef = doc(db, 'users', userId);
-      const userSnap = await getDoc(userRef);
+      let userSnap = await getDoc(userRef);
+
+      if (!getIsMounted() || requestId !== loadRequestRef.current) {
+        return;
+      }
+
+      if (!userSnap.exists()) {
+        console.log('⚠️ Initial fetch found no document (cache/default). Checking directly from server using getDocFromServer...');
+        try {
+          const serverSnap = await getDocFromServer(userRef);
+          if (serverSnap.exists()) {
+            userSnap = serverSnap;
+            console.log('✅ Document found via getDocFromServer fallback!');
+          }
+        } catch (serverError) {
+          console.warn('⚠️ getDocFromServer fallback failed (possibly offline):', serverError);
+        }
+      }
 
       if (!getIsMounted() || requestId !== loadRequestRef.current) {
         return;
