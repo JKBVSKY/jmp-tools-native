@@ -134,13 +134,30 @@ export default function Profile() {
   const { user, isGuest, signOut } = useAuth();
   const userId = user?.id;
   const [sessions, setSessions] = useState([]);
-  const [statsTab, setStatsTab] = useState('truck');
   const [sessionsLoading, setSessionsLoading] = useState(true);
 
   const [statCards, setStatCards] = React.useState([null, null]);
   const [statPickerVisible, setStatPickerVisible] = React.useState(false);
   const [selectedStatCard, setSelectedStatCard] = React.useState(null);
   const { profile, isLoading } = useUserProfile();
+
+  // Derive section visibility flags from user preferences
+  const showTruck = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('zaladunek');
+  const showPicking = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('kompletacja');
+  const hasNoSections = !showTruck && !showPicking;
+
+  const [statsTab, setStatsTab] = useState(() => {
+    if (showPicking && !showTruck) return 'picking';
+    return 'truck';
+  });
+
+  useEffect(() => {
+    if (showTruck && !showPicking && statsTab !== 'truck') {
+      setStatsTab('truck');
+    } else if (!showTruck && showPicking && statsTab !== 'picking') {
+      setStatsTab('picking');
+    }
+  }, [showTruck, showPicking, statsTab]);
 
   const colors = useColors();
   const router = useRouter();
@@ -563,90 +580,108 @@ export default function Profile() {
             <Text style={[styles.cardTitle, { color: colors.title }]}>Statystyki</Text>
           </View>
 
-          <View style={styles.statsTabsRow}>
-            <Pressable
-              onPress={() => setStatsTab('truck')}
-              style={[
-                styles.statsTab,
-                {
-                  borderColor: statsTab === 'truck' ? colors.butBorder : colors.border,
-                  backgroundColor: statsTab === 'truck' ? colors.butBackground : colors.cardInCardBackground,
-                },
-              ]}
-            >
-              <Text style={{ color: statsTab === 'truck' ? colors.butText : colors.text, fontWeight: '700' }}>
-                Załadunek
+          {hasNoSections ? (
+            <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+              <Text style={{ color: colors.textSecondary, textAlign: 'center', marginBottom: 12 }}>
+                Brak wybranych sekcji. Przejdź do Ustawień, aby wybrać sekcje, z którymi pracujesz.
               </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setStatsTab('picking')}
-              style={[
-                styles.statsTab,
-                {
-                  borderColor: statsTab === 'picking' ? colors.butBorder : colors.border,
-                  backgroundColor: statsTab === 'picking' ? colors.butBackground : colors.cardInCardBackground,
-                },
-              ]}
-            >
-              <Text style={{ color: statsTab === 'picking' ? colors.butText : colors.text, fontWeight: '700' }}>
-                Kompletacja
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={styles.statsGrid}>
-            <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-              <Ionicons name="time" size={28} color={colors.iconColor} />
-              <Text style={[styles.statValue, { color: colors.title }]}>
-                {formatTime(statsTab === 'truck' ? allTimeStats.totalTimeSeconds : pickingAllTimeStats.totalTimeSeconds)}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ogólny czas pracy</Text>
+              <Pressable
+                style={[styles.statsTab, { backgroundColor: colors.butBackground, borderColor: colors.butBorder, paddingHorizontal: 16, paddingVertical: 10 }]}
+                onPress={() => router.push('/misc/settings')}
+              >
+                <Text style={{ color: colors.butText, fontWeight: '700' }}>Przejdź do Ustawień</Text>
+              </Pressable>
             </View>
-            <View style={[styles.statItem, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
-              <Ionicons name={statsTab === 'truck' ? 'cube' : 'cube-outline'} size={28} color={colors.iconColor} />
-              <Text style={[styles.statValue, { color: colors.title }]}>
-                {statsTab === 'truck' ? allTimeStats.totalPallets : pickingAllTimeStats.totalBoxes}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                {statsTab === 'truck' ? 'Palety załadowane' : 'Paczki skompletowane'}
-              </Text>
-            </View>
+          ) : (
+            <>
+              {/* Pokaż przełącznik tylko jeśli użytkownik wybrał obie sekcje */}
+              {showTruck && showPicking && (
+                <View style={styles.statsTabsRow}>
+                  <Pressable
+                    onPress={() => setStatsTab('truck')}
+                    style={[
+                      styles.statsTab,
+                      {
+                        borderColor: statsTab === 'truck' ? colors.butBorder : colors.border,
+                        backgroundColor: statsTab === 'truck' ? colors.butBackground : colors.cardInCardBackground,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: statsTab === 'truck' ? colors.butText : colors.text, fontWeight: '700' }}>
+                      Załadunek
+                    </Text>
+                  </Pressable>
 
-            <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
-              <Ionicons name="star" size={28} color={colors.iconColor} />
-              <Text style={[styles.statValue, { color: colors.title }]}>
-                {statsTab === 'truck' ? avgScore : pickingAvgScore}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ocena</Text>
-            </View>
+                  <Pressable
+                    onPress={() => setStatsTab('picking')}
+                    style={[
+                      styles.statsTab,
+                      {
+                        borderColor: statsTab === 'picking' ? colors.butBorder : colors.border,
+                        backgroundColor: statsTab === 'picking' ? colors.butBackground : colors.cardInCardBackground,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: statsTab === 'picking' ? colors.butText : colors.text, fontWeight: '700' }}>
+                      Kompletacja
+                    </Text>
+                  </Pressable>
+                </View>
+              )}
 
-            <View style={styles.statItem}>
-              <Ionicons name="trending-up" size={28} color={colors.iconColor} />
-              <Text style={[styles.statValue, { color: colors.title }]}>
-                {(statsTab === 'truck' ? allTimeStats.averageRate : pickingAllTimeStats.averageBoxesRate).toFixed(1)}
-              </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                {statsTab === 'truck' ? 'Średnia ogólna' : 'Średnia paczek/h'}
-              </Text>
-            </View>
+              <View style={styles.statsGrid}>
+                <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1, borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+                  <Ionicons name="time" size={28} color={colors.iconColor} />
+                  <Text style={[styles.statValue, { color: colors.title }]}>
+                    {formatTime(statsTab === 'truck' ? allTimeStats.totalTimeSeconds : pickingAllTimeStats.totalTimeSeconds)}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ogólny czas pracy</Text>
+                </View>
+                <View style={[styles.statItem, { borderBottomColor: colors.border, borderBottomWidth: 1 }]}>
+                  <Ionicons name={statsTab === 'truck' ? 'cube' : 'cube-outline'} size={28} color={colors.iconColor} />
+                  <Text style={[styles.statValue, { color: colors.title }]}>
+                    {statsTab === 'truck' ? allTimeStats.totalPallets : pickingAllTimeStats.totalBoxes}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    {statsTab === 'truck' ? 'Palety załadowane' : 'Paczki skompletowane'}
+                  </Text>
+                </View>
 
-            <View
-              style={{
-                paddingTop: 24,
-                paddingBottom: 0,
-                justifyContent: 'center',
-                alignItems: 'center',
-                width: '100%',
-                flexDirection: 'row',
-              }}
-            >
-              {/* <Ionicons name="information-circle" size={20} color={colors.grayIconColor} /> */}
-              <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
-                {(statsTab === 'truck' ? allTimeStats.totalSessions : pickingAllTimeStats.totalSessions)} sesji ukończonych łącznie
-              </Text>
-            </View>
-          </View>
+                <View style={[styles.statItem, { borderRightColor: colors.border, borderRightWidth: 1 }]}>
+                  <Ionicons name="star" size={28} color={colors.iconColor} />
+                  <Text style={[styles.statValue, { color: colors.title }]}>
+                    {statsTab === 'truck' ? avgScore : pickingAvgScore}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Ocena</Text>
+                </View>
+
+                <View style={styles.statItem}>
+                  <Ionicons name="trending-up" size={28} color={colors.iconColor} />
+                  <Text style={[styles.statValue, { color: colors.title }]}>
+                    {(statsTab === 'truck' ? allTimeStats.averageRate : pickingAllTimeStats.averageBoxesRate).toFixed(1)}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                    {statsTab === 'truck' ? 'Średnia ogólna' : 'Średnia paczek/h'}
+                  </Text>
+                </View>
+
+                <View
+                  style={{
+                    paddingTop: 24,
+                    paddingBottom: 0,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    width: '100%',
+                    flexDirection: 'row',
+                  }}
+                >
+                  <Text style={[styles.achievementCounter, { color: colors.textSecondary }]}>
+                    {(statsTab === 'truck' ? allTimeStats.totalSessions : pickingAllTimeStats.totalSessions)} sesji ukończonych łącznie
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Achievements Card */}

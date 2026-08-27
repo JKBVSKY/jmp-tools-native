@@ -9,6 +9,8 @@ import { LineChart } from 'react-native-chart-kit';
 import ThemedCard from '../../components/ThemedCard';
 import { Alert } from 'react-native';
 import { useAuth } from '../../context/AuthContext';
+import { useUserProfile } from '../../context/UserProfileContext';
+import { useRouter } from 'expo-router';
 import { db } from '../../firebase/config';
 import { Ionicons } from "@expo/vector-icons";
 import {
@@ -51,15 +53,34 @@ const formatMonthLabel = ({ month, year }) => {
 export default function ScoreHistory() {
   const colors = useColors();
   const { user, isGuest } = useAuth();
+  const { profile } = useUserProfile();
+  const router = useRouter();
   const userId = user?.id;
+
+  // Derive section visibility flags from user preferences
+  const showTruck = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('zaladunek');
+  const showPicking = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('kompletacja');
+  const hasNoSections = !showTruck && !showPicking;
+
   const [sessions, setSessions] = useState([]);
   const [viewMode, setViewMode] = useState('table'); // 'table' or 'graph'
-  const [sectionType, setSectionType] = useState('truck'); // 'truck' or 'picking'
+  const [sectionType, setSectionType] = useState(() => {
+    if (showPicking && !showTruck) return 'picking';
+    return 'truck';
+  }); // 'truck' or 'picking'
   const [pickingSubsection, setPickingSubsection] = useState('P01');
   const [refreshing, setRefreshing] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(null); // { month: 0-11, year: 2026 }
   const [loading, setLoading] = useState(true);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (showTruck && !showPicking && sectionType !== 'truck') {
+      setSectionType('truck');
+    } else if (!showTruck && showPicking && sectionType !== 'picking') {
+      setSectionType('picking');
+    }
+  }, [showTruck, showPicking, sectionType]);
 
   const [activePage, setActivePage] = useState(0);
   const pagerWidth = width - 32;
@@ -306,14 +327,35 @@ export default function ScoreHistory() {
     );
   }
 
+  if (hasNoSections) {
+    return (
+      <ThemedView style={styles.container}>
+        <View style={[styles.header, { backgroundColor: colors.navBackground, paddingTop: insets.top + 8 }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Statystyki</Text>
+        </View>
+        <View style={styles.emptyContainer}>
+          <MaterialCommunityIcons name="settings-outline" size={64} color={colors.text} />
+          <Text style={[styles.emptyText, { color: colors.text }]}>
+            Brak wybranych sekcji
+          </Text>
+          <Text style={[styles.emptySubtext, { color: colors.textSecondary, marginBottom: 20 }]}>
+            Brak wybranych sekcji. Przejdź do Ustawień, aby wybrać sekcje, z którymi pracujesz.
+          </Text>
+          <Pressable
+            style={[styles.sectionTab, { backgroundColor: colors.butBackground, borderColor: colors.butBorder, paddingHorizontal: 20, paddingVertical: 12 }]}
+            onPress={() => router.push('/misc/settings')}
+          >
+            <Text style={{ color: colors.butText, fontWeight: '700' }}>Przejdź do Ustawień</Text>
+          </Pressable>
+        </View>
+      </ThemedView>
+    );
+  }
+
   return (
     <ThemedView style={styles.container}>
       <View
         style={{ flex: 1 }}
-      // for scrollView
-      // contentContainerStyle={styles.scrollContent}
-      // showsVerticalScrollIndicator={false}
-      // keyboardShouldPersistTaps="handled"
       >
         {loading ? (
           <View style={styles.loadingContainer}>
@@ -327,37 +369,40 @@ export default function ScoreHistory() {
               <Text style={[styles.title, { color: colors.text }]}>Statystyki</Text>
               <Text style={{ color: colors.textSecondary }}>Tutaj możesz zobaczyć swoje statystyki</Text>
 
-              <View style={styles.sectionTabsRow}>
-                <TouchableOpacity
-                  onPress={() => setSectionType('truck')}
-                  style={[
-                    styles.sectionTab,
-                    {
-                      borderColor: sectionType === 'truck' ? colors.butBorder : colors.outButBorder,
-                      backgroundColor: sectionType === 'truck' ? colors.butBackground : colors.outButBackground,
-                    },
-                  ]}
-                >
-                  <Text style={{ color: sectionType === 'truck' ? colors.butText : colors.outButText, fontWeight: '700' }}>
-                    Załadunek
-                  </Text>
-                </TouchableOpacity>
+              {/* Pokaż przełącznik sekcji tylko jeśli użytkownik wybrał obie sekcje */}
+              {showTruck && showPicking && (
+                <View style={styles.sectionTabsRow}>
+                  <TouchableOpacity
+                    onPress={() => setSectionType('truck')}
+                    style={[
+                      styles.sectionTab,
+                      {
+                        borderColor: sectionType === 'truck' ? colors.butBorder : colors.outButBorder,
+                        backgroundColor: sectionType === 'truck' ? colors.butBackground : colors.outButBorder,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: sectionType === 'truck' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+                      Załadunek
+                    </Text>
+                  </TouchableOpacity>
 
-                <TouchableOpacity
-                  onPress={() => setSectionType('picking')}
-                  style={[
-                    styles.sectionTab,
-                    {
-                      borderColor: sectionType === 'picking' ? colors.butBorder : colors.outButBorder,
-                      backgroundColor: sectionType === 'picking' ? colors.butBackground : colors.outButBackground,
-                    },
-                  ]}
-                >
-                  <Text style={{ color: sectionType === 'picking' ? colors.butText : colors.outButText, fontWeight: '700' }}>
-                    Kompletacja
-                  </Text>
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity
+                    onPress={() => setSectionType('picking')}
+                    style={[
+                      styles.sectionTab,
+                      {
+                        borderColor: sectionType === 'picking' ? colors.butBorder : colors.outButBorder,
+                        backgroundColor: sectionType === 'picking' ? colors.butBackground : colors.outButBorder,
+                      },
+                    ]}
+                  >
+                    <Text style={{ color: sectionType === 'picking' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+                      Kompletacja
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
 
               {sectionType === 'picking' && (
                 <View style={styles.subsectionTabsWrap}>
@@ -1159,8 +1204,6 @@ const styles = StyleSheet.create({
   pagerNavButton: {
     padding: 6,
     borderRadius: 999,
-    // optional hit area if you want bigger touch targets:
-    // marginHorizontal: 4,
   },
 
   pagerNavLabel: {

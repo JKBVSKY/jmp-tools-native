@@ -1,6 +1,6 @@
 // Settings.jsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform } from 'react-native';
+import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform, Pressable } from 'react-native';
 import * as Notifications from 'expo-notifications';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
@@ -34,6 +34,8 @@ const Settings = () => {
   const [isSavingNotification, setIsSavingNotification] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const [sectionPreferences, setSectionPreferences] = useState(['zaladunek', 'kompletacja']);
+
   useEffect(() => {
     if (profile?.notifications?.enabled !== undefined) {
       setNotificationsEnabled(profile.notifications.enabled === true);
@@ -43,7 +45,59 @@ const Settings = () => {
     }
   }, [profile?.notifications?.enabled, profile?.preferences?.notificationLeadHours]);
 
+  useEffect(() => {
+    if (Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.length > 0) {
+      setSectionPreferences(profile.preferences.sections);
+    }
+  }, [profile?.preferences?.sections]);
+
   const isDataReady = !authLoading && !profileLoading && (user || profile);
+
+  const toggleSectionPreference = (id) => {
+    setSectionPreferences((prev) => {
+      if (prev.includes(id)) {
+        // prevent disabling last
+        if (prev.length === 1) {
+          return prev;
+        }
+        return prev.filter((s) => s !== id);
+      }
+      // max 2 sections
+      if (prev.length === 2) {
+        return prev;
+      }
+      return [...prev, id];
+    });
+  };
+
+  const saveSectionPreferences = async () => {
+    const userId = user?.id || profile?.userId;
+    if (!userId) return;
+
+    if (sectionPreferences.length === 0) {
+      Alert.alert('Wybór sekcji', 'Wybierz przynajmniej jedną sekcję.');
+      return;
+    }
+
+    try {
+      await updateDoc(
+        doc(db, 'users', userId),
+        {
+          'preferences.sections': sectionPreferences,
+          hasCompletedSetup: true,
+        }
+      );
+
+      if (loadUserProfile) {
+        await loadUserProfile(userId);
+      }
+
+      Alert.alert('Zapisano', 'Ustawienia sekcji zostały zapisane.');
+    } catch (error) {
+      console.error('Błąd zapisu preferencji sekcji:', error);
+      Alert.alert('Błąd', 'Nie udało się zapisać preferencji sekcji.');
+    }
+  };
 
   const handleNotificationLeadChange = async (value) => {
     setNotificationLeadHours(value);
@@ -248,40 +302,40 @@ const Settings = () => {
         <>
           {/* Powiadomienia */}
           <View
-        style={[
-          styles.section,
-          {
-            backgroundColor: colors.cardBackground,
-            borderColor: colors.border,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.label,
-            { color: colors.text },
-          ]}
-        >
-          Powiadomienia
-        </Text>
-        {!isDataReady ? (
-          <ActivityIndicator size="small" color={colors.text} />
-        ) : (
-          <Switch
-            value={notificationsEnabled}
-            onValueChange={handleToggleNotifications}
-            disabled={!isDataReady || loadingNotifications || isGuest || isSavingNotification}
-            thumbColor={
-              notificationsEnabled
-                ? (colors.butBackground || colors.textRed)
-                : (colors.grayIconColor || colors.textSecondary)
-            }
-            trackColor={{
-              true: colors.butBackground || colors.selection,
-              false: colors.breakLine || colors.border,
-            }}
-          />
-        )}
+            style={[
+              styles.section,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.label,
+                { color: colors.text },
+              ]}
+            >
+              Powiadomienia
+            </Text>
+            {!isDataReady ? (
+              <ActivityIndicator size="small" color={colors.text} />
+            ) : (
+              <Switch
+                value={notificationsEnabled}
+                onValueChange={handleToggleNotifications}
+                disabled={!isDataReady || loadingNotifications || isGuest || isSavingNotification}
+                thumbColor={
+                  notificationsEnabled
+                    ? (colors.butBackground || colors.textRed)
+                    : (colors.grayIconColor || colors.textSecondary)
+                }
+                trackColor={{
+                  true: colors.butBackground || colors.selection,
+                  false: colors.breakLine || colors.border,
+                }}
+              />
+            )}
           </View>
 
           {/* Czas powiadomienia o pracy */}
@@ -341,48 +395,160 @@ const Settings = () => {
               )
             )}
           </View>
+
+          {/* Sekcje pracy */}
+          <View
+            style={[
+              styles.section,
+              {
+                borderColor: colors.border,
+                backgroundColor: colors.cardBackground,
+              },
+            ]}
+          >
+            <View style={{ flex: 1 }}>
+              <Text
+                style={[
+                  styles.label,
+                  { color: colors.text },
+                ]}
+              >
+                Sekcje pracy
+              </Text>
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  marginTop: 4,
+                  fontSize: 13,
+                }}
+              >
+                Wybierz sekcje, dla których chcesz widzieć statystyki.
+                Minimum jedna sekcja.
+              </Text>
+
+              <View
+                style={{
+                  flexDirection: 'row',
+                  gap: 8,
+                  marginTop: 8,
+                }}
+              >
+                {['zaladunek', 'kompletacja'].map((id) => {
+                  const isSelected = sectionPreferences.includes(id);
+                  const label =
+                    id === 'zaladunek' ? 'Załadunek' : 'Kompletacja';
+
+                  return (
+                    <Pressable
+                      key={id}
+                      onPress={() => toggleSectionPreference(id)}
+                      style={[
+                        {
+                          paddingHorizontal: 12,
+                          paddingVertical: 8,
+                          borderRadius: 999,
+                          borderWidth: 1,
+                        },
+                        {
+                          backgroundColor: isSelected
+                            ? colors.butBackground
+                            : colors.outButBackground,
+                          borderColor: isSelected
+                            ? colors.butBorder
+                            : colors.outButBorder,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={{
+                          color: isSelected
+                            ? colors.butText
+                            : colors.outButText,
+                          fontSize: 14,
+                          fontWeight: '500',
+                        }}
+                      >
+                        {label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text
+                style={{
+                  color: colors.textSecondary,
+                  marginTop: 6,
+                  fontSize: 12,
+                }}
+              >
+                Możesz zmienić ten wybór w dowolnym momencie. Ustawienia
+                mają wpływ na widoczne statystyki.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.deleteButton,
+                {
+                  borderColor: colors.outButBorder,
+                  backgroundColor: colors.outButBackground,
+                },
+              ]}
+              onPress={saveSectionPreferences}
+            >
+              <Text
+                style={[
+                  styles.deleteButtonText,
+                  { color: colors.outButText },
+                ]}
+              >
+                Zapisz
+              </Text>
+            </TouchableOpacity>
+          </View>
         </>
       )}
 
       {!isGuest && (
         <>
           {/* Usuń konto – placeholder */}
-      <View
-        style={[
-          styles.section,
-          {
-            backgroundColor: colors.cardBackground,
-            borderColor: colors.border,
-          },
-        ]}
-      >
-        <Text
-          style={[
-            styles.label,
-            { color: colors.text },
-          ]}
-        >
-          Usuń konto
-        </Text>
-        <TouchableOpacity
-          onPress={handleDeleteAccountPress}
-          style={[
-            styles.deleteButton,
-            {
-              backgroundColor: colors.butBackground,
-              borderColor: colors.butBorder,
-            },
-          ]}
-        >
-          <Text
+          <View
             style={[
-              styles.deleteButtonText,
-              { color: colors.butText },
+              styles.section,
+              {
+                backgroundColor: colors.cardBackground,
+                borderColor: colors.border,
+              },
             ]}
           >
-            Usuń konto
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.label,
+                { color: colors.text },
+              ]}
+            >
+              Usuń konto
+            </Text>
+            <TouchableOpacity
+              onPress={handleDeleteAccountPress}
+              style={[
+                styles.deleteButton,
+                {
+                  backgroundColor: colors.butBackground,
+                  borderColor: colors.butBorder,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.deleteButtonText,
+                  { color: colors.butText },
+                ]}
+              >
+                Usuń konto
+              </Text>
+            </TouchableOpacity>
           </View>
         </>
       )}

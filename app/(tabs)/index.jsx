@@ -49,6 +49,11 @@ export default function Dashboard() {
   const [dashboardSectionsVisibility, setDashboardSectionsVisibility] = useState('both');
   const userId = user?.id;
 
+  // Derive section visibility flags from user preferences
+  const showTruck = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('zaladunek');
+  const showPicking = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('kompletacja');
+  const hasNoSections = !showTruck && !showPicking;
+
   const CARD_SIZE = 140;
 
   const calc = useCalculator();
@@ -286,6 +291,23 @@ export default function Dashboard() {
     };
   }, [loadRank, loadSessions]);
 
+  useEffect(() => {
+    if (!user || !profile) return;
+    if (isGuest) return; // guests skip setup
+
+    const hasCompletedSetup = profile.hasCompletedSetup === true;
+    const sections = profile.preferences?.sections;
+
+    const needsSetup =
+      !hasCompletedSetup ||
+      !Array.isArray(sections) ||
+      sections.length === 0;
+
+    if (needsSetup) {
+      router.replace('/setup');
+    }
+  }, [user, profile, isGuest, router]);
+
   const handleCreateAccount = async () => {
     await signOut();
     router.push('/(auth)/register');
@@ -363,11 +385,11 @@ export default function Dashboard() {
   const avatarUri = profile?.photoURL || 'https://via.placeholder.com/150/cccccc/ffffff?text=Avatar';
 
   const truckSummarySection = (
-    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
-      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}> 
+    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}>
         Załadunek
       </Text>
-      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}> 
+      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
         Podsumowanie Twojej aktywności w tym miesiącu
       </Text>
       <View style={styles.statsGrid}>
@@ -382,10 +404,10 @@ export default function Dashboard() {
               { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
             ]}
           />
-          <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+          <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
             Średnia miesięczna
           </Text>
-          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}> 
+          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}>
             {summary.averageRate.toFixed(2)} pal/h
           </Text>
         </ThemedCard>
@@ -414,10 +436,10 @@ export default function Dashboard() {
                 { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
               ]}
             />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
               Palety
             </Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}> 
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
               {summary.totalPallets}
             </Text>
           </ThemedCard>
@@ -432,7 +454,7 @@ export default function Dashboard() {
                 { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
               ]}
             />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
               Ranking
             </Text>
             <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{rank}</Text>
@@ -445,10 +467,10 @@ export default function Dashboard() {
               size={28}
               style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
             />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
               Czas
             </Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}> 
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
               {formatTime(summary.totalTime)}
             </Text>
           </ThemedCard>
@@ -458,11 +480,11 @@ export default function Dashboard() {
   );
 
   const pickingSummarySection = (
-    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}> 
-      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}> 
+    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}>
         Kompletacja
       </Text>
-      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}> 
+      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
         Podsumowanie Twojej aktywności w tym miesiącu
       </Text>
 
@@ -499,10 +521,10 @@ export default function Dashboard() {
               { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
             ]}
           />
-          <Text style={[styles.statTitle, { color: colors.cardTitle }]}> 
+          <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
             Średnia miesięczna ({activePickingSubsection})
           </Text>
-          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}> 
+          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}>
             {activePickingStats.boxesRate.toFixed(2)} pacz/h
           </Text>
         </ThemedCard>
@@ -532,7 +554,7 @@ export default function Dashboard() {
               ]}
             />
             <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Paczki</Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}> 
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
               {activePickingStats.boxesCount.toFixed(2)}
             </Text>
           </ThemedCard>
@@ -561,7 +583,7 @@ export default function Dashboard() {
               style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
             />
             <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Czas</Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}> 
+            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
               {formatTime(activePickingStats.sessionTime)}
             </Text>
           </ThemedCard>
@@ -839,83 +861,105 @@ export default function Dashboard() {
                 </View>
               </ThemedCard>
 
-              <View style={[styles.dashboardOrderRow, { marginHorizontal: 24 }]}> 
-
-                <View style={styles.visibilityRow}>
+              {hasNoSections ? (
+                <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border, alignItems: 'center', paddingVertical: 32 }]}>
+                  <Ionicons name="settings-outline" size={54} color={colors.iconColor} />
+                  <Text style={[styles.emptyTitle, { color: colors.text, textAlign: 'center', marginTop: 12 }]}>Brak wybranych sekcji</Text>
+                  <Text style={[styles.emptyText, { color: colors.textSecondary, textAlign: 'center', marginHorizontal: 16, marginBottom: 20 }]}>
+                    Brak wybranych sekcji. Przejdź do Ustawień, aby wybrać sekcje, z którymi pracujesz.
+                  </Text>
                   <Pressable
-                    onPress={() => handleSetDashboardSectionsVisibility('both')}
-                    style={[
-                      styles.visibilityChip,
-                      {
-                        borderColor: dashboardSectionsVisibility === 'both' ? colors.butBorder : colors.border,
-                        backgroundColor: dashboardSectionsVisibility === 'both' ? colors.butBackground : colors.cardBackground,
-                      },
-                    ]}
+                    style={[styles.upgradeButton, { backgroundColor: colors.butBackground, paddingHorizontal: 20, paddingVertical: 12 }]}
+                    onPress={() => router.push('/misc/settings')}
                   >
-                    <Text style={{ color: dashboardSectionsVisibility === 'both' ? colors.butText : colors.text, fontWeight: '700' }}>
-                      Obie
-                    </Text>
+                    <Text style={[styles.upgradeText, { color: colors.butText }]}>Przejdź do Ustawień</Text>
                   </Pressable>
-
-                  <Pressable
-                    onPress={() => handleSetDashboardSectionsVisibility('truck')}
-                    style={[
-                      styles.visibilityChip,
-                      {
-                        borderColor: dashboardSectionsVisibility === 'truck' ? colors.butBorder : colors.border,
-                        backgroundColor: dashboardSectionsVisibility === 'truck' ? colors.butBackground : colors.cardBackground,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: dashboardSectionsVisibility === 'truck' ? colors.butText : colors.text, fontWeight: '700' }}>
-                      Załadunek
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    onPress={() => handleSetDashboardSectionsVisibility('picking')}
-                    style={[
-                      styles.visibilityChip,
-                      {
-                        borderColor: dashboardSectionsVisibility === 'picking' ? colors.butBorder : colors.border,
-                        backgroundColor: dashboardSectionsVisibility === 'picking' ? colors.butBackground : colors.cardBackground,
-                      },
-                    ]}
-                  >
-                    <Text style={{ color: dashboardSectionsVisibility === 'picking' ? colors.butText : colors.text, fontWeight: '700' }}>
-                      Kompletacja
-                    </Text>
-                  </Pressable>
-                  
-                {dashboardSectionsVisibility === 'both' && (
-                  <Pressable
-                    onPress={handleSwapDashboardSections}
-                    style={[styles.swapOrderButton, { borderColor: colors.outButBorder, backgroundColor: colors.outButBackground }]}
-                  >
-                    <Ionicons name="swap-vertical-outline" size={18} color={colors.outButText} />
-                    <Text style={{ color: colors.outButText, fontWeight: '700' }}>Zamień kolejność sekcji</Text>
-                  </Pressable>
-                )}
                 </View>
-              </View>
-
-              {dashboardSectionsVisibility === 'truck' && truckSummarySection}
-
-              {dashboardSectionsVisibility === 'picking' && pickingSummarySection}
-
-              {dashboardSectionsVisibility === 'both' && (dashboardSectionsOrder === 'truck-first' ? (
-                <>
-                  {truckSummarySection}
-                  <View style={styles.summarySectionSpacer} />
-                  {pickingSummarySection}
-                </>
+              ) : showTruck && !showPicking ? (
+                // Pokaż statystyki tylko jeśli użytkownik wybrał sekcję "Załadunek"
+                truckSummarySection
+              ) : !showTruck && showPicking ? (
+                // Pokaż statystyki tylko jeśli użytkownik wybrał sekcję "Kompletacja"
+                pickingSummarySection
               ) : (
+                // Oba wybrane - zachowaj dotychczasową logikę z przełącznikami i kolejnością
                 <>
-                  {pickingSummarySection}
-                  <View style={styles.summarySectionSpacer} />
-                  {truckSummarySection}
+                  <View style={[styles.dashboardOrderRow, { marginHorizontal: 24 }]}>
+                    <View style={styles.visibilityRow}>
+                      <Pressable
+                        onPress={() => handleSetDashboardSectionsVisibility('both')}
+                        style={[
+                          styles.visibilityChip,
+                          {
+                            borderColor: dashboardSectionsVisibility === 'both' ? colors.butBorder : colors.border,
+                            backgroundColor: dashboardSectionsVisibility === 'both' ? colors.butBackground : colors.cardBackground,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: dashboardSectionsVisibility === 'both' ? colors.butText : colors.text, fontWeight: '700' }}>
+                          Obie
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => handleSetDashboardSectionsVisibility('truck')}
+                        style={[
+                          styles.visibilityChip,
+                          {
+                            borderColor: dashboardSectionsVisibility === 'truck' ? colors.butBorder : colors.border,
+                            backgroundColor: dashboardSectionsVisibility === 'truck' ? colors.butBackground : colors.cardBackground,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: dashboardSectionsVisibility === 'truck' ? colors.butText : colors.text, fontWeight: '700' }}>
+                          Załadunek
+                        </Text>
+                      </Pressable>
+
+                      <Pressable
+                        onPress={() => handleSetDashboardSectionsVisibility('picking')}
+                        style={[
+                          styles.visibilityChip,
+                          {
+                            borderColor: dashboardSectionsVisibility === 'picking' ? colors.butBorder : colors.border,
+                            backgroundColor: dashboardSectionsVisibility === 'picking' ? colors.butBackground : colors.cardBackground,
+                          },
+                        ]}
+                      >
+                        <Text style={{ color: dashboardSectionsVisibility === 'picking' ? colors.butText : colors.text, fontWeight: '700' }}>
+                          Kompletacja
+                        </Text>
+                      </Pressable>
+
+                      {dashboardSectionsVisibility === 'both' && (
+                        <Pressable
+                          onPress={handleSwapDashboardSections}
+                          style={[styles.swapOrderButton, { borderColor: colors.outButBorder, backgroundColor: colors.outButBackground }]}
+                        >
+                          <Ionicons name="swap-vertical-outline" size={18} color={colors.outButText} />
+                          <Text style={{ color: colors.outButText, fontWeight: '700' }}>Zamień kolejność sekcji</Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </View>
+
+                  {dashboardSectionsVisibility === 'truck' && truckSummarySection}
+                  {dashboardSectionsVisibility === 'picking' && pickingSummarySection}
+                  {dashboardSectionsVisibility === 'both' && (dashboardSectionsOrder === 'truck-first' ? (
+                    <>
+                      {truckSummarySection}
+                      <View style={styles.summarySectionSpacer} />
+                      {pickingSummarySection}
+                    </>
+                  ) : (
+                    <>
+                      {pickingSummarySection}
+                      <View style={styles.summarySectionSpacer} />
+                      {truckSummarySection}
+                    </>
+                  ))}
                 </>
-              ))}
+              )}
             </View>
           </ScrollView>
 
@@ -961,8 +1005,8 @@ export default function Dashboard() {
         onClose={() => setSessionModalVisible(false)}
         onOptionSelect={handleSessionOptionSelect}
         options={[
-          { key: 'zaladunek', label: 'Załadunek', route: '/calculator_content/calculator', icon: 'truck-cargo-container' },
-          { key: 'kompletacja', label: 'Kompletacja', route: '/calculator_content/calculator', icon: 'package' },
+          ...(showTruck ? [{ key: 'zaladunek', label: 'Załadunek', route: '/calculator_content/calculator', icon: 'truck-cargo-container' }] : []),
+          ...(showPicking ? [{ key: 'kompletacja', label: 'Kompletacja', route: '/calculator_content/calculator', icon: 'package' }] : []),
         ]}
       />
     </ThemedView >

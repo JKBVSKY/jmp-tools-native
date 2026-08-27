@@ -113,6 +113,8 @@ function RootNavigator() {
           headerTitleStyle: { fontWeight: '700' },
           headerShadowVisible: false,
         }}>
+        <Stack.Screen name="onboarding" options={{ headerShown: false }} />
+        <Stack.Screen name="setup" options={{ title: 'Ustawienia profilu', headerShown: true }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen

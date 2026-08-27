@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import {
   doc,
   getDoc,
@@ -89,11 +90,29 @@ export default function Leaderboards() {
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
   const { profile } = useUserProfile();
+  const router = useRouter();
+
+  // Derive section visibility flags from user preferences
+  const showTruck = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('zaladunek');
+  const showPicking = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('kompletacja');
+  const hasNoSections = !showTruck && !showPicking;
+
   const [leaderboard, setLeaderboard] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [sectionType, setSectionType] = useState('truck');
+  const [sectionType, setSectionType] = useState(() => {
+    if (showPicking && !showTruck) return 'picking';
+    return 'truck';
+  });
   const [pickingSubsection, setPickingSubsection] = useState('P01');
+
+  useEffect(() => {
+    if (showTruck && !showPicking && sectionType !== 'truck') {
+      setSectionType('truck');
+    } else if (!showTruck && showPicking && sectionType !== 'picking') {
+      setSectionType('picking');
+    }
+  }, [showTruck, showPicking, sectionType]);
 
   const monthInfo = useMemo(() => getMonthBounds(), []);
 
@@ -145,6 +164,45 @@ export default function Leaderboards() {
     loadLeaderboard({ force: true });
   }, [loadLeaderboard]);
 
+  if (hasNoSections) {
+    return (
+      <ThemedView
+        style={[
+          styles.container,
+          {
+            backgroundColor: colors.background,
+          },
+        ]}
+      >
+        <View style={[styles.header, { backgroundColor: colors.navBackground, paddingTop: insets.top + 8 }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Tablice wyników</Text>
+        </View>
+        <View
+          style={[
+            styles.emptyState,
+            {
+              backgroundColor: colors.cardBackground,
+              borderColor: colors.border,
+              marginTop: 40,
+            },
+          ]}
+        >
+          <Ionicons name="settings-outline" size={54} color={colors.iconColor} />
+          <Text style={[styles.emptyTitle, { color: colors.text }]}>Brak wybranych sekcji</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary, marginBottom: 20 }]}>
+            Brak wybranych sekcji. Przejdź do Ustawień, aby wybrać sekcje, z którymi pracujesz.
+          </Text>
+          <Pressable
+            style={[styles.sectionTab, { backgroundColor: colors.butBackground, borderColor: colors.butBorder, paddingHorizontal: 20, paddingVertical: 12 }]}
+            onPress={() => router.push('/misc/settings')}
+          >
+            <Text style={{ color: colors.butText, fontWeight: '700' }}>Przejdź do Ustawień</Text>
+          </Pressable>
+        </View>
+      </ThemedView>
+    );
+  }
+
   return (
     <ThemedView
       style={[
@@ -162,37 +220,40 @@ export default function Leaderboards() {
             : `Średnia miesięczna palet na godzinę, ${monthInfo.label}`}
         </Text>
 
-        <View style={styles.sectionTabsRow}>
-          <Pressable
-            onPress={() => setSectionType('truck')}
-            style={[
-              styles.sectionTab,
-              {
-                borderColor: sectionType === 'truck' ? colors.butBorder : colors.outButBorder,
-                backgroundColor: sectionType === 'truck' ? colors.butBackground : colors.outButBackground,
-              },
-            ]}
-          >
-            <Text style={{ color: sectionType === 'truck' ? colors.butText : colors.outButText, fontWeight: '700' }}>
-              Załadunek
-            </Text>
-          </Pressable>
+        {/* Pokaż przełącznik sekcji tylko jeśli użytkownik wybrał obie sekcje */}
+        {showTruck && showPicking && (
+          <View style={styles.sectionTabsRow}>
+            <Pressable
+              onPress={() => setSectionType('truck')}
+              style={[
+                styles.sectionTab,
+                {
+                  borderColor: sectionType === 'truck' ? colors.butBorder : colors.outButBorder,
+                  backgroundColor: sectionType === 'truck' ? colors.butBackground : colors.outButBackground,
+                },
+              ]}
+            >
+              <Text style={{ color: sectionType === 'truck' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+                Załadunek
+              </Text>
+            </Pressable>
 
-          <Pressable
-            onPress={() => setSectionType('picking')}
-            style={[
-              styles.sectionTab,
-              {
-                borderColor: sectionType === 'picking' ? colors.butBorder : colors.outButBorder,
-                backgroundColor: sectionType === 'picking' ? colors.butBackground : colors.outButBackground,
-              },
-            ]}
-          >
-            <Text style={{ color: sectionType === 'picking' ? colors.butText : colors.outButText, fontWeight: '700' }}>
-              Kompletacja
-            </Text>
-          </Pressable>
-        </View>
+            <Pressable
+              onPress={() => setSectionType('picking')}
+              style={[
+                styles.sectionTab,
+                {
+                  borderColor: sectionType === 'picking' ? colors.butBorder : colors.outButBorder,
+                  backgroundColor: sectionType === 'picking' ? colors.butBackground : colors.outButBackground,
+                },
+              ]}
+            >
+              <Text style={{ color: sectionType === 'picking' ? colors.butText : colors.outButText, fontWeight: '700' }}>
+                Kompletacja
+              </Text>
+            </Pressable>
+          </View>
+        )}
 
         {sectionType === 'picking' && (
           <View style={styles.subsectionTabsWrap}>
@@ -468,4 +529,3 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 });
-

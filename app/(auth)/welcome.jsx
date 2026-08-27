@@ -1,9 +1,10 @@
-import { View, Text, StyleSheet, Pressable, Image, Animated } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Image, Animated, ActivityIndicator } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import Spacer from '../../components/Spacer';
 import { useColors } from '../../hooks/useColors';
+import { StorageManager } from '../../utils/StorageManager';
 
 export default function Welcome() {
   const colors = useColors();
@@ -11,6 +12,27 @@ export default function Welcome() {
   const { deleted } = useLocalSearchParams();
   const { continueAsGuest } = useAuth();
   const fadeAnim = useRef(new Animated.Value(0)).current;
+  const [onboardingChecked, setOnboardingChecked] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    (async () => {
+      const flag = await StorageManager.getItem('hasSeenWelcome');
+      if (!isMounted) return;
+
+      if (flag !== 'true') {
+        // First run → show onboarding instead of welcome
+        router.replace('/onboarding');
+      } else {
+        setOnboardingChecked(true);
+      }
+    })();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     if (deleted === 'true') {
@@ -36,6 +58,21 @@ export default function Welcome() {
     await continueAsGuest();
     router.replace('/');
   };
+
+  if (!onboardingChecked) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          justifyContent: 'center',
+          alignItems: 'center',
+          backgroundColor: colors.background,
+        }}
+      >
+        <ActivityIndicator size="large" color={colors.butBackground} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -75,7 +112,7 @@ export default function Welcome() {
         </Pressable>
 
         <Pressable
-          style={[styles.button, styles.secondaryButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder   }]}
+          style={[styles.button, styles.secondaryButton, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}
           onPress={() => router.push('/(auth)/register')}
         >
           <Text style={[styles.secondaryButtonText, { color: colors.outButText }]}>Utwórz Konto</Text>

@@ -133,6 +133,18 @@ export function UserProfileProvider({ children }) {
           await updateDoc(userRef, identityFallbacks);
         }
 
+        const preferences = {
+          ...(existingProfile.preferences || {}),
+          sections: Array.isArray(existingProfile.preferences?.sections)
+            ? existingProfile.preferences.sections
+            : [],
+        };
+
+        const hasCompletedSetup =
+          typeof existingProfile.hasCompletedSetup === 'boolean'
+            ? existingProfile.hasCompletedSetup
+            : false;
+
         const hydratedProfile = {
           ...existingProfile,
           ...identityFallbacks,
@@ -142,7 +154,10 @@ export function UserProfileProvider({ children }) {
           totalXP,
           xp,
           level,
+          preferences,
+          hasCompletedSetup,
         };
+
         const schemaBackfill = {};
 
         if (Number(existingProfile.level) !== level) {

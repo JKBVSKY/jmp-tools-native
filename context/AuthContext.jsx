@@ -82,7 +82,23 @@ export function AuthProvider({ children }) {
           totalSessions: 0,
           bestScore: 0,
           totalScore: 0,
+          pickingTotalSessions: 0,
+          pickingTotalTimeWorked: 0,
+          pickingTotalBoxes: 0,
+          pickingTotalOrders: 0,
+          pickingBestRate: 0,
+          pickingTotalScore: 0,
+          pickingBestScore: 0,
+          pickingBoxesInSession: 0,
         },
+        notifications: {
+          enabled: false,
+        },
+        preferences: {
+          notificationLeadHours: 10,
+          sections: [],
+        },
+        hasCompletedSetup: false,
         lastPalletsUpdateDate: new Date().toDateString(),
         createdAt: new Date().toISOString(),
       };
