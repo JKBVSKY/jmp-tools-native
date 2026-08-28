@@ -26,6 +26,7 @@ import { useColors } from "../../hooks/useColors";
 import { useAuth } from "../../context/AuthContext";
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const STORAGE_KEY = '@jmp_tools_timetable';
 
@@ -84,6 +85,7 @@ const SHIFT_PRESETS = {
 const Timetable = () => {
     const colors = useColors();
     const { user, isGuest } = useAuth();
+    const insets = useSafeAreaInsets();
 
     const [currentDate, setCurrentDate] = useState(new Date());
 
@@ -1141,6 +1143,7 @@ const Timetable = () => {
                 visible={modalVisible}
                 transparent
                 animationType="slide"
+                statusBarTranslucent={true}
                 onRequestClose={() => setModalVisible(false)}
             >
                 <KeyboardAvoidingView
@@ -1158,6 +1161,7 @@ const Timetable = () => {
                                 styles.modalContainer,
                                 {
                                     backgroundColor: colors.cardBackground,
+                                    paddingBottom: Math.max(insets.bottom, 24),
                                 },
                             ]}
                         >
@@ -1607,10 +1611,11 @@ const Timetable = () => {
                 visible={massShiftModalVisible}
                 transparent
                 animationType="slide"
+                statusBarTranslucent={true}
                 onRequestClose={() => setMassShiftModalVisible(false)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={[styles.modalContainer, { backgroundColor: colors.cardBackground }]}>
+                    <View style={[styles.modalContainer, { backgroundColor: colors.cardBackground, paddingBottom: Math.max(insets.bottom, 24) }]}>
                         <View style={styles.modalHeader}>
                             <View style={{ flex: 1 }}>
                                 <Text style={[styles.modalTitle, { color: colors.title }]}>
@@ -1799,25 +1804,93 @@ const Timetable = () => {
 
             {/* CONTENT */}
 
+            {/* SELECTION CONTROLS */}
+
+{selectionMode && (
+    <View
+        style={[
+            styles.selectionControlsTop,
+            {
+                backgroundColor: colors.cardBackground,
+                borderBottomColor: colors.headerBorder,
+            },
+        ]}
+    >
+        {/* Przycisk 1: Wszystkie */}
+        <Pressable
+            onPress={selectAllDays}
+            style={({ pressed }) => [
+                styles.selectionControlButton,
+                pressed && styles.pressed,
+            ]}
+        >
+            <Ionicons
+                name="checkmark-done-outline"
+                size={18}
+                color={colors.iconColor}
+            />
+            <Text style={[styles.selectionControlText, { color: colors.text }]}>
+                Wszystkie
+            </Text>
+        </Pressable>
+
+        <View style={[styles.selectionDivider, { backgroundColor: colors.breakLine }]} />
+
+        {/* Przycisk 2: Masowa zmiana (Zmień grafik) - wyświetlany tylko gdy coś zaznaczono */}
+        <Pressable
+            onPress={() => setMassShiftModalVisible(true)}
+            disabled={selectedDays.length === 0}
+            style={({ pressed }) => [
+                styles.selectionControlButton,
+                { opacity: selectedDays.length === 0 ? 0.4 : 1 }, // Wizualne wyłączenie gdy 0 dni
+                pressed && selectedDays.length > 0 && styles.pressed,
+            ]}
+        >
+            <Ionicons 
+                name="flash-outline" 
+                size={18} 
+                color={selectedDays.length === 0 ? colors.textSecondary : colors.primary} 
+            />
+            <Text 
+                style={[
+                    styles.selectionControlText, 
+                    { 
+                        color: selectedDays.length === 0 ? colors.textSecondary : colors.primary, 
+                        fontWeight: 'bold' 
+                    }
+                ]}
+            >
+                Ustaw ({selectedDays.length})
+            </Text>
+        </Pressable>
+
+        <View style={[styles.selectionDivider, { backgroundColor: colors.breakLine }]} />
+
+        {/* Przycisk 3: Wyczyść */}
+        <Pressable
+            onPress={clearSelectedDays}
+            style={({ pressed }) => [
+                styles.selectionControlButton,
+                pressed && styles.pressed,
+            ]}
+        >
+            <Ionicons
+                name="refresh-outline"
+                size={18}
+                color={colors.iconColor}
+            />
+            <Text style={[styles.selectionControlText, { color: colors.text }]}>
+                Wyczyść
+            </Text>
+        </Pressable>
+    </View>
+)}
+
             <ScrollView
                 scrollEnabled={!isDraggingSelection}
                 contentContainerStyle={styles.content}
                 showsVerticalScrollIndicator={false}
             >
-                {/* MONTHLY PHOTO PREVIEW */}
-                {monthlyPhotoUri && (
-                    <View style={[styles.photoCard, { backgroundColor: colors.cardBackground, borderColor: colors.headerBorder }]}>
-                        <Pressable
-                            style={{ flex: 1 }}
-                            onPress={() => setIsPhotoFullscreen(true)}
-                        >
-                            <Image source={{ uri: monthlyPhotoUri }} style={styles.monthlyPhoto} contentFit="cover" />
-                        </Pressable>
-                        <Pressable onPress={handleDeleteMonthlyPhoto} style={[styles.deletePhotoBtn, { backgroundColor: colors.cardBackground }]}>
-                            <Ionicons name="trash-outline" size={18} color={colors.textRed} />
-                        </Pressable>
-                    </View>
-                )}
 
                 {/* MONTH */}
 
@@ -1878,91 +1951,19 @@ const Timetable = () => {
                     </Pressable>
                 </View>
 
-                {/* SELECTION CONTROLS */}
-
-                {selectionMode && (
-                    <View
-                        style={[
-                            styles.selectionControls,
-                            {
-                                backgroundColor: colors.cardBackground,
-                                borderColor: colors.headerBorder,
-                            },
-                        ]}
-                    >
+                {/* MONTHLY PHOTO PREVIEW */}
+                {monthlyPhotoUri && (
+                    <View style={[styles.photoCard, { backgroundColor: colors.cardBackground, borderColor: colors.headerBorder }]}>
                         <Pressable
-                            onPress={selectAllDays}
-                            style={({ pressed }) => [
-                                styles.selectionControlButton,
-                                pressed && styles.pressed,
-                            ]}
+                            style={{ flex: 1 }}
+                            onPress={() => setIsPhotoFullscreen(true)}
                         >
-                            <Ionicons
-                                name="checkmark-done-outline"
-                                size={18}
-                                color={colors.iconColor}
-                            />
-
-                            <Text
-                                style={[
-                                    styles.selectionControlText,
-                                    { color: colors.text },
-                                ]}
-                            >
-                                Wszystkie
-                            </Text>
+                            <Image source={{ uri: monthlyPhotoUri }} style={styles.monthlyPhoto} contentFit="cover" />
                         </Pressable>
-
-                        <View
-                            style={[
-                                styles.selectionDivider,
-                                { backgroundColor: colors.breakLine },
-                            ]}
-                        />
-
-                        <Pressable
-                            onPress={clearSelectedDays}
-                            style={({ pressed }) => [
-                                styles.selectionControlButton,
-                                pressed && styles.pressed,
-                            ]}
-                        >
-                            <Ionicons
-                                name="refresh-outline"
-                                size={18}
-                                color={colors.iconColor}
-                            />
-
-                            <Text
-                                style={[
-                                    styles.selectionControlText,
-                                    { color: colors.text },
-                                ]}
-                            >
-                                Wyczyść
-                            </Text>
+                        <Pressable onPress={handleDeleteMonthlyPhoto} style={[styles.deletePhotoBtn, { backgroundColor: colors.cardBackground }]}>
+                            <Ionicons name="trash-outline" size={18} color={colors.textRed} />
                         </Pressable>
                     </View>
-                )}
-
-                {/* MASS SHIFT BUTTON */}
-                {selectionMode && selectedDays.length > 0 && (
-                    <Pressable
-                        onPress={() => setMassShiftModalVisible(true)}
-                        style={({ pressed }) => [
-                            styles.massShiftButton,
-                            {
-                                backgroundColor: colors.butBackground,
-                                borderColor: colors.butBorder,
-                            },
-                            pressed && styles.pressed,
-                        ]}
-                    >
-                        <Ionicons name="flash-outline" size={18} color={colors.butText} />
-                        <Text style={[styles.massShiftButtonText, { color: colors.butText }]}>
-                            Ustaw wybrane dni ({selectedDays.length})
-                        </Text>
-                    </Pressable>
                 )}
 
                 {/* DAYS */}
@@ -2069,33 +2070,37 @@ const styles = StyleSheet.create({
      * MULTI SELECTION
      */
 
-    selectionControls: {
-        height: 48,
-        borderRadius: 12,
-        borderWidth: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
+selectionControlsTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    height: 48, // Optymalna wysokość paska dla dotyku
+    paddingHorizontal: 8,
+    borderBottomWidth: 1,
+    
+    // Delikatny cień rzucany w dół na przewijany kalendarz
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 4, 
+},
+selectionControlButton: {
+    flex: 1, // Każdy przycisk zajmuje dokładnie 1/3 szerokości paska
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: '100%',
+},
+selectionControlText: {
+    fontSize: 13,
+},
+selectionDivider: {
+    width: 1,
+    height: 20,
+},
 
-    selectionControlButton: {
-        flex: 1,
-        height: '100%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 7,
-    },
-
-    selectionControlText: {
-        fontSize: 13,
-        fontWeight: '600',
-    },
-
-    selectionDivider: {
-        width: 1,
-        height: 24,
-    },
 
     /*
      * DAYS
@@ -2268,6 +2273,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         gap: 10,
         alignItems: 'center',
+        marginBottom: 16,
     },
 
     deleteButton: {
@@ -2371,20 +2377,6 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.3,
         shadowRadius: 3,
         elevation: 4,
-    },
-    massShiftButton: {
-        height: 50,
-        borderRadius: 12,
-        borderWidth: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        marginBottom: 14,
-    },
-    massShiftButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
     },
     presetChip: {
         height: 52,
