@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import * as Notifications from 'expo-notifications';
+import * as ImagePicker from 'expo-image-picker';
+import { Image } from 'expo-image';
 import {
     View,
     Text,
@@ -102,6 +104,99 @@ const Timetable = () => {
 
     const [isDraggingSelection, setIsDraggingSelection] =
         useState(false);
+
+    // Monthly Schedule Photo & Mass Shift Modal
+    const [monthlyPhotoUri, setMonthlyPhotoUri] = useState(null);
+    const [isPhotoFullscreen, setIsPhotoFullscreen] = useState(false);
+    const [massShiftModalVisible, setMassShiftModalVisible] = useState(false);
+
+    const getPhotoStorageKey = (date) => `@jmp_tools_timetable_photo_${date.getFullYear()}_${date.getMonth()}`;
+
+    const loadMonthlyPhoto = useCallback(async (date) => {
+        try {
+            const key = getPhotoStorageKey(date);
+            const uri = await AsyncStorage.getItem(key);
+            setMonthlyPhotoUri(uri);
+        } catch (e) {
+            console.error('Error loading monthly photo:', e);
+            setMonthlyPhotoUri(null);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadMonthlyPhoto(currentDate);
+    }, [currentDate, loadMonthlyPhoto]);
+
+    const handleCameraPress = () => {
+        Alert.alert(
+            'Zdjęcie grafiku',
+            'Wybierz źródło zdjęcia grafiku na ten miesiąc:',
+            [
+                {
+                    text: 'Aparat',
+                    onPress: async () => {
+                        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                        if (status !== 'granted') {
+                            Alert.alert('Brak uprawnień', 'Wymagane uprawnienia do aparatu.');
+                            return;
+                        }
+                        const result = await ImagePicker.launchCameraAsync({
+                            mediaTypes: ['images'],
+                            allowsEditing: true,
+                            quality: 1,
+                        });
+                        if (!result.canceled && result.assets?.[0]?.uri) {
+                            const uri = result.assets[0].uri;
+                            const key = getPhotoStorageKey(currentDate);
+                            await AsyncStorage.setItem(key, uri);
+                            setMonthlyPhotoUri(uri);
+                        }
+                    },
+                },
+                {
+                    text: 'Galeria',
+                    onPress: async () => {
+                        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                        if (status !== 'granted') {
+                            Alert.alert('Brak uprawnień', 'Wymagane uprawnienia do galerii.');
+                            return;
+                        }
+                        const result = await ImagePicker.launchImageLibraryAsync({
+                            mediaTypes: ['images'],
+                            allowsEditing: true,
+                            quality: 1,
+                        });
+                        if (!result.canceled && result.assets?.[0]?.uri) {
+                            const uri = result.assets[0].uri;
+                            const key = getPhotoStorageKey(currentDate);
+                            await AsyncStorage.setItem(key, uri);
+                            setMonthlyPhotoUri(uri);
+                        }
+                    },
+                },
+                { text: 'Anuluj', style: 'cancel' },
+            ]
+        );
+    };
+
+    const handleDeleteMonthlyPhoto = async () => {
+        Alert.alert(
+            'Usuń zdjęcie',
+            'Czy na pewno chcesz usunąć zdjęcie grafiku dla tego miesiąca?',
+            [
+                { text: 'Anuluj', style: 'cancel' },
+                {
+                    text: 'Usuń',
+                    style: 'destructive',
+                    onPress: async () => {
+                        const key = getPhotoStorageKey(currentDate);
+                        await AsyncStorage.removeItem(key);
+                        setMonthlyPhotoUri(null);
+                    },
+                },
+            ]
+        );
+    };
 
     // Form
     const [shiftType, setShiftType] = useState('work');
@@ -1475,6 +1570,149 @@ const Timetable = () => {
 
     /*
      * --------------------------------------------------
+     * MASS SHIFT MODAL
+     * --------------------------------------------------
+     */
+
+    const renderMassShiftModal = () => {
+        const presets = [
+            { label: '06:00 - 14:15', type: 'work', start: '06:00', end: '14:15' },
+            { label: '13:45 - 22:00', type: 'work', start: '13:45', end: '22:00' },
+            { label: '21:45 - 06:00', type: 'work', start: '21:45', end: '06:00' },
+            { label: 'Wolne', type: 'free' },
+        ];
+
+        const handleApplyPreset = async (preset) => {
+            const newSchedule = { ...schedule };
+            selectedDays.forEach((key) => {
+                const entry = {
+                    date: key,
+                    type: preset.type,
+                };
+                if (preset.type === 'work') {
+                    entry.start = preset.start;
+                    entry.end = preset.end;
+                }
+                newSchedule[key] = entry;
+            });
+
+            await saveSchedule(newSchedule);
+            setMassShiftModalVisible(false);
+            setSelectedDays([]);
+            setSelectionMode(false);
+        };
+
+        return (
+            <Modal
+                visible={massShiftModalVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setMassShiftModalVisible(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={[styles.modalContainer, { backgroundColor: colors.cardBackground }]}>
+                        <View style={styles.modalHeader}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={[styles.modalTitle, { color: colors.title }]}>
+                                    Ustaw wybrane dni ({selectedDays.length})
+                                </Text>
+                                <Text style={[styles.modalDate, { color: colors.textSecondary }]}>
+                                    Wybierz zmianę, która zostanie przypisana do zaznaczonych dni.
+                                </Text>
+                            </View>
+                            <Pressable onPress={() => setMassShiftModalVisible(false)} style={styles.closeButton}>
+                                <Ionicons name="close" size={24} color={colors.iconColor} />
+                            </Pressable>
+                        </View>
+
+                        <View style={{ gap: 12, marginBottom: 20 }}>
+                            {presets.map((preset, idx) => (
+                                <Pressable
+                                    key={idx}
+                                    onPress={() => handleApplyPreset(preset)}
+                                    style={({ pressed }) => [
+                                        styles.presetChip,
+                                        {
+                                            backgroundColor: preset.type === 'work' ? colors.inputBackground : colors.outButBackground,
+                                            borderColor: colors.outButBorder,
+                                        },
+                                        pressed && styles.pressed,
+                                    ]}
+                                >
+                                    <Ionicons
+                                        name={preset.type === 'work' ? 'time-outline' : 'calendar-outline'}
+                                        size={20}
+                                        color={preset.type === 'work' ? colors.textRed : colors.iconColor}
+                                    />
+                                    <Text style={[styles.presetChipText, { color: colors.text }]}>
+                                        {preset.label}
+                                    </Text>
+                                </Pressable>
+                            ))}
+                        </View>
+
+                        <Pressable
+                            onPress={() => setMassShiftModalVisible(false)}
+                            style={({ pressed }) => [
+                                styles.cancelButton,
+                                {
+                                    backgroundColor: colors.outButBackground,
+                                    borderColor: colors.outButBorder,
+                                },
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <Text style={[styles.cancelButtonText, { color: colors.outButText }]}>
+                                Anuluj
+                            </Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </Modal>
+        );
+    };
+
+    /*
+     * --------------------------------------------------
+     * FULLSCREEN PHOTO MODAL
+     * --------------------------------------------------
+     */
+
+    const renderFullscreenPhotoModal = () => {
+        if (!monthlyPhotoUri) return null;
+
+        return (
+            <Modal
+                visible={isPhotoFullscreen}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setIsPhotoFullscreen(false)}
+            >
+                <View style={[styles.fullscreenModalOverlay, { backgroundColor: 'rgba(0,0,0,0.9)' }]}>
+                    <SafeAreaView style={{ flex: 1, width: '100%' }}>
+                        <View style={styles.fullscreenHeader}>
+                            <Pressable
+                                onPress={() => setIsPhotoFullscreen(false)}
+                                style={[styles.fullscreenCloseBtn, { backgroundColor: colors.cardBackground + '80' }]}
+                            >
+                                <Ionicons name="close" size={32} color={colors.title} />
+                            </Pressable>
+                        </View>
+                        <View style={{ flex: 1 }}>
+                            <Image
+                                source={{ uri: monthlyPhotoUri }}
+                                style={{ flex: 1, width: '100%', height: '100%' }}
+                                contentFit="contain"
+                            />
+                        </View>
+                    </SafeAreaView>
+                </View>
+            </Modal>
+        );
+    };
+
+    /*
+     * --------------------------------------------------
      * MAIN UI
      * --------------------------------------------------
      */
@@ -1524,23 +1762,39 @@ const Timetable = () => {
                     Grafik pracy
                 </Text>
 
-                <Pressable
-                    onPress={toggleSelectionMode}
-                    style={({ pressed }) => [
-                        styles.headerButton,
-                        pressed && styles.pressed,
-                    ]}
-                >
-                    <Ionicons
-                        name={
-                            selectionMode
-                                ? 'close-outline'
-                                : 'checkbox-outline'
-                        }
-                        size={24}
-                        color={colors.iconColor}
-                    />
-                </Pressable>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                    <Pressable
+                        onPress={handleCameraPress}
+                        style={({ pressed }) => [
+                            styles.headerButton,
+                            pressed && styles.pressed,
+                        ]}
+                    >
+                        <Ionicons
+                            name="camera-outline"
+                            size={24}
+                            color={colors.iconColor}
+                        />
+                    </Pressable>
+
+                    <Pressable
+                        onPress={toggleSelectionMode}
+                        style={({ pressed }) => [
+                            styles.headerButton,
+                            pressed && styles.pressed,
+                        ]}
+                    >
+                        <Ionicons
+                            name={
+                                selectionMode
+                                    ? 'close-outline'
+                                    : 'checkbox-outline'
+                            }
+                            size={24}
+                            color={colors.iconColor}
+                        />
+                    </Pressable>
+                </View>
             </View>
 
             {/* CONTENT */}
@@ -1550,6 +1804,21 @@ const Timetable = () => {
                 contentContainerStyle={styles.content}
                 showsVerticalScrollIndicator={false}
             >
+                {/* MONTHLY PHOTO PREVIEW */}
+                {monthlyPhotoUri && (
+                    <View style={[styles.photoCard, { backgroundColor: colors.cardBackground, borderColor: colors.headerBorder }]}>
+                        <Pressable
+                            style={{ flex: 1 }}
+                            onPress={() => setIsPhotoFullscreen(true)}
+                        >
+                            <Image source={{ uri: monthlyPhotoUri }} style={styles.monthlyPhoto} contentFit="cover" />
+                        </Pressable>
+                        <Pressable onPress={handleDeleteMonthlyPhoto} style={[styles.deletePhotoBtn, { backgroundColor: colors.cardBackground }]}>
+                            <Ionicons name="trash-outline" size={18} color={colors.textRed} />
+                        </Pressable>
+                    </View>
+                )}
+
                 {/* MONTH */}
 
                 <View style={styles.monthHeader}>
@@ -1676,6 +1945,26 @@ const Timetable = () => {
                     </View>
                 )}
 
+                {/* MASS SHIFT BUTTON */}
+                {selectionMode && selectedDays.length > 0 && (
+                    <Pressable
+                        onPress={() => setMassShiftModalVisible(true)}
+                        style={({ pressed }) => [
+                            styles.massShiftButton,
+                            {
+                                backgroundColor: colors.butBackground,
+                                borderColor: colors.butBorder,
+                            },
+                            pressed && styles.pressed,
+                        ]}
+                    >
+                        <Ionicons name="flash-outline" size={18} color={colors.butText} />
+                        <Text style={[styles.massShiftButtonText, { color: colors.butText }]}>
+                            Ustaw wybrane dni ({selectedDays.length})
+                        </Text>
+                    </Pressable>
+                )}
+
                 {/* DAYS */}
 
                 <GestureDetector gesture={rangeGesture}>
@@ -1686,6 +1975,8 @@ const Timetable = () => {
             </ScrollView>
 
             {renderModal()}
+            {renderMassShiftModal()}
+            {renderFullscreenPhotoModal()}
         </SafeAreaView>
     );
 };
@@ -2052,6 +2343,78 @@ const styles = StyleSheet.create({
     adjustButtonText: {
         fontSize: 12,
         fontWeight: '700',
+    },
+
+    photoCard: {
+        height: 160,
+        borderRadius: 14,
+        borderWidth: 1,
+        overflow: 'hidden',
+        marginBottom: 18,
+        position: 'relative',
+    },
+    monthlyPhoto: {
+        width: '100%',
+        height: '100%',
+    },
+    deletePhotoBtn: {
+        position: 'absolute',
+        top: 10,
+        right: 10,
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        alignItems: 'center',
+        justifyContent: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 3,
+        elevation: 4,
+    },
+    massShiftButton: {
+        height: 50,
+        borderRadius: 12,
+        borderWidth: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginBottom: 14,
+    },
+    massShiftButtonText: {
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    presetChip: {
+        height: 52,
+        borderRadius: 12,
+        borderWidth: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        gap: 12,
+    },
+    presetChipText: {
+        fontSize: 16,
+        fontWeight: '600',
+    },
+    fullscreenModalOverlay: {
+        flex: 1,
+    },
+    fullscreenHeader: {
+        width: '100%',
+        alignItems: 'flex-end',
+        paddingHorizontal: 20,
+        paddingTop: 10,
+        zIndex: 10,
+    },
+    fullscreenCloseBtn: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
 });
 
