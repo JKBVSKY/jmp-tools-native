@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Image,
   Modal,
   Platform,
   SafeAreaView,
@@ -15,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Stack } from 'expo-router';
 import { addDoc, collection, doc, getDocs, writeBatch } from 'firebase/firestore';
@@ -291,6 +293,8 @@ export default function ScheduleScreen() {
   const [rawPreviewVisible, setRawPreviewVisible] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
+  const [tempPhotoUri, setTempPhotoUri] = useState(null);
+  const [isCropModalVisible, setIsCropModalVisible] = useState(false);
 
   const [verificationMode, setVerificationMode] = useState('scan');
   const [scannedNrNumbers, setScannedNrNumbers] = useState([]);
@@ -542,7 +546,7 @@ export default function ScheduleScreen() {
 
       const options = {
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
+        allowsEditing: false,
         quality: 1,
         base64: false,
       };
@@ -624,14 +628,20 @@ export default function ScheduleScreen() {
           text: 'Galeria',
           onPress: async () => {
             const uri = await pickImage('gallery');
-            await processScannedImage(uri);
+            if (uri) {
+              setTempPhotoUri(uri);
+              setIsCropModalVisible(true);
+            }
           },
         },
         {
           text: 'Aparat',
           onPress: async () => {
             const uri = await pickImage('camera');
-            await processScannedImage(uri);
+            if (uri) {
+              setTempPhotoUri(uri);
+              setIsCropModalVisible(true);
+            }
           },
         },
       ]
@@ -1042,6 +1052,69 @@ export default function ScheduleScreen() {
           </View>
         </View>
       </Modal>
+
+      <Modal visible={isCropModalVisible} animationType="slide" transparent={false} onRequestClose={() => setIsCropModalVisible(false)}>
+        <SafeAreaView style={[styles.cropContainer, { backgroundColor: colors.background }]}>
+          <View style={[styles.cropHeader, { borderBottomColor: colors.border }]}>
+            <TouchableOpacity onPress={() => setIsCropModalVisible(false)}>
+              <Text style={{ color: colors.text, fontSize: 16 }}>Anuluj</Text>
+            </TouchableOpacity>
+            <Text style={[styles.cropHeaderTitle, { color: colors.text }]}>Kadrowanie dokumentu</Text>
+            <View style={{ width: 48 }} />
+          </View>
+
+          <View style={styles.cropWorkspace}>
+            <Text style={[styles.cropInstruction, { color: colors.textSecondary }]}>
+              Dopasuj ramkę kadrowania do kolumny NR na dokumencie.
+            </Text>
+            <View style={[styles.imageWrapper, { borderColor: colors.border }]}>
+              {tempPhotoUri ? (
+                <Image source={{ uri: tempPhotoUri }} style={styles.cropImage} resizeMode="contain" />
+              ) : null}
+              <View style={[styles.cropFrame, { borderColor: colors.primary }]}>
+                <View style={[styles.cornerTL, { borderColor: colors.primary }]} />
+                <View style={[styles.cornerTR, { borderColor: colors.primary }]} />
+                <View style={[styles.cornerBL, { borderColor: colors.primary }]} />
+                <View style={[styles.cornerBR, { borderColor: colors.primary }]} />
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.cropFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+            <TouchableOpacity
+              style={[styles.cropSaveButton, { backgroundColor: colors.butBackground }]}
+              onPress={async () => {
+                try {
+                  const actions = [
+                    {
+                      crop: {
+                        originX: 100,
+                        originY: 50,
+                        width: 800,
+                        height: 1600,
+                      },
+                    },
+                  ];
+
+                  const manipulateResult = await ImageManipulator.manipulateAsync(
+                    tempPhotoUri,
+                    actions,
+                    { format: ImageManipulator.SaveFormat.JPEG, quality: 1 }
+                  );
+
+                  setIsCropModalVisible(false);
+                  await processScannedImage(manipulateResult.uri);
+                } catch (error) {
+                  console.error("Błąd ImageManipulator:", error);
+                  Alert.alert('Błąd kadrowania', 'Nie udało się przyciąć obrazu.');
+                }
+              }}
+            >
+              <Text style={styles.cropSaveButtonText}>Zatwierdź i wytnij</Text>
+            </TouchableOpacity>
+          </View>
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1304,4 +1377,21 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 6,
   },
+  cropContainer: { flex: 1 },
+  cropHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 56, borderBottomWidth: 1 },
+  cropHeaderTitle: { fontSize: 16, fontWeight: 'bold' },
+  cropWorkspace: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, marginVertical: 16 },
+  imageWrapper: { position: 'relative', width: '100%', height: '85%', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  cropImage: { width: '100%', height: '100%', opacity: 0.6 },
+  cropFrame: { position: 'absolute', top: '10%', bottom: '10%', left: '25%', right: '25%', borderWidth: 2, borderStyle: 'solid', backgroundColor: 'transparent' },
+  gridLineV: { position: 'absolute', top: 0, bottom: 0, width: 1 },
+  gridLineH: { position: 'absolute', left: 0, right: 0, height: 1 },
+  cornerTL: { position: 'absolute', top: -2, left: -2, width: 12, height: 12, borderTopWidth: 4, borderLeftWidth: 4 },
+  cornerTR: { position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderTopWidth: 4, borderRightWidth: 4 },
+  cornerBL: { position: 'absolute', bottom: -2, left: -2, width: 12, height: 12, borderBottomWidth: 4, borderLeftWidth: 4 },
+  cornerBR: { position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderBottomWidth: 4, borderRightWidth: 4 },
+  cropInstruction: { textAlign: 'center', fontSize: 13, paddingHorizontal: 32, marginBottom: 16 },
+  cropFooter: { paddingHorizontal: 16, paddingTop: 8 },
+  cropSaveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 12 },
+  cropSaveButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 },
 });

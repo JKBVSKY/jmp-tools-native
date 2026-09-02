@@ -109,7 +109,7 @@ const styles = StyleSheet.create({
     optionsGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-between',
+        justifyContent: 'center',
     },
     optionButton: {
         flexDirection: 'column',
