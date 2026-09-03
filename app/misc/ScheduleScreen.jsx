@@ -1,10 +1,11 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
   Image,
   Modal,
+  PanResponder,
   Platform,
   SafeAreaView,
   ScrollView,
@@ -14,6 +15,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -29,6 +32,14 @@ import { StorageManager } from '../../utils/StorageManager';
 const ADMIN_EMAILS = ['jakub.jaskola7@gmail.com'];
 const LOCAL_SCHEDULE_KEY_PREFIX = 'scheduleItemsLocalV2';
 const ASYNC_LOCAL_SCHEDULE_KEY_PREFIX = 'scheduleItemsLocalV3';
+const DEBUG_CROP_HANDLES = false;
+const EDGE_HANDLE_SIZE = 44;
+const CORNER_HANDLE_SIZE = 48;
+const MIN_CROP_WIDTH = 24;
+const MIN_CROP_HEIGHT = 80;
+const MIN_SCALE = 1;
+const MAX_SCALE = 5;
+const DEBUG_CROP_GESTURES = false;
 
 const toFiniteNumber = (...values) => {
   for (const value of values) {
@@ -278,6 +289,8 @@ const getLocalScheduleKey = (userId) => {
   return `${LOCAL_SCHEDULE_KEY_PREFIX}_${safeUserId}`;
 };
 
+const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
 export default function ScheduleScreen() {
   const colors = useColors();
   const { user, isGuest } = useAuth();
@@ -295,6 +308,15 @@ export default function ScheduleScreen() {
   const [isSharing, setIsSharing] = useState(false);
   const [tempPhotoUri, setTempPhotoUri] = useState(null);
   const [isCropModalVisible, setIsCropModalVisible] = useState(false);
+  const [sourceImageSize, setSourceImageSize] = useState(null);
+  const [imageLayout, setImageLayout] = useState(null);
+  const [cropRect, setCropRect] = useState(null);
+  const [imageTransform, setImageTransform] = useState({ scale: MIN_SCALE, translateX: 0, translateY: 0 });
+  const [pinchDiagnostics, setPinchDiagnostics] = useState({ active: false, eventScale: 1, appliedScale: MIN_SCALE, translateX: 0, translateY: 0 });
+  const [lastCrop, setLastCrop] = useState(null);
+  const [lastCropPreviewVisible, setLastCropPreviewVisible] = useState(false);
+  const [cropDiagnostics, setCropDiagnostics] = useState(null);
+  const [ocrDiagnostics, setOcrDiagnostics] = useState(null);
 
   const [verificationMode, setVerificationMode] = useState('scan');
   const [scannedNrNumbers, setScannedNrNumbers] = useState([]);
@@ -302,11 +324,388 @@ export default function ScheduleScreen() {
   const [lpEndInput, setLpEndInput] = useState('');
   const [rangeError, setRangeError] = useState('');
   const persistTimerRef = React.useRef(null);
+  const cropRectRef = useRef(null);
+  const cropGestureStartRef = useRef(null);
+  const imageLayoutRef = useRef(null);
+  const imageTransformRef = useRef(imageTransform);
+  const cropInteractionStartRef = useRef(null);
+  const resizeGestureActiveRef = useRef(false);
+  const scrollViewRef = useRef(null);
+  const rowPositionsRef = useRef({});
+  const scale = useSharedValue(MIN_SCALE);
+  const translateX = useSharedValue(0);
+  const translateY = useSharedValue(0);
+  const savedScale = useSharedValue(MIN_SCALE);
+  const savedTranslateX = useSharedValue(0);
+  const savedTranslateY = useSharedValue(0);
+  const pinchStartDistance = useSharedValue(0);
+
+  const logPinchDiagnostic = useCallback((message, data) => {
+    if (DEBUG_CROP_GESTURES) console.log('[Schedule crop]', message, data);
+  }, []);
+
+  const updatePinchDiagnostics = useCallback((nextDiagnostics) => {
+    setPinchDiagnostics(nextDiagnostics);
+  }, []);
 
   const isAdmin = !!user?.email && !isGuest && ADMIN_EMAILS.includes(user.email.toLowerCase());
   const scheduleCollection = user ? collection(db, 'users', user.id, 'scheduleItems') : null;
   const localStorageKey = getLocalScheduleKey(user?.id);
   const asyncLocalStorageKey = `${ASYNC_LOCAL_SCHEDULE_KEY_PREFIX}_${String(user?.id || 'guest').replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+
+  useEffect(() => {
+    if (!tempPhotoUri) {
+      setSourceImageSize(null);
+      setImageLayout(null);
+      setCropRect(null);
+      cropRectRef.current = null;
+      setImageTransform({ scale: MIN_SCALE, translateX: 0, translateY: 0 });
+      imageTransformRef.current = { scale: MIN_SCALE, translateX: 0, translateY: 0 };
+      scale.value = MIN_SCALE;
+      translateX.value = 0;
+      translateY.value = 0;
+      savedScale.value = MIN_SCALE;
+      savedTranslateX.value = 0;
+      savedTranslateY.value = 0;
+      return undefined;
+    }
+
+    let cancelled = false;
+    Image.getSize(
+      tempPhotoUri,
+      (width, height) => {
+        if (!cancelled && width > 0 && height > 0) setSourceImageSize({ width, height });
+      },
+      () => {
+        if (!cancelled) setSourceImageSize(null);
+      }
+    );
+
+    return () => {
+      cancelled = true;
+    };
+  }, [tempPhotoUri, savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY]);
+
+  useEffect(() => {
+    imageLayoutRef.current = imageLayout;
+  }, [imageLayout]);
+
+  const commitImageTransform = useCallback((nextTransform) => {
+    const safeTransform = {
+      scale: clamp(Number(nextTransform.scale) || MIN_SCALE, MIN_SCALE, MAX_SCALE),
+      translateX: Number(nextTransform.translateX) || 0,
+      translateY: Number(nextTransform.translateY) || 0,
+    };
+    imageTransformRef.current = safeTransform;
+    setImageTransform(safeTransform);
+    setPinchDiagnostics((previous) => ({
+      ...previous,
+      active: false,
+      eventScale: safeTransform.scale,
+      appliedScale: safeTransform.scale,
+      translateX: safeTransform.translateX,
+      translateY: safeTransform.translateY,
+    }));
+    if (DEBUG_CROP_GESTURES) {
+      console.log('[Schedule crop] pinch end scale:', safeTransform.scale);
+    }
+  }, []);
+
+  const getTransformedImageBounds = useCallback((layout = imageLayoutRef.current, transform = imageTransformRef.current) => {
+    if (!layout?.displayedWidth || !layout?.displayedHeight) return null;
+    const centerX = layout.imageOffsetX + layout.displayedWidth / 2;
+    const centerY = layout.imageOffsetY + layout.displayedHeight / 2;
+    const width = layout.displayedWidth * transform.scale;
+    const height = layout.displayedHeight * transform.scale;
+    return {
+      left: centerX - width / 2 + transform.translateX,
+      top: centerY - height / 2 + transform.translateY,
+      right: centerX + width / 2 + transform.translateX,
+      bottom: centerY + height / 2 + transform.translateY,
+    };
+  }, []);
+
+  const clampImageTransform = useCallback((nextTransform) => {
+    const layout = imageLayoutRef.current;
+    if (!layout?.width || !layout?.height || !layout.displayedWidth || !layout.displayedHeight) {
+      return nextTransform;
+    }
+    const safeScale = clamp(Number(nextTransform.scale) || MIN_SCALE, MIN_SCALE, MAX_SCALE);
+    const maxTranslateX = Math.max(0, (layout.displayedWidth * safeScale - layout.width) / 2);
+    const maxTranslateY = Math.max(0, (layout.displayedHeight * safeScale - layout.height) / 2);
+    return {
+      scale: safeScale,
+      translateX: clamp(Number(nextTransform.translateX) || 0, -maxTranslateX, maxTranslateX),
+      translateY: clamp(Number(nextTransform.translateY) || 0, -maxTranslateY, maxTranslateY),
+    };
+  }, []);
+
+  const animatedImageStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: translateX.value }, { translateY: translateY.value }, { scale: scale.value }],
+  }));
+
+  const imageGestures = useMemo(() => {
+    const layoutWidth = imageLayout?.width || 0;
+    const layoutHeight = imageLayout?.height || 0;
+    const displayedWidth = imageLayout?.displayedWidth || 0;
+    const displayedHeight = imageLayout?.displayedHeight || 0;
+    const clampGestureTranslation = (value, zoom, size, containerSize) => {
+      'worklet';
+      const maxTranslation = Math.max(0, (size * zoom - containerSize) / 2);
+      return Math.min(Math.max(value, -maxTranslation), maxTranslation);
+    };
+    const pinch = Gesture.Pinch()
+      .onStart((event) => {
+        savedScale.value = scale.value;
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+        pinchStartDistance.value = 1;
+        if (DEBUG_CROP_GESTURES) {
+          runOnJS(logPinchDiagnostic)('pinch start', {
+            touches: event.numberOfPointers,
+            initialDistance: pinchStartDistance.value,
+            scale: scale.value,
+          });
+          runOnJS(updatePinchDiagnostics)({ active: true, eventScale: 1, appliedScale: scale.value, translateX: translateX.value, translateY: translateY.value });
+        }
+      })
+      .onUpdate((event) => {
+        const nextScale = Math.min(Math.max(savedScale.value * event.scale, MIN_SCALE), MAX_SCALE);
+        scale.value = nextScale;
+        translateX.value = clampGestureTranslation(savedTranslateX.value, nextScale, displayedWidth, layoutWidth);
+        translateY.value = clampGestureTranslation(savedTranslateY.value, nextScale, displayedHeight, layoutHeight);
+        if (DEBUG_CROP_GESTURES) {
+          runOnJS(logPinchDiagnostic)('pinch update', {
+            touches: event.numberOfPointers,
+            currentDistance: event.scale,
+            calculatedScale: nextScale,
+          });
+          runOnJS(updatePinchDiagnostics)({ active: true, eventScale: event.scale, appliedScale: nextScale, translateX: translateX.value, translateY: translateY.value });
+        }
+      })
+      .onEnd(() => {
+        runOnJS(commitImageTransform)({
+          scale: scale.value,
+          translateX: translateX.value,
+          translateY: translateY.value,
+        });
+      });
+    const pan = Gesture.Pan()
+      .minPointers(2)
+      .maxPointers(2)
+      .onStart(() => {
+        savedTranslateX.value = translateX.value;
+        savedTranslateY.value = translateY.value;
+      })
+      .onUpdate((event) => {
+        translateX.value = clampGestureTranslation(savedTranslateX.value + event.translationX, scale.value, displayedWidth, layoutWidth);
+        translateY.value = clampGestureTranslation(savedTranslateY.value + event.translationY, scale.value, displayedHeight, layoutHeight);
+      })
+      .onEnd(() => {
+        runOnJS(commitImageTransform)({
+          scale: scale.value,
+          translateX: translateX.value,
+          translateY: translateY.value,
+        });
+      });
+    return Gesture.Simultaneous(pinch, pan);
+  }, [commitImageTransform, imageLayout, logPinchDiagnostic, scale, translateX, translateY, savedScale, savedTranslateX, savedTranslateY, pinchStartDistance, updatePinchDiagnostics]);
+
+  const applyDebugTransform = (nextScale) => {
+    const safeScale = clamp(nextScale, MIN_SCALE, MAX_SCALE);
+    const nextTransform = clampImageTransform({
+      scale: safeScale,
+      translateX: imageTransformRef.current.translateX,
+      translateY: imageTransformRef.current.translateY,
+    });
+    scale.value = nextTransform.scale;
+    translateX.value = nextTransform.translateX;
+    translateY.value = nextTransform.translateY;
+    savedScale.value = nextTransform.scale;
+    savedTranslateX.value = nextTransform.translateX;
+    savedTranslateY.value = nextTransform.translateY;
+    commitImageTransform(nextTransform);
+  };
+
+  const resetDebugTransform = () => {
+    scale.value = MIN_SCALE;
+    translateX.value = 0;
+    translateY.value = 0;
+    savedScale.value = MIN_SCALE;
+    savedTranslateX.value = 0;
+    savedTranslateY.value = 0;
+    commitImageTransform({ scale: MIN_SCALE, translateX: 0, translateY: 0 });
+  };
+
+  useEffect(() => {
+    if (!sourceImageSize || !imageLayout?.width || !imageLayout?.height) return;
+
+    const imageRatio = sourceImageSize.width / sourceImageSize.height;
+    const containerRatio = imageLayout.width / imageLayout.height;
+    const displayedWidth = imageRatio > containerRatio
+      ? imageLayout.width
+      : imageLayout.height * imageRatio;
+    const displayedHeight = imageRatio > containerRatio
+      ? imageLayout.width / imageRatio
+      : imageLayout.height;
+    const imageOffsetX = (imageLayout.width - displayedWidth) / 2;
+    const imageOffsetY = (imageLayout.height - displayedHeight) / 2;
+    if (
+      imageLayout.displayedWidth === displayedWidth &&
+      imageLayout.displayedHeight === displayedHeight &&
+      imageLayout.imageOffsetX === imageOffsetX &&
+      imageLayout.imageOffsetY === imageOffsetY
+    ) {
+      return;
+    }
+    const nextImageLayout = {
+      ...imageLayout,
+      imageOffsetX,
+      imageOffsetY,
+      displayedWidth,
+      displayedHeight,
+    };
+    setImageLayout(nextImageLayout);
+
+    const initialRect = {
+      left: imageOffsetX + displayedWidth * 0.25,
+      top: imageOffsetY + displayedHeight * 0.1,
+      width: displayedWidth * 0.5,
+      height: displayedHeight * 0.8,
+    };
+    setCropRect(initialRect);
+    cropRectRef.current = initialRect;
+  }, [sourceImageSize, imageLayout]);
+
+  const updateCropRect = useCallback((handle, dx, dy) => {
+    const start = cropGestureStartRef.current;
+    const layout = imageLayoutRef.current;
+    const bounds = getTransformedImageBounds();
+    if (!start || !layout?.width || !layout?.height || !bounds) return;
+
+    const minWidth = Math.min(MIN_CROP_WIDTH, layout.width);
+    const minHeight = Math.min(MIN_CROP_HEIGHT, layout.height);
+    const imageLeft = clamp(bounds.left, 0, layout.width - minWidth);
+    const imageTop = clamp(bounds.top, 0, layout.height - minHeight);
+    const imageRight = clamp(bounds.right, minWidth, layout.width);
+    const imageBottom = clamp(bounds.bottom, minHeight, layout.height);
+    let left = start.left;
+    let top = start.top;
+    let right = start.left + start.width;
+    let bottom = start.top + start.height;
+
+    if (handle.includes('left')) left = clamp(start.left + dx, imageLeft, right - minWidth);
+    if (handle.includes('right')) right = clamp(start.left + start.width + dx, left + minWidth, imageRight);
+    if (handle.includes('top')) top = clamp(start.top + dy, imageTop, bottom - minHeight);
+    if (handle.includes('bottom')) bottom = clamp(start.top + start.height + dy, top + minHeight, imageBottom);
+
+    const nextRect = {
+      left: clamp(left, imageLeft, imageRight - minWidth),
+      top: clamp(top, imageTop, imageBottom - minHeight),
+      width: clamp(right - left, minWidth, imageRight - left),
+      height: clamp(bottom - top, minHeight, imageBottom - top),
+    };
+    cropRectRef.current = nextRect;
+    setCropRect(nextRect);
+  }, [getTransformedImageBounds]);
+
+  const cropResponders = useMemo(() => {
+    const handles = ['left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'];
+    return handles.reduce((responders, handle) => {
+      responders[handle] = PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderGrant: () => {
+          resizeGestureActiveRef.current = true;
+          cropGestureStartRef.current = cropRectRef.current;
+        },
+        onPanResponderMove: (_, gestureState) => updateCropRect(handle, gestureState.dx, gestureState.dy),
+        onPanResponderRelease: () => {
+          resizeGestureActiveRef.current = false;
+          cropGestureStartRef.current = null;
+        },
+        onPanResponderTerminate: () => {
+          resizeGestureActiveRef.current = false;
+          cropGestureStartRef.current = null;
+        },
+      });
+      return responders;
+    }, {});
+  }, [updateCropRect]);
+
+  const isResizeHandlePoint = useCallback((point, rect) => {
+    if (!point || !rect) return false;
+    const cornerSize = CORNER_HANDLE_SIZE;
+    const edgeSize = EDGE_HANDLE_SIZE;
+    const corners = [
+      { left: rect.left - cornerSize / 2, top: rect.top - cornerSize / 2 },
+      { left: rect.left + rect.width - cornerSize / 2, top: rect.top - cornerSize / 2 },
+      { left: rect.left - cornerSize / 2, top: rect.top + rect.height - cornerSize / 2 },
+      { left: rect.left + rect.width - cornerSize / 2, top: rect.top + rect.height - cornerSize / 2 },
+    ];
+    if (corners.some((corner) => point.x >= corner.left && point.x <= corner.left + cornerSize
+      && point.y >= corner.top && point.y <= corner.top + cornerSize)) {
+      return true;
+    }
+
+    return (
+      (point.x >= rect.left - edgeSize / 2 && point.x <= rect.left + edgeSize / 2
+        && point.y >= rect.top && point.y <= rect.top + rect.height)
+      || (point.x >= rect.left + rect.width - edgeSize / 2
+        && point.x <= rect.left + rect.width + edgeSize / 2
+        && point.y >= rect.top && point.y <= rect.top + rect.height)
+      || (point.y >= rect.top - edgeSize / 2 && point.y <= rect.top + edgeSize / 2
+        && point.x >= rect.left && point.x <= rect.left + rect.width)
+      || (point.y >= rect.top + rect.height - edgeSize / 2
+        && point.y <= rect.top + rect.height + edgeSize / 2
+        && point.x >= rect.left && point.x <= rect.left + rect.width)
+    );
+  }, []);
+
+  const updateCropPosition = useCallback((dx, dy) => {
+    const start = cropInteractionStartRef.current;
+    const layout = imageLayoutRef.current;
+    const imageBounds = getTransformedImageBounds();
+    if (!start?.cropRect || !layout || !imageBounds) return;
+
+    const minLeft = Math.max(0, imageBounds.left);
+    const minTop = Math.max(0, imageBounds.top);
+    const maxRight = Math.min(layout.width, imageBounds.right);
+    const maxBottom = Math.min(layout.height, imageBounds.bottom);
+    const maxLeft = Math.max(minLeft, maxRight - start.cropRect.width);
+    const maxTop = Math.max(minTop, maxBottom - start.cropRect.height);
+    const nextRect = {
+      ...start.cropRect,
+      left: clamp(start.cropRect.left + dx, minLeft, maxLeft),
+      top: clamp(start.cropRect.top + dy, minTop, maxTop),
+    };
+    cropRectRef.current = nextRect;
+    setCropRect(nextRect);
+  }, [getTransformedImageBounds]);
+
+  const cropPanResponder = useMemo(() => PanResponder.create({
+    onStartShouldSetPanResponder: () => false,
+    onMoveShouldSetPanResponder: (event) => {
+      const rect = cropRectRef.current;
+      const point = { x: Number(event?.nativeEvent?.locationX), y: Number(event?.nativeEvent?.locationY) };
+      const touches = event?.nativeEvent?.touches || [];
+      const localRect = rect && { left: 0, top: 0, width: rect.width, height: rect.height };
+      return Boolean(touches.length <= 1 && rect && Number.isFinite(point.x) && Number.isFinite(point.y)
+        && point.x >= 0 && point.x <= rect.width
+        && point.y >= 0 && point.y <= rect.height
+        && !isResizeHandlePoint(point, localRect) && !resizeGestureActiveRef.current);
+    },
+    onPanResponderGrant: () => {
+      cropInteractionStartRef.current = { cropRect: cropRectRef.current };
+    },
+    onPanResponderMove: (_, gestureState) => updateCropPosition(gestureState.dx, gestureState.dy),
+    onPanResponderRelease: () => {
+      cropInteractionStartRef.current = null;
+    },
+    onPanResponderTerminate: () => {
+      cropInteractionStartRef.current = null;
+    },
+  }), [isResizeHandlePoint, updateCropPosition]);
 
   const suggestedLpEnd = useMemo(() => {
     const start = toInteger(lpStartInput);
@@ -522,11 +921,25 @@ export default function ScheduleScreen() {
       if (!uri) return null;
 
       const textBlocks = await MlkitOcr.detectFromUri(uri);
+      const entries = flattenOcrEntries(textBlocks);
+      setOcrDiagnostics({
+        status: Array.isArray(textBlocks) && textBlocks.length ? 'tekst' : 'brak tekstu',
+        blockCount: Array.isArray(textBlocks) ? textBlocks.length : 0,
+        entryCount: entries.length,
+        blocksText: entries.map((entry) => entry.text).filter(Boolean).join('\n'),
+        parserNumbers: [],
+      });
       if (!Array.isArray(textBlocks) || textBlocks.length === 0) return null;
 
-      return buildNrScanFromBlocks(textBlocks);
+      const result = buildNrScanFromBlocks(textBlocks);
+      setOcrDiagnostics((previous) => ({
+        ...previous,
+        parserNumbers: result.nrNumbers,
+      }));
+      return result;
     } catch (error) {
       console.log('Text recognition error:', error);
+      setOcrDiagnostics({ status: 'błąd OCR', error: String(error?.message || error), blockCount: 0, entryCount: 0, blocksText: '', parserNumbers: [] });
       return null;
     }
   };
@@ -685,6 +1098,22 @@ export default function ScheduleScreen() {
     setVerificationItems([]);
   };
 
+  const scrollVerificationToIndex = useCallback((index, animated = true) => {
+    if (!scrollViewRef.current || !Number.isInteger(index)) return;
+
+    const rowY = rowPositionsRef.current[index];
+    if (rowY === undefined) return;
+
+    scrollViewRef.current.scrollTo({
+      y: Math.max(0, rowY - 20),
+      animated,
+    });
+  }, []);
+
+  const handleVerificationInputFocus = useCallback((index) => {
+    requestAnimationFrame(() => scrollVerificationToIndex(index));
+  }, [scrollVerificationToIndex]);
+
   const renderTableHeader = () => (
     <View style={[styles.tableHeaderRow, { backgroundColor: colors.navBackground, borderColor: colors.border }]}> 
       <View style={[styles.tableHeaderCell, styles.tableLpCell, { borderColor: colors.border }]}>
@@ -717,7 +1146,7 @@ export default function ScheduleScreen() {
             ]}
           />
         </View>
-        <View style={[styles.tableCell, styles.tableNrCell, { borderColor: colors.border }]}> 
+        <View style={[styles.tableCell, styles.tableNrCell, { borderColor: colors.border }]}>
           <TextInput
             value={String(item.nr ?? '')}
             onChangeText={(value) => updateItemField(item.id, 'nr', value)}
@@ -747,14 +1176,21 @@ export default function ScheduleScreen() {
     );
   };
 
-  const renderVerificationRow = ({ item }) => (
-    <View style={[styles.verificationRow, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}> 
+  const renderVerificationRow = ({ item, index }) => (
+    <View
+      key={item.id}
+      onLayout={(event) => {
+        rowPositionsRef.current[index] = event.nativeEvent.layout.y;
+      }}
+      style={[styles.verificationRow, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
+    > 
       <Text style={[styles.verificationTimestamp, { color: colors.grayIconColor }]}> {formatTimestamp(item.createdAt)} </Text>
       <View style={styles.rowFields}>
         <View style={styles.fieldContainer}>
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>LP</Text>
           <TextInput
             value={String(item.lp ?? '')}
+            onFocus={() => handleVerificationInputFocus(index)}
             onChangeText={(value) => {
               setVerificationItems((prev) =>
                 prev.map((row) => (row.id === item.id ? { ...row, lp: value } : row))
@@ -772,6 +1208,7 @@ export default function ScheduleScreen() {
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>NR</Text>
           <TextInput
             value={String(item.nr ?? '')}
+            onFocus={() => handleVerificationInputFocus(index)}
             onChangeText={(value) => {
               setVerificationItems((prev) =>
                 prev.map((row) => (row.id === item.id ? { ...row, nr: value } : row))
@@ -789,6 +1226,7 @@ export default function ScheduleScreen() {
           <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Pasy</Text>
           <TextInput
             value={String(item.pasy ?? '')}
+            onFocus={() => handleVerificationInputFocus(index)}
             onChangeText={(value) => {
               setVerificationItems((prev) =>
                 prev.map((row) => (row.id === item.id ? { ...row, pasy: value } : row))
@@ -845,6 +1283,14 @@ export default function ScheduleScreen() {
             >
               <Text style={[styles.headerButtonText, { color: colors.butText, opacity: rawOcrText ? 1 : 0.55 }]}>OCR</Text>
             </TouchableOpacity>
+            {lastCrop ? (
+              <TouchableOpacity
+                style={[styles.headerButton, { backgroundColor: colors.butBackground }]}
+                onPress={() => setLastCropPreviewVisible(true)}
+              >
+                <Text style={[styles.headerButtonText, { color: colors.butText }]}>Crop</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
       </View>
@@ -886,9 +1332,11 @@ export default function ScheduleScreen() {
         )}
       </View>
 
-      <Modal visible={verificationVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+      <Modal visible={verificationVisible} animationType="slide" transparent={false}>
+        <View
+          style={[styles.verificationModalContainer, { backgroundColor: colors.background, paddingTop: insets.top }]}
+        >
+          <View style={styles.verificationTopPanel}>
             <Text style={[styles.modalTitle, { color: colors.text }]}>Weryfikacja</Text>
             <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Sprawdź tabelę i zapisz ją lokalnie.</Text>
 
@@ -901,6 +1349,7 @@ export default function ScheduleScreen() {
                     <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Pierwszy LP</Text>
                     <TextInput
                       value={lpStartInput}
+                      onFocus={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
                       onChangeText={setLpStartInput}
                       keyboardType="number-pad"
                       inputMode="numeric"
@@ -914,6 +1363,7 @@ export default function ScheduleScreen() {
                     <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Ostatni LP</Text>
                     <TextInput
                       value={lpEndInput}
+                      onFocus={() => scrollViewRef.current?.scrollTo({ y: 0, animated: true })}
                       onChangeText={setLpEndInput}
                       keyboardType="number-pad"
                       inputMode="numeric"
@@ -987,42 +1437,59 @@ export default function ScheduleScreen() {
                 </Text>
               </TouchableOpacity>
             </View>
+          </View>
 
-            <FlatList
-              data={verificationItems}
-              keyExtractor={(item) => item.id}
-              renderItem={renderVerificationRow}
-              contentContainerStyle={{ paddingVertical: 8 }}
-              ListEmptyComponent={<Text style={{ color: colors.textSecondary }}>Brak pozycji do weryfikacji.</Text>}
-              keyboardShouldPersistTaps="handled"
-            />
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.verificationScrollView}
+            contentContainerStyle={styles.verificationScrollContent}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="interactive"
+            showsVerticalScrollIndicator
+          >
+            {verificationItems.length ? (
+              verificationItems.map((item, index) => (
+                renderVerificationRow({ item, index })
+              ))
+            ) : (
+              <Text style={{ color: colors.textSecondary }}>Brak pozycji do weryfikacji.</Text>
+            )}
+          </ScrollView>
 
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
-                onPress={() => setVerificationVisible(false)}
-              >
-                <Text style={[styles.modalButtonText, { color: colors.text }]}>Anuluj</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.modalButton, { backgroundColor: colors.butBackground }]}
-                onPress={saveVerificationItems}
-                disabled={isSaving}
-              >
-                {isSaving ? (
-                  <ActivityIndicator color={colors.butText} />
-                ) : (
-                  <Text style={[styles.modalButtonText, { color: colors.butText }]}>Zapisz lokalnie</Text>
-                )}
-              </TouchableOpacity>
-            </View>
+          <View style={[styles.modalActions, styles.verificationModalFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}> 
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}
+              onPress={() => setVerificationVisible(false)}
+            >
+              <Text style={[styles.modalButtonText, { color: colors.text }]}>Anuluj</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: colors.butBackground }]}
+              onPress={saveVerificationItems}
+              disabled={isSaving}
+            >
+              {isSaving ? (
+                <ActivityIndicator color={colors.butText} />
+              ) : (
+                <Text style={[styles.modalButtonText, { color: colors.butText }]}>Zapisz lokalnie</Text>
+              )}
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
 
       <Modal visible={rawPreviewVisible} animationType="slide" transparent>
         <View style={styles.modalOverlay}>
-          <View style={[styles.modalContainer, { backgroundColor: colors.background, borderColor: colors.border }]}> 
+          <View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                paddingBottom: Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
             <Text style={[styles.modalTitle, { color: colors.text }]}>Raw OCR Preview</Text>
             <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>Sprawdź, jakie liczby OCR rozpoznał dla NR.</Text>
 
@@ -1031,6 +1498,16 @@ export default function ScheduleScreen() {
                 <Text style={[styles.rawPreviewText, { color: colors.text }]}>
                   {rawOcrText || 'Brak surowego tekstu OCR. Najpierw wykonaj skan.'}
                 </Text>
+                {ocrDiagnostics ? (
+                  <Text
+                    style={[styles.rawPreviewText, { color: colors.textSecondary }]}
+                  >
+                    Bloki: {ocrDiagnostics.blockCount}; wpisy: {ocrDiagnostics.entryCount}; status: {ocrDiagnostics.status}
+                    {'\n'}Tekst bloków: {ocrDiagnostics.blocksText || '-'}
+                    {'\n'}Liczby parsera: {ocrDiagnostics.parserNumbers?.join(', ') || '-'}
+                    {ocrDiagnostics.error ? `\nBłąd: ${ocrDiagnostics.error}` : ''}
+                  </Text>
+                ) : null}
 
                 {parseDebug.length > 0 ? (
                   <>
@@ -1053,8 +1530,55 @@ export default function ScheduleScreen() {
         </View>
       </Modal>
 
+      <Modal visible={lastCropPreviewVisible} animationType="slide" transparent onRequestClose={() => setLastCropPreviewVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: colors.background,
+                borderColor: colors.border,
+                paddingBottom: Math.max(insets.bottom, 16),
+              },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Ostatni crop</Text>
+            {lastCrop ? (
+              <>
+                <Image source={{ uri: lastCrop.uri }} style={styles.lastCropImage} resizeMode="contain" />
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>URI: {lastCrop.uri}</Text>
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Wymiary: {lastCrop.width} x {lastCrop.height}</Text>
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Crop: {JSON.stringify(lastCrop.crop)}</Text>
+                {cropDiagnostics ? (
+                  <ScrollView style={styles.cropDebugScroll} nestedScrollEnabled>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Diagnostyka mapowania: {JSON.stringify(cropDiagnostics, null, 2)}</Text>
+                  </ScrollView>
+                ) : null}
+              </>
+            ) : <Text style={{ color: colors.textSecondary }}>Brak wykonanego cropa.</Text>}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.modalButton, { backgroundColor: colors.butBackground }]}
+                onPress={() => setLastCropPreviewVisible(false)}
+              >
+                <Text style={[styles.modalButtonText, { color: colors.butText }]}>Zamknij</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       <Modal visible={isCropModalVisible} animationType="slide" transparent={false} onRequestClose={() => setIsCropModalVisible(false)}>
-        <SafeAreaView style={[styles.cropContainer, { backgroundColor: colors.background }]}>
+        <SafeAreaView
+          style={[
+            styles.cropContainer,
+            {
+              backgroundColor: colors.background,
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            },
+          ]}
+        >
           <View style={[styles.cropHeader, { borderBottomColor: colors.border }]}>
             <TouchableOpacity onPress={() => setIsCropModalVisible(false)}>
               <Text style={{ color: colors.text, fontSize: 16 }}>Anuluj</Text>
@@ -1065,42 +1589,222 @@ export default function ScheduleScreen() {
 
           <View style={styles.cropWorkspace}>
             <Text style={[styles.cropInstruction, { color: colors.textSecondary }]}>
-              Dopasuj ramkę kadrowania do kolumny NR na dokumencie.
+              Przeciągnij krawędzie, aby zmienić rozmiar. Przeciągnij środek, aby przesunąć ramkę. Użyj dwóch palców, aby przybliżyć lub oddalić obraz.
             </Text>
-            <View style={[styles.imageWrapper, { borderColor: colors.border }]}>
-              {tempPhotoUri ? (
-                <Image source={{ uri: tempPhotoUri }} style={styles.cropImage} resizeMode="contain" />
-              ) : null}
-              <View style={[styles.cropFrame, { borderColor: colors.primary }]}>
-                <View style={[styles.cornerTL, { borderColor: colors.primary }]} />
-                <View style={[styles.cornerTR, { borderColor: colors.primary }]} />
-                <View style={[styles.cornerBL, { borderColor: colors.primary }]} />
-                <View style={[styles.cornerBR, { borderColor: colors.primary }]} />
+            {DEBUG_CROP_GESTURES ? (
+              <View
+                style={[styles.cropDebugPanel, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
+              >
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Pinch active: {pinchDiagnostics.active ? 'tak' : 'nie'}</Text>
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Pinch event scale: {pinchDiagnostics.eventScale.toFixed(3)}</Text>
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Applied scale: {pinchDiagnostics.appliedScale.toFixed(2)}x</Text>
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Translate X: {pinchDiagnostics.translateX.toFixed(1)}</Text>
+                <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Translate Y: {pinchDiagnostics.translateY.toFixed(1)}</Text>
+                <View style={styles.cropDebugButtons}>
+                  <TouchableOpacity style={styles.cropDebugButton} onPress={() => applyDebugTransform(imageTransform.scale - 0.25)}><Text>Zoom -</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.cropDebugButton} onPress={() => applyDebugTransform(imageTransform.scale + 0.25)}><Text>Zoom +</Text></TouchableOpacity>
+                  <TouchableOpacity style={styles.cropDebugButton} onPress={resetDebugTransform}><Text>Reset</Text></TouchableOpacity>
+                </View>
+                {cropDiagnostics ? (
+                  <ScrollView style={styles.cropDebugScroll} nestedScrollEnabled>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>{JSON.stringify(cropDiagnostics, null, 2)}</Text>
+                  </ScrollView>
+                ) : null}
+                {ocrDiagnostics ? (
+                  <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>OCR: {JSON.stringify(ocrDiagnostics)}</Text>
+                ) : null}
               </View>
-            </View>
+            ) : null}
+            <GestureDetector gesture={imageGestures}>
+              <View
+                style={[styles.imageWrapper, { borderColor: colors.border }]}
+                onLayout={({ nativeEvent: { layout } }) => {
+                  setImageLayout((previous) => ({
+                    ...previous,
+                    width: layout.width,
+                    height: layout.height,
+                  }));
+                }}
+              >
+              {tempPhotoUri ? (
+                <Animated.Image
+                  source={{ uri: tempPhotoUri }}
+                  style={[styles.cropImage, animatedImageStyle]}
+                  resizeMode="contain"
+                />
+              ) : null}
+              {cropRect ? (
+                <View
+                  style={styles.cropInteractionLayer}
+                  pointerEvents="box-none"
+                >
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      styles.cropFrame,
+                      {
+                        left: cropRect.left,
+                        top: cropRect.top,
+                        width: cropRect.width,
+                        height: cropRect.height,
+                        borderColor: colors.primary,
+                      },
+                    ]}
+                  >
+                    <View pointerEvents="none" style={[styles.cornerTL, { borderColor: colors.primary }]} />
+                    <View pointerEvents="none" style={[styles.cornerTR, { borderColor: colors.primary }]} />
+                    <View pointerEvents="none" style={[styles.cornerBL, { borderColor: colors.primary }]} />
+                    <View pointerEvents="none" style={[styles.cornerBR, { borderColor: colors.primary }]} />
+                  </View>
+                  <View
+                    {...cropPanResponder.panHandlers}
+                    style={[
+                      styles.cropPanHandle,
+                      {
+                        left: cropRect.left,
+                        top: cropRect.top,
+                        width: cropRect.width,
+                        height: cropRect.height,
+                      },
+                    ]}
+                  />
+                  {['left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'].map(
+                    (handle) => (
+                      <View
+                        key={handle}
+                        {...cropResponders[handle].panHandlers}
+                        style={[
+                          styles.cropHandle,
+                          handle.includes('-') ? styles.cropCornerHandle : styles.cropEdgeHandle,
+                          {
+                            backgroundColor: DEBUG_CROP_HANDLES
+                              ? handle.includes('-')
+                                ? 'rgba(255, 120, 0, 0.25)'
+                                : 'rgba(0, 150, 255, 0.18)'
+                              : 'transparent',
+                            ...(handle === 'left' && {
+                              left: cropRect.left - EDGE_HANDLE_SIZE / 2,
+                              top: cropRect.top,
+                              width: EDGE_HANDLE_SIZE,
+                              height: cropRect.height,
+                            }),
+                            ...(handle === 'right' && {
+                              left: cropRect.left + cropRect.width - EDGE_HANDLE_SIZE / 2,
+                              top: cropRect.top,
+                              width: EDGE_HANDLE_SIZE,
+                              height: cropRect.height,
+                            }),
+                            ...(handle === 'top' && {
+                              left: cropRect.left,
+                              top: cropRect.top - EDGE_HANDLE_SIZE / 2,
+                              width: cropRect.width,
+                              height: EDGE_HANDLE_SIZE,
+                            }),
+                            ...(handle === 'bottom' && {
+                              left: cropRect.left,
+                              top: cropRect.top + cropRect.height - EDGE_HANDLE_SIZE / 2,
+                              width: cropRect.width,
+                              height: EDGE_HANDLE_SIZE,
+                            }),
+                            ...(handle === 'top-left' && {
+                              left: cropRect.left - CORNER_HANDLE_SIZE / 2,
+                              top: cropRect.top - CORNER_HANDLE_SIZE / 2,
+                              width: CORNER_HANDLE_SIZE,
+                              height: CORNER_HANDLE_SIZE,
+                            }),
+                            ...(handle === 'top-right' && {
+                              left: cropRect.left + cropRect.width - CORNER_HANDLE_SIZE / 2,
+                              top: cropRect.top - CORNER_HANDLE_SIZE / 2,
+                              width: CORNER_HANDLE_SIZE,
+                              height: CORNER_HANDLE_SIZE,
+                            }),
+                            ...(handle === 'bottom-left' && {
+                              left: cropRect.left - CORNER_HANDLE_SIZE / 2,
+                              top: cropRect.top + cropRect.height - CORNER_HANDLE_SIZE / 2,
+                              width: CORNER_HANDLE_SIZE,
+                              height: CORNER_HANDLE_SIZE,
+                            }),
+                            ...(handle === 'bottom-right' && {
+                              left: cropRect.left + cropRect.width - CORNER_HANDLE_SIZE / 2,
+                              top: cropRect.top + cropRect.height - CORNER_HANDLE_SIZE / 2,
+                              width: CORNER_HANDLE_SIZE,
+                              height: CORNER_HANDLE_SIZE,
+                            }),
+                          },
+                        ]}
+                      />
+                    )
+                  )}
+                </View>
+              ) : null}
+              </View>
+            </GestureDetector>
           </View>
 
-          <View style={[styles.cropFooter, { paddingBottom: Math.max(insets.bottom, 16) }]}>
+          <View style={styles.cropFooter}> 
             <TouchableOpacity
               style={[styles.cropSaveButton, { backgroundColor: colors.butBackground }]}
               onPress={async () => {
                 try {
-                  const actions = [
-                    {
-                      crop: {
-                        originX: 100,
-                        originY: 50,
-                        width: 800,
-                        height: 1600,
-                      },
-                    },
-                  ];
+                  if (!tempPhotoUri || !cropRect || !sourceImageSize || !imageLayout?.displayedWidth) {
+                    Alert.alert('Błąd kadrowania', 'Obraz nie jest jeszcze gotowy do kadrowania.');
+                    return;
+                  }
+
+                  const transform = imageTransformRef.current;
+                  const centerX = imageLayout.imageOffsetX + imageLayout.displayedWidth / 2;
+                  const centerY = imageLayout.imageOffsetY + imageLayout.displayedHeight / 2;
+                  const displayedCropLeft = (cropRect.left - centerX - transform.translateX) / transform.scale + centerX;
+                  const displayedCropTop = (cropRect.top - centerY - transform.translateY) / transform.scale + centerY;
+                  const scaleX = sourceImageSize.width / imageLayout.displayedWidth;
+                  const scaleY = sourceImageSize.height / imageLayout.displayedHeight;
+                  const originX = clamp(
+                    Math.round((displayedCropLeft - imageLayout.imageOffsetX) * scaleX),
+                    0,
+                    sourceImageSize.width - 1
+                  );
+                  const originY = clamp(
+                    Math.round((displayedCropTop - imageLayout.imageOffsetY) * scaleY),
+                    0,
+                    sourceImageSize.height - 1
+                  );
+                  const width = clamp(
+                    Math.round((cropRect.width / transform.scale) * scaleX),
+                    1,
+                    sourceImageSize.width - originX
+                  );
+                  const height = clamp(
+                    Math.round((cropRect.height / transform.scale) * scaleY),
+                    1,
+                    sourceImageSize.height - originY
+                  );
+                  setCropDiagnostics({
+                    sourceImageSize,
+                    imageLayout,
+                    imageOffsetX: imageLayout.imageOffsetX,
+                    imageOffsetY: imageLayout.imageOffsetY,
+                    displayedWidth: imageLayout.displayedWidth,
+                    displayedHeight: imageLayout.displayedHeight,
+                    cropRect,
+                    imageTransform: transform,
+                    originX,
+                    originY,
+                    width,
+                    height,
+                  });
+                  const actions = [{ crop: { originX, originY, width, height } }];
 
                   const manipulateResult = await ImageManipulator.manipulateAsync(
                     tempPhotoUri,
                     actions,
                     { format: ImageManipulator.SaveFormat.JPEG, quality: 1 }
                   );
+                  setLastCrop({
+                    uri: manipulateResult.uri,
+                    width: manipulateResult.width,
+                    height: manipulateResult.height,
+                    crop: { originX, originY, width, height },
+                  });
 
                   setIsCropModalVisible(false);
                   await processScannedImage(manipulateResult.uri);
@@ -1249,11 +1953,21 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
     backgroundColor: 'rgba(0,0,0,0.35)',
   },
+  verificationModalContainer: {
+    flex: 1,
+    width: '100%',
+    minHeight: 0,
+    paddingHorizontal: 16,
+    overflow: 'hidden',
+  },
+  verificationTopPanel: {
+    flexShrink: 0,
+  },
   modalContainer: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     padding: 16,
-    maxHeight: '88%',
+    height: '88%',
     borderWidth: 1,
   },
   modalTitle: {
@@ -1269,6 +1983,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 8,
     marginBottom: 4,
+  },
+  verificationScrollView: {
+    flex: 1,
+    flexBasis: 0,
+    minHeight: 0,
+  },
+  verificationScrollContent: {
+    paddingVertical: 8,
+    paddingBottom: 400,
+  },
+  verificationModalFooter: {
+    flexShrink: 0,
   },
   rangeEditor: {
     borderWidth: 1,
@@ -1381,9 +2107,19 @@ const styles = StyleSheet.create({
   cropHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 56, borderBottomWidth: 1 },
   cropHeaderTitle: { fontSize: 16, fontWeight: 'bold' },
   cropWorkspace: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, marginVertical: 16 },
+  cropZoomDebug: { textAlign: 'center', fontSize: 12, marginBottom: 6 },
+  cropDebugPanel: { width: '100%', maxHeight: 260, borderWidth: 1, borderRadius: 10, padding: 8, marginBottom: 8 },
+  cropDebugButtons: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 },
+  cropDebugButton: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 8 },
+  cropDebugScroll: { maxHeight: 130, marginTop: 4 },
   imageWrapper: { position: 'relative', width: '100%', height: '85%', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
   cropImage: { width: '100%', height: '100%', opacity: 0.6 },
-  cropFrame: { position: 'absolute', top: '10%', bottom: '10%', left: '25%', right: '25%', borderWidth: 2, borderStyle: 'solid', backgroundColor: 'transparent' },
+  cropInteractionLayer: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
+  cropFrame: { position: 'absolute', borderWidth: 2, borderStyle: 'solid', backgroundColor: 'transparent' },
+  cropPanHandle: { position: 'absolute', zIndex: 15, backgroundColor: 'transparent' },
+  cropHandle: { position: 'absolute' },
+  cropEdgeHandle: { zIndex: 20 },
+  cropCornerHandle: { zIndex: 30 },
   gridLineV: { position: 'absolute', top: 0, bottom: 0, width: 1 },
   gridLineH: { position: 'absolute', left: 0, right: 0, height: 1 },
   cornerTL: { position: 'absolute', top: -2, left: -2, width: 12, height: 12, borderTopWidth: 4, borderLeftWidth: 4 },
@@ -1392,6 +2128,9 @@ const styles = StyleSheet.create({
   cornerBR: { position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderBottomWidth: 4, borderRightWidth: 4 },
   cropInstruction: { textAlign: 'center', fontSize: 13, paddingHorizontal: 32, marginBottom: 16 },
   cropFooter: { paddingHorizontal: 16, paddingTop: 8 },
+  cropPreviewButton: { minHeight: 42, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
+  cropPreviewButtonText: { fontSize: 14, fontWeight: '700' },
+  lastCropImage: { width: '100%', height: 360, marginBottom: 8 },
   cropSaveButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 48, borderRadius: 12 },
   cropSaveButtonText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 },
 });
