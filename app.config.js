@@ -57,6 +57,12 @@ module.exports = ({ config }) => {
       ...config.android,
       package: androidPackage,
       versionCode: buildNumber, // Wymagany Integer dla Androida
+
+      adaptiveIcon: {
+        ...config.android?.adaptiveIcon,
+        foregroundImage: appIcon,
+      },
+
       googleServicesFile: isDevelopment
         ? "./google-services-dev.json"
         : "./google-services.json",
