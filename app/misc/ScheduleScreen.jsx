@@ -40,6 +40,7 @@ const MIN_CROP_HEIGHT = 80;
 const MIN_SCALE = 1;
 const MAX_SCALE = 5;
 const DEBUG_CROP_GESTURES = false;
+const DEBUG_CROP_MAPPING = false;
 
 const toFiniteNumber = (...values) => {
   for (const value of values) {
@@ -291,6 +292,49 @@ const getLocalScheduleKey = (userId) => {
 
 const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
 
+const mapWrapperPointToSource = (point, layout, transform, sourceSize) => {
+  const centerX = layout.imageOffsetX + layout.displayedWidth / 2;
+  const centerY = layout.imageOffsetY + layout.displayedHeight / 2;
+  const untransformedX = (point.x - centerX - transform.translateX) / transform.scale + centerX;
+  const untransformedY = (point.y - centerY - transform.translateY) / transform.scale + centerY;
+
+  return {
+    x: ((untransformedX - layout.imageOffsetX) / layout.displayedWidth) * sourceSize.width,
+    y: ((untransformedY - layout.imageOffsetY) / layout.displayedHeight) * sourceSize.height,
+  };
+};
+
+const mapSourcePointToWrapper = (point, layout, transform, sourceSize) => {
+  const baseX = layout.imageOffsetX + (point.x / sourceSize.width) * layout.displayedWidth;
+  const baseY = layout.imageOffsetY + (point.y / sourceSize.height) * layout.displayedHeight;
+  const centerX = layout.imageOffsetX + layout.displayedWidth / 2;
+  const centerY = layout.imageOffsetY + layout.displayedHeight / 2;
+
+  return {
+    x: (baseX - centerX) * transform.scale + centerX + transform.translateX,
+    y: (baseY - centerY) * transform.scale + centerY + transform.translateY,
+  };
+};
+
+const getSourceCrop = (crop, layout, transform, sourceSize) => {
+  const corners = [
+    { x: crop.left, y: crop.top },
+    { x: crop.left + crop.width, y: crop.top },
+    { x: crop.left, y: crop.top + crop.height },
+    { x: crop.left + crop.width, y: crop.top + crop.height },
+  ].map((point) => mapWrapperPointToSource(point, layout, transform, sourceSize));
+  const rawLeft = Math.floor(Math.min(...corners.map((point) => point.x)));
+  const rawTop = Math.floor(Math.min(...corners.map((point) => point.y)));
+  const rawRight = Math.ceil(Math.max(...corners.map((point) => point.x)));
+  const rawBottom = Math.ceil(Math.max(...corners.map((point) => point.y)));
+  const originX = clamp(rawLeft, 0, sourceSize.width - 1);
+  const originY = clamp(rawTop, 0, sourceSize.height - 1);
+  const right = clamp(rawRight, originX + 1, sourceSize.width);
+  const bottom = clamp(rawBottom, originY + 1, sourceSize.height);
+
+  return { originX, originY, width: right - originX, height: bottom - originY };
+};
+
 export default function ScheduleScreen() {
   const colors = useColors();
   const { user, isGuest } = useAuth();
@@ -309,7 +353,7 @@ export default function ScheduleScreen() {
   const [tempPhotoUri, setTempPhotoUri] = useState(null);
   const [isCropModalVisible, setIsCropModalVisible] = useState(false);
   const [sourceImageSize, setSourceImageSize] = useState(null);
-  const [imageLayout, setImageLayout] = useState(null);
+  const [imageWrapperLayout, setImageWrapperLayout] = useState(null);
   const [cropRect, setCropRect] = useState(null);
   const [imageTransform, setImageTransform] = useState({ scale: MIN_SCALE, translateX: 0, translateY: 0 });
   const [pinchDiagnostics, setPinchDiagnostics] = useState({ active: false, eventScale: 1, appliedScale: MIN_SCALE, translateX: 0, translateY: 0 });
@@ -356,7 +400,7 @@ export default function ScheduleScreen() {
   useEffect(() => {
     if (!tempPhotoUri) {
       setSourceImageSize(null);
-      setImageLayout(null);
+      setImageWrapperLayout(null);
       setCropRect(null);
       cropRectRef.current = null;
       setImageTransform({ scale: MIN_SCALE, translateX: 0, translateY: 0 });
@@ -370,21 +414,33 @@ export default function ScheduleScreen() {
       return undefined;
     }
 
-    let cancelled = false;
-    Image.getSize(
-      tempPhotoUri,
-      (width, height) => {
-        if (!cancelled && width > 0 && height > 0) setSourceImageSize({ width, height });
-      },
-      () => {
-        if (!cancelled) setSourceImageSize(null);
-      }
-    );
-
-    return () => {
-      cancelled = true;
-    };
+    return undefined;
   }, [tempPhotoUri, savedScale, savedTranslateX, savedTranslateY, scale, translateX, translateY]);
+
+  const imageLayout = useMemo(() => {
+    if (!sourceImageSize || !imageWrapperLayout?.width || !imageWrapperLayout?.height) return null;
+
+    const baseScale = Math.min(
+      imageWrapperLayout.width / sourceImageSize.width,
+      imageWrapperLayout.height / sourceImageSize.height
+    );
+    const displayedWidth = sourceImageSize.width * baseScale;
+    const displayedHeight = sourceImageSize.height * baseScale;
+
+    return {
+      width: imageWrapperLayout.width,
+      height: imageWrapperLayout.height,
+      wrapperWidth: imageWrapperLayout.width,
+      wrapperHeight: imageWrapperLayout.height,
+      sourceWidth: sourceImageSize.width,
+      sourceHeight: sourceImageSize.height,
+      baseScale,
+      displayedWidth,
+      displayedHeight,
+      imageOffsetX: (imageWrapperLayout.width - displayedWidth) / 2,
+      imageOffsetY: (imageWrapperLayout.height - displayedHeight) / 2,
+    };
+  }, [imageWrapperLayout, sourceImageSize]);
 
   useEffect(() => {
     imageLayoutRef.current = imageLayout;
@@ -538,44 +594,50 @@ export default function ScheduleScreen() {
   };
 
   useEffect(() => {
-    if (!sourceImageSize || !imageLayout?.width || !imageLayout?.height) return;
+    if (!imageLayout) return;
 
-    const imageRatio = sourceImageSize.width / sourceImageSize.height;
-    const containerRatio = imageLayout.width / imageLayout.height;
-    const displayedWidth = imageRatio > containerRatio
-      ? imageLayout.width
-      : imageLayout.height * imageRatio;
-    const displayedHeight = imageRatio > containerRatio
-      ? imageLayout.width / imageRatio
-      : imageLayout.height;
-    const imageOffsetX = (imageLayout.width - displayedWidth) / 2;
-    const imageOffsetY = (imageLayout.height - displayedHeight) / 2;
-    if (
-      imageLayout.displayedWidth === displayedWidth &&
-      imageLayout.displayedHeight === displayedHeight &&
-      imageLayout.imageOffsetX === imageOffsetX &&
-      imageLayout.imageOffsetY === imageOffsetY
-    ) {
+    const bounds = getTransformedImageBounds(imageLayout, imageTransformRef.current);
+    if (!cropRectRef.current) {
+      const initialRect = {
+        left: imageLayout.imageOffsetX + imageLayout.displayedWidth * 0.25,
+        top: imageLayout.imageOffsetY + imageLayout.displayedHeight * 0.1,
+        width: imageLayout.displayedWidth * 0.5,
+        height: imageLayout.displayedHeight * 0.8,
+      };
+      setCropRect(initialRect);
+      cropRectRef.current = initialRect;
       return;
     }
-    const nextImageLayout = {
-      ...imageLayout,
-      imageOffsetX,
-      imageOffsetY,
-      displayedWidth,
-      displayedHeight,
-    };
-    setImageLayout(nextImageLayout);
 
-    const initialRect = {
-      left: imageOffsetX + displayedWidth * 0.25,
-      top: imageOffsetY + displayedHeight * 0.1,
-      width: displayedWidth * 0.5,
-      height: displayedHeight * 0.8,
+    if (!bounds) return;
+    const nextRect = {
+      ...cropRectRef.current,
+      left: clamp(cropRectRef.current.left, bounds.left, bounds.right - cropRectRef.current.width),
+      top: clamp(cropRectRef.current.top, bounds.top, bounds.bottom - cropRectRef.current.height),
     };
-    setCropRect(initialRect);
-    cropRectRef.current = initialRect;
-  }, [sourceImageSize, imageLayout]);
+    if (nextRect.left !== cropRectRef.current.left || nextRect.top !== cropRectRef.current.top) {
+      cropRectRef.current = nextRect;
+      setCropRect(nextRect);
+    }
+  }, [getTransformedImageBounds, imageLayout]);
+
+  const predictedCropRect = useMemo(() => {
+    if (!DEBUG_CROP_MAPPING || !cropRect || !imageLayout || !sourceImageSize) return null;
+    const crop = getSourceCrop(cropRect, imageLayout, imageTransform, sourceImageSize);
+    const points = [
+      { x: crop.originX, y: crop.originY },
+      { x: crop.originX + crop.width, y: crop.originY },
+      { x: crop.originX, y: crop.originY + crop.height },
+      { x: crop.originX + crop.width, y: crop.originY + crop.height },
+    ].map((point) => mapSourcePointToWrapper(point, imageLayout, imageTransform, sourceImageSize));
+
+    return {
+      left: Math.min(...points.map((point) => point.x)),
+      top: Math.min(...points.map((point) => point.y)),
+      width: Math.max(...points.map((point) => point.x)) - Math.min(...points.map((point) => point.x)),
+      height: Math.max(...points.map((point) => point.y)) - Math.min(...points.map((point) => point.y)),
+    };
+  }, [cropRect, imageLayout, imageTransform, sourceImageSize]);
 
   const updateCropRect = useCallback((handle, dx, dy) => {
     const start = cropGestureStartRef.current;
@@ -615,6 +677,8 @@ export default function ScheduleScreen() {
       responders[handle] = PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        onShouldBlockNativeResponder: () => false,
+        onPanResponderTerminationRequest: () => true,
         onPanResponderGrant: () => {
           resizeGestureActiveRef.current = true;
           cropGestureStartRef.current = cropRectRef.current;
@@ -684,7 +748,12 @@ export default function ScheduleScreen() {
   }, [getTransformedImageBounds]);
 
   const cropPanResponder = useMemo(() => PanResponder.create({
-    onStartShouldSetPanResponder: () => false,
+    onStartShouldSetPanResponder: (event) => {
+      const touches = event?.nativeEvent?.touches || [];
+      return touches.length <= 1 && !resizeGestureActiveRef.current;
+    },
+    onShouldBlockNativeResponder: () => false,
+    onPanResponderTerminationRequest: () => true,
     onMoveShouldSetPanResponder: (event) => {
       const rect = cropRectRef.current;
       const point = { x: Number(event?.nativeEvent?.locationX), y: Number(event?.nativeEvent?.locationY) };
@@ -698,7 +767,11 @@ export default function ScheduleScreen() {
     onPanResponderGrant: () => {
       cropInteractionStartRef.current = { cropRect: cropRectRef.current };
     },
-    onPanResponderMove: (_, gestureState) => updateCropPosition(gestureState.dx, gestureState.dy),
+    onPanResponderMove: (event, gestureState) => {
+      const touches = event?.nativeEvent?.touches || [];
+      if (touches.length > 1) return;
+      updateCropPosition(gestureState.dx, gestureState.dy);
+    },
     onPanResponderRelease: () => {
       cropInteractionStartRef.current = null;
     },
@@ -916,6 +989,17 @@ export default function ScheduleScreen() {
     return null;
   };
 
+  const normalizePickedImage = async (uri) => {
+    if (!uri) return null;
+
+    const normalized = await ImageManipulator.manipulateAsync(
+      uri,
+      [{ rotate: 0 }],
+      { format: ImageManipulator.SaveFormat.JPEG, quality: 1 }
+    );
+    return normalized;
+  };
+
   const recognizeTextFromImage = async (uri) => {
     try {
       if (!uri) return null;
@@ -969,7 +1053,8 @@ export default function ScheduleScreen() {
           ? await ImagePicker.launchCameraAsync(options)
           : await ImagePicker.launchImageLibraryAsync(options);
 
-      return getPickedImageUri(result);
+      const pickedUri = getPickedImageUri(result);
+      return pickedUri ? await normalizePickedImage(pickedUri) : null;
     } catch (error) {
       console.log('Image picker error:', error);
       Alert.alert('Skanowanie niedostępne', 'Nie udało się otworzyć aparatu lub galerii.');
@@ -1040,9 +1125,17 @@ export default function ScheduleScreen() {
         {
           text: 'Galeria',
           onPress: async () => {
-            const uri = await pickImage('gallery');
-            if (uri) {
-              setTempPhotoUri(uri);
+            const image = await pickImage('gallery');
+            if (image?.uri) {
+              cropRectRef.current = null;
+              setCropRect(null);
+              imageTransformRef.current = { scale: MIN_SCALE, translateX: 0, translateY: 0 };
+              setImageTransform(imageTransformRef.current);
+              scale.value = MIN_SCALE;
+              translateX.value = 0;
+              translateY.value = 0;
+              setSourceImageSize({ width: image.width, height: image.height });
+              setTempPhotoUri(image.uri);
               setIsCropModalVisible(true);
             }
           },
@@ -1050,9 +1143,17 @@ export default function ScheduleScreen() {
         {
           text: 'Aparat',
           onPress: async () => {
-            const uri = await pickImage('camera');
-            if (uri) {
-              setTempPhotoUri(uri);
+            const image = await pickImage('camera');
+            if (image?.uri) {
+              cropRectRef.current = null;
+              setCropRect(null);
+              imageTransformRef.current = { scale: MIN_SCALE, translateX: 0, translateY: 0 };
+              setImageTransform(imageTransformRef.current);
+              scale.value = MIN_SCALE;
+              translateX.value = 0;
+              translateY.value = 0;
+              setSourceImageSize({ width: image.width, height: image.height });
+              setTempPhotoUri(image.uri);
               setIsCropModalVisible(true);
             }
           },
@@ -1579,59 +1680,86 @@ export default function ScheduleScreen() {
             },
           ]}
         >
-          <View style={[styles.cropHeader, { borderBottomColor: colors.border }]}>
+          <View
+            style={[styles.cropHeader, { borderBottomColor: colors.border, backgroundColor: colors.background }]}
+          >
             <TouchableOpacity onPress={() => setIsCropModalVisible(false)}>
               <Text style={{ color: colors.text, fontSize: 16 }}>Anuluj</Text>
             </TouchableOpacity>
-            <Text style={[styles.cropHeaderTitle, { color: colors.text }]}>Kadrowanie dokumentu</Text>
+            <View style={styles.cropHeaderText}>
+              <Text style={[styles.cropHeaderTitle, { color: colors.text }]}>Kadrowanie dokumentu</Text>
+              <Text style={[styles.cropInstruction, { color: colors.textSecondary }]}>Przeciągnij ramkę, aby wybrać obszar. Użyj dwóch palców do zoomu.</Text>
+            </View>
             <View style={{ width: 48 }} />
           </View>
 
-          <View style={styles.cropWorkspace}>
-            <Text style={[styles.cropInstruction, { color: colors.textSecondary }]}>
-              Przeciągnij krawędzie, aby zmienić rozmiar. Przeciągnij środek, aby przesunąć ramkę. Użyj dwóch palców, aby przybliżyć lub oddalić obraz.
-            </Text>
-            {DEBUG_CROP_GESTURES ? (
-              <View
-                style={[styles.cropDebugPanel, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
-              >
+          {DEBUG_CROP_GESTURES || DEBUG_CROP_MAPPING ? (
+            <ScrollView
+              style={[styles.cropDebugPanel, { borderColor: colors.border, backgroundColor: colors.cardBackground }]}
+              contentContainerStyle={styles.cropDebugContent}
+              nestedScrollEnabled
+            >
+                {DEBUG_CROP_MAPPING && imageLayout ? (
+                  <>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Wrapper: {imageLayout.wrapperWidth.toFixed(1)} x {imageLayout.wrapperHeight.toFixed(1)}</Text>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Source: {sourceImageSize?.width} x {sourceImageSize?.height}</Text>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Base scale: {imageLayout.baseScale.toFixed(4)}</Text>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Displayed: {imageLayout.displayedWidth.toFixed(1)} x {imageLayout.displayedHeight.toFixed(1)}</Text>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Offset: {imageLayout.imageOffsetX.toFixed(1)}, {imageLayout.imageOffsetY.toFixed(1)}</Text>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Crop rect: {cropRect ? `${cropRect.left.toFixed(1)}, ${cropRect.top.toFixed(1)}, ${cropRect.width.toFixed(1)} x ${cropRect.height.toFixed(1)}` : 'brak'}</Text>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Transform: {imageTransform.scale.toFixed(2)}x, {imageTransform.translateX.toFixed(1)}, {imageTransform.translateY.toFixed(1)}</Text>
+                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Predicted crop: {cropRect && imageLayout && sourceImageSize ? JSON.stringify(getSourceCrop(cropRect, imageLayout, imageTransform, sourceImageSize)) : 'brak'}</Text>
+                  </>
+                ) : null}
+                {DEBUG_CROP_GESTURES ? (
+                  <>
                 <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Pinch active: {pinchDiagnostics.active ? 'tak' : 'nie'}</Text>
                 <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Pinch event scale: {pinchDiagnostics.eventScale.toFixed(3)}</Text>
                 <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Applied scale: {pinchDiagnostics.appliedScale.toFixed(2)}x</Text>
                 <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Translate X: {pinchDiagnostics.translateX.toFixed(1)}</Text>
                 <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Translate Y: {pinchDiagnostics.translateY.toFixed(1)}</Text>
-                <View style={styles.cropDebugButtons}>
-                  <TouchableOpacity style={styles.cropDebugButton} onPress={() => applyDebugTransform(imageTransform.scale - 0.25)}><Text>Zoom -</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.cropDebugButton} onPress={() => applyDebugTransform(imageTransform.scale + 0.25)}><Text>Zoom +</Text></TouchableOpacity>
-                  <TouchableOpacity style={styles.cropDebugButton} onPress={resetDebugTransform}><Text>Reset</Text></TouchableOpacity>
-                </View>
-                {cropDiagnostics ? (
-                  <ScrollView style={styles.cropDebugScroll} nestedScrollEnabled>
-                    <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>{JSON.stringify(cropDiagnostics, null, 2)}</Text>
-                  </ScrollView>
+                  </>
                 ) : null}
-                {ocrDiagnostics ? (
-                  <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>OCR: {JSON.stringify(ocrDiagnostics)}</Text>
-                ) : null}
-              </View>
-            ) : null}
+                {ocrDiagnostics ? <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>OCR: {JSON.stringify(ocrDiagnostics)}</Text> : null}
+                {cropDiagnostics ? <Text style={[styles.cropZoomDebug, { color: colors.textSecondary }]}>Last crop: {JSON.stringify(cropDiagnostics)}</Text> : null}
+            </ScrollView>
+          ) : null}
+
+          {DEBUG_CROP_GESTURES ? (
+            <View style={styles.cropDebugButtons}>
+              <TouchableOpacity style={styles.cropDebugButton} onPress={() => applyDebugTransform(imageTransform.scale - 0.25)}><Text>Zoom -</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.cropDebugButton} onPress={() => applyDebugTransform(imageTransform.scale + 0.25)}><Text>Zoom +</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.cropDebugButton} onPress={resetDebugTransform}><Text>Reset</Text></TouchableOpacity>
+            </View>
+          ) : null}
+
+          <View style={styles.cropImageArea}>
             <GestureDetector gesture={imageGestures}>
               <View
                 style={[styles.imageWrapper, { borderColor: colors.border }]}
                 onLayout={({ nativeEvent: { layout } }) => {
-                  setImageLayout((previous) => ({
-                    ...previous,
-                    width: layout.width,
-                    height: layout.height,
-                  }));
+                  setImageWrapperLayout((previous) => (
+                    previous?.width === layout.width && previous?.height === layout.height
+                      ? previous
+                      : { width: layout.width, height: layout.height }
+                  ));
                 }}
               >
               {tempPhotoUri ? (
-                <Animated.Image
-                  source={{ uri: tempPhotoUri }}
-                  style={[styles.cropImage, animatedImageStyle]}
-                  resizeMode="contain"
-                />
+                <Animated.View
+                  style={[
+                    styles.cropImageContainer,
+                    {
+                      left: imageLayout?.imageOffsetX || 0,
+                      top: imageLayout?.imageOffsetY || 0,
+                      width: imageLayout?.displayedWidth || 0,
+                      height: imageLayout?.displayedHeight || 0,
+                    },
+                    animatedImageStyle,
+                  ]}
+                >
+                  <Image source={{ uri: tempPhotoUri }} style={styles.cropImage} resizeMode="stretch" />
+                </Animated.View>
               ) : null}
               {cropRect ? (
                 <View
@@ -1647,14 +1775,14 @@ export default function ScheduleScreen() {
                         top: cropRect.top,
                         width: cropRect.width,
                         height: cropRect.height,
-                        borderColor: colors.primary,
+                        borderColor: '#22C55E',
                       },
                     ]}
                   >
-                    <View pointerEvents="none" style={[styles.cornerTL, { borderColor: colors.primary }]} />
-                    <View pointerEvents="none" style={[styles.cornerTR, { borderColor: colors.primary }]} />
-                    <View pointerEvents="none" style={[styles.cornerBL, { borderColor: colors.primary }]} />
-                    <View pointerEvents="none" style={[styles.cornerBR, { borderColor: colors.primary }]} />
+                    <View pointerEvents="none" style={[styles.cornerTL, { borderColor: '#22C55E' }]} />
+                    <View pointerEvents="none" style={[styles.cornerTR, { borderColor: '#22C55E' }]} />
+                    <View pointerEvents="none" style={[styles.cornerBL, { borderColor: '#22C55E' }]} />
+                    <View pointerEvents="none" style={[styles.cornerBR, { borderColor: '#22C55E' }]} />
                   </View>
                   <View
                     {...cropPanResponder.panHandlers}
@@ -1668,6 +1796,17 @@ export default function ScheduleScreen() {
                       },
                     ]}
                   />
+                  {predictedCropRect ? (
+                    <View
+                      pointerEvents="none"
+                      style={[styles.cropPredictionFrame, {
+                        left: predictedCropRect.left,
+                        top: predictedCropRect.top,
+                        width: predictedCropRect.width,
+                        height: predictedCropRect.height,
+                      }]}
+                    />
+                  ) : null}
                   {['left', 'right', 'top', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'].map(
                     (handle) => (
                       <View
@@ -1752,31 +1891,11 @@ export default function ScheduleScreen() {
                   }
 
                   const transform = imageTransformRef.current;
-                  const centerX = imageLayout.imageOffsetX + imageLayout.displayedWidth / 2;
-                  const centerY = imageLayout.imageOffsetY + imageLayout.displayedHeight / 2;
-                  const displayedCropLeft = (cropRect.left - centerX - transform.translateX) / transform.scale + centerX;
-                  const displayedCropTop = (cropRect.top - centerY - transform.translateY) / transform.scale + centerY;
-                  const scaleX = sourceImageSize.width / imageLayout.displayedWidth;
-                  const scaleY = sourceImageSize.height / imageLayout.displayedHeight;
-                  const originX = clamp(
-                    Math.round((displayedCropLeft - imageLayout.imageOffsetX) * scaleX),
-                    0,
-                    sourceImageSize.width - 1
-                  );
-                  const originY = clamp(
-                    Math.round((displayedCropTop - imageLayout.imageOffsetY) * scaleY),
-                    0,
-                    sourceImageSize.height - 1
-                  );
-                  const width = clamp(
-                    Math.round((cropRect.width / transform.scale) * scaleX),
-                    1,
-                    sourceImageSize.width - originX
-                  );
-                  const height = clamp(
-                    Math.round((cropRect.height / transform.scale) * scaleY),
-                    1,
-                    sourceImageSize.height - originY
+                  const { originX, originY, width, height } = getSourceCrop(
+                    cropRect,
+                    imageLayout,
+                    transform,
+                    sourceImageSize
                   );
                   setCropDiagnostics({
                     sourceImageSize,
@@ -2104,18 +2223,22 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   cropContainer: { flex: 1 },
-  cropHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, height: 56, borderBottomWidth: 1 },
-  cropHeaderTitle: { fontSize: 16, fontWeight: 'bold' },
-  cropWorkspace: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24, marginVertical: 16 },
-  cropZoomDebug: { textAlign: 'center', fontSize: 12, marginBottom: 6 },
-  cropDebugPanel: { width: '100%', maxHeight: 260, borderWidth: 1, borderRadius: 10, padding: 8, marginBottom: 8 },
-  cropDebugButtons: { flexDirection: 'row', gap: 8, marginTop: 4, marginBottom: 4 },
+  cropHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, minHeight: 88, borderBottomWidth: 1 },
+  cropHeaderText: { flex: 1, alignItems: 'center', paddingHorizontal: 8 },
+  cropHeaderTitle: { fontSize: 16, fontWeight: 'bold', textAlign: 'center', marginBottom: 4 },
+  cropZoomDebug: { textAlign: 'center', fontSize: 11, lineHeight: 15, marginBottom: 3 },
+  cropDebugPanel: { flexGrow: 0, maxHeight: 116, marginHorizontal: 16, marginTop: 8, borderWidth: 1, borderRadius: 10, padding: 8 },
+  cropDebugContent: { paddingVertical: 2 },
+  cropDebugButtons: { flexDirection: 'row', gap: 8, marginHorizontal: 16, marginTop: 8, marginBottom: 8 },
   cropDebugButton: { flex: 1, minHeight: 36, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderRadius: 8 },
   cropDebugScroll: { maxHeight: 130, marginTop: 4 },
-  imageWrapper: { position: 'relative', width: '100%', height: '85%', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  cropImageArea: { flex: 1, minHeight: 0, paddingHorizontal: 16, paddingVertical: 4 },
+  imageWrapper: { position: 'relative', width: '100%', height: '100%', borderWidth: 1, borderRadius: 8, overflow: 'hidden' },
+  cropImageContainer: { position: 'absolute' },
   cropImage: { width: '100%', height: '100%', opacity: 0.6 },
   cropInteractionLayer: { ...StyleSheet.absoluteFillObject, zIndex: 10 },
-  cropFrame: { position: 'absolute', borderWidth: 2, borderStyle: 'solid', backgroundColor: 'transparent' },
+  cropFrame: { position: 'absolute', zIndex: 5, borderWidth: 2, borderStyle: 'solid', backgroundColor: 'transparent' },
+  cropPredictionFrame: { position: 'absolute', zIndex: 1, borderWidth: 2, borderColor: '#EF4444', backgroundColor: 'rgba(239, 68, 68, 0.12)' },
   cropPanHandle: { position: 'absolute', zIndex: 15, backgroundColor: 'transparent' },
   cropHandle: { position: 'absolute' },
   cropEdgeHandle: { zIndex: 20 },
@@ -2126,8 +2249,8 @@ const styles = StyleSheet.create({
   cornerTR: { position: 'absolute', top: -2, right: -2, width: 12, height: 12, borderTopWidth: 4, borderRightWidth: 4 },
   cornerBL: { position: 'absolute', bottom: -2, left: -2, width: 12, height: 12, borderBottomWidth: 4, borderLeftWidth: 4 },
   cornerBR: { position: 'absolute', bottom: -2, right: -2, width: 12, height: 12, borderBottomWidth: 4, borderRightWidth: 4 },
-  cropInstruction: { textAlign: 'center', fontSize: 13, paddingHorizontal: 32, marginBottom: 16 },
-  cropFooter: { paddingHorizontal: 16, paddingTop: 8 },
+  cropInstruction: { textAlign: 'center', fontSize: 12, lineHeight: 15, paddingHorizontal: 4 },
+  cropFooter: { paddingHorizontal: 16, paddingTop: 8, paddingBottom: 4 },
   cropPreviewButton: { minHeight: 42, borderWidth: 1, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginBottom: 8 },
   cropPreviewButtonText: { fontSize: 14, fontWeight: '700' },
   lastCropImage: { width: '100%', height: 360, marginBottom: 8 },
