@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, Image, ScrollView } from 'react-native';
+import { Platform, View, Text, StyleSheet, Image, ScrollView } from 'react-native';
 import * as Application from 'expo-application';
 import Constants from 'expo-constants';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,14 +11,17 @@ const About = () => {
 
   const appVersion =
     Constants.expoConfig?.version ??
-    Updates.manifest?.version ??
     Application.nativeApplicationVersion ??
     '0.11.0'; // Bezpieczny fallback na nową wersję
 
+  const configuredBuildNumber = Platform.select({
+    android: Constants.expoConfig?.android?.versionCode,
+    ios: Constants.expoConfig?.ios?.buildNumber,
+    default: null,
+  });
   const buildNumber =
+    configuredBuildNumber ??
     Application.nativeBuildVersion ??
-    Constants.expoConfig?.android?.versionCode ??
-    Constants.expoConfig?.ios?.buildNumber ??
     '';
 
   return (
