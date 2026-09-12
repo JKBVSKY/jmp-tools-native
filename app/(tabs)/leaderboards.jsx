@@ -123,13 +123,13 @@ export default function Leaderboards() {
 
       const now = new Date();
       const docId = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-      const cacheKey = 'leaderboard:' + docId;
-      let docData = !force ? await getLeaderboardCache(cacheKey) : null;
+      // getLeaderboardCache/setLeaderboardCache already prefix the key internally - pass docId directly.
+      let docData = !force ? await getLeaderboardCache(docId) : null;
       if (!docData) {
         const docRef = doc(db, 'leaderboards', docId);
         const docSnap = await getDoc(docRef);
         docData = docSnap.exists() ? docSnap.data() || {} : {};
-        await setLeaderboardCache(cacheKey, docData);
+        await setLeaderboardCache(docId, docData);
       }
 
       const truckArray = Array.isArray(docData.truck) ? docData.truck : [];

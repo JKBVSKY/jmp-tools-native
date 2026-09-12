@@ -17,7 +17,7 @@ import {
   collection,
   query,
   orderBy,
-  getDocs,
+  getDocsFromServer,
   deleteDoc,
   doc,
 } from 'firebase/firestore';
@@ -214,7 +214,9 @@ export default function ScoreHistory() {
 
       const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
       const q = query(sessionsRef, orderBy('date', 'desc'));
-      const snapshot = await getDocs(q);
+      // getDocsFromServer forces a real network round-trip, so being offline throws
+      // instead of silently resolving to an empty snapshot that would poison the cache.
+      const snapshot = await getDocsFromServer(q);
 
       const fetchedSessions = snapshot.docs.map((d) => {
         const data = d.data();
@@ -227,7 +229,8 @@ export default function ScoreHistory() {
       setSessions(fetchedSessions);
       await setUserScoreHistoryCache(userId, fetchedSessions);
     } catch (error) {
-      console.error('Failed to load sessions from Firestore:', error);
+      // A server error must never wipe out sessions already shown from cache.
+      console.error('Failed to load sessions from server:', error);
     } finally {
       setLoading(false);
       setRefreshing(false);

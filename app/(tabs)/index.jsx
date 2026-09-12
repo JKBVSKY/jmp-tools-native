@@ -2,8 +2,8 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
-import { collection, doc, getDoc, getDocs, orderBy, query } from 'firebase/firestore';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { collection, doc, getDoc, getDocsFromServer, orderBy, query } from 'firebase/firestore';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
@@ -18,6 +18,8 @@ import { db } from '../../firebase/config';
 import { useAutoHorizontalScroll } from '../../hooks/useAutoHorizontalScroll';
 import { useColors } from '../../hooks/useColors';
 import SessionModal from '../modals/SessionModal';
+import { getLeaderboardCache, getUserScoreHistoryCache, setLeaderboardCache, setUserScoreHistoryCache } from '../../services/ScoreDataCache';
+import { useNetwork } from '../../services/useNetwork';
 
 const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
 
@@ -38,6 +40,9 @@ export default function Dashboard() {
   const { user, isGuest, signOut } = useAuth();
   const { profile } = useUserProfile();
   const router = useRouter();
+  
+  const { isOnline } = useNetwork();
+  console.log('Internet:', isOnline);
 
   const [sessions, setSessions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -207,70 +212,125 @@ export default function Dashboard() {
   };
 
   const loadSessions = useCallback(async (active) => {
-    setLoading(true);
+    const isActive = () => (typeof active === 'function' ? active() : active !== false);
     if (!userId) {
-      if (typeof active === 'function' ? !active() : active === false) return;
+      if (!isActive()) return;
       setSessions([]);
       setLoading(false);
       return;
     }
 
+    setLoading(true);
+
+    // Cache-first hydration: shows last known sessions instantly, independent of network state.
+    let hasCachedSessions = false;
+    try {
+      const cachedSessions = await getUserScoreHistoryCache(userId);
+      if (!isActive()) return;
+      if (cachedSessions) {
+        console.log('[Dashboard] Score history cache hit');
+        hasCachedSessions = true;
+        setSessions(cachedSessions);
+        setLoading(false);
+      }
+    } catch (cacheError) {
+      console.warn('[Dashboard] Failed to read score history cache:', cacheError);
+    }
+
+    // getDocsFromServer forces a real network round-trip, so being offline throws
+    // instead of silently resolving to an empty snapshot that would poison the cache.
     try {
       const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
       const q = query(sessionsRef, orderBy('date', 'desc'));
-      const snapshot = await getDocs(q);
-      if (typeof active === 'function' ? !active() : active === false) return;
+      const snapshot = await getDocsFromServer(q);
+      if (!isActive()) return;
       const fetchedSessions = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+      console.log('[Dashboard] Score history loaded from server');
       setSessions(fetchedSessions);
+      setUserScoreHistoryCache(userId, fetchedSessions)
+        .then(() => console.log('[Dashboard] Score history cache updated'))
+        .catch(() => {});
     } catch (error) {
-      if (typeof active === 'function' ? !active() : active === false) return;
-      console.error('Failed to load sessions:', error);
+      if (!isActive()) return;
+      // A server error must never wipe out sessions we already hydrated from cache.
+      if (hasCachedSessions) {
+        console.log('[Dashboard] Score history server unavailable, keeping cache');
+      } else {
+        console.error('Failed to load sessions:', error);
+      }
     } finally {
-      if (typeof active === 'function' ? !active() : active === false) return;
+      if (!isActive()) return;
       setLoading(false);
     }
   }, [userId]);
 
+  const applyLeaderboardData = useCallback((docData) => {
+    const truckArray = Array.isArray(docData?.truck) ? docData.truck : [];
+    const userTruckIndex = truckArray.findIndex((entry) => entry.userId === userId);
+    setRank(userTruckIndex >= 0 ? `${userTruckIndex + 1}.` : '-');
+
+    const nextPickingRanks = {};
+    const pickingObj = docData?.picking || {};
+    PICKING_SUBSECTIONS.forEach((subsection) => {
+      const subArray = Array.isArray(pickingObj[subsection]) ? pickingObj[subsection] : [];
+      const userSubIndex = subArray.findIndex((entry) => entry.userId === userId);
+      nextPickingRanks[subsection] = userSubIndex >= 0 ? `${userSubIndex + 1}.` : '-';
+    });
+    setPickingRanks(nextPickingRanks);
+  }, [userId]);
+
   const loadRank = useCallback(async (active) => {
+    const isActive = () => (typeof active === 'function' ? active() : active !== false);
     if (!userId) {
-      if (typeof active === 'function' ? !active() : active === false) return;
+      if (!isActive()) return;
       setRank('-');
       setPickingRanks({});
       return;
     }
 
+    const monthKey = `${currentMonth.year}-${String(currentMonth.month + 1).padStart(2, '0')}`;
+
+    // Cache-first hydration: shows last known rank instantly, independent of network state.
+    let hasCachedLeaderboard = false;
     try {
-      const docRef = doc(db, 'leaderboards', `${currentMonth.year}-${String(currentMonth.month + 1).padStart(2, '0')}`);
+      const cachedLeaderboard = await getLeaderboardCache(monthKey);
+      if (!isActive()) return;
+      if (cachedLeaderboard) {
+        console.log('[Dashboard] Leaderboard cache hit');
+        hasCachedLeaderboard = true;
+        applyLeaderboardData(cachedLeaderboard);
+      }
+    } catch (cacheError) {
+      console.warn('[Dashboard] Failed to read leaderboard cache:', cacheError);
+    }
+
+    try {
+      const docRef = doc(db, 'leaderboards', monthKey);
       const docSnap = await getDoc(docRef);
 
-      if (typeof active === 'function' ? !active() : active === false) return;
+      if (!isActive()) return;
 
-      if (docSnap.exists()) {
-        const docData = docSnap.data() || {};
-        const truckArray = Array.isArray(docData.truck) ? docData.truck : [];
-        const userTruckIndex = truckArray.findIndex((entry) => entry.userId === userId);
-        setRank(userTruckIndex >= 0 ? `${userTruckIndex + 1}.` : '-');
-
-        const nextPickingRanks = {};
-        const pickingObj = docData.picking || {};
-        PICKING_SUBSECTIONS.forEach((subsection) => {
-          const subArray = Array.isArray(pickingObj[subsection]) ? pickingObj[subsection] : [];
-          const userSubIndex = subArray.findIndex((entry) => entry.userId === userId);
-          nextPickingRanks[subsection] = userSubIndex >= 0 ? `${userSubIndex + 1}.` : '-';
-        });
-        setPickingRanks(nextPickingRanks);
+      const docData = docSnap.exists() ? docSnap.data() || {} : {};
+      console.log('[Dashboard] Leaderboard loaded from Firestore');
+      applyLeaderboardData(docData);
+      setLeaderboardCache(monthKey, docData)
+        .then(() => console.log('[Dashboard] Leaderboard cache updated'))
+        .catch(() => {});
+    } catch (error) {
+      if (!isActive()) return;
+      // A Firestore error must never wipe out a rank we already hydrated from cache.
+      if (hasCachedLeaderboard) {
+        console.log('[Dashboard] Firestore unavailable, keeping cached leaderboard');
       } else {
+        console.error('Failed to load rank:', error);
         setRank('-');
         setPickingRanks({});
       }
-    } catch (error) {
-      if (typeof active === 'function' ? !active() : active === false) return;
-      console.error('Failed to load rank:', error);
-      setRank('-');
-      setPickingRanks({});
     }
-  }, [currentMonth.month, currentMonth.year, userId]);
+  }, [applyLeaderboardData, currentMonth.month, currentMonth.year, userId]);
 
+  // useFocusEffect already runs on initial mount as well as on every focus,
+  // so a separate mount-only effect would just duplicate these loads.
   useFocusEffect(
     useCallback(() => {
       let active = true;
@@ -282,14 +342,21 @@ export default function Dashboard() {
     }, [loadRank, loadSessions])
   );
 
+  // Reconnect refresh: re-run loaders only on the false -> true transition,
+  // so we don't refetch on mount (undefined -> false/true) or on every render.
+  const previousOnlineRef = useRef(isOnline);
   useEffect(() => {
-    let active = true;
-    loadSessions(() => active);
-    loadRank(() => active);
-    return () => {
-      active = false;
-    };
-  }, [loadRank, loadSessions]);
+    const wasOffline = previousOnlineRef.current === false;
+    const isNowOnline = isOnline === true;
+
+    if (wasOffline && isNowOnline) {
+      console.log('[Dashboard] Reconnected, refreshing score history and leaderboard');
+      loadSessions();
+      loadRank();
+    }
+
+    previousOnlineRef.current = isOnline;
+  }, [isOnline, loadRank, loadSessions]);
 
   useEffect(() => {
     if (!user || !profile) return;

@@ -1,7 +1,6 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
-import { View, ActivityIndicator } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -17,12 +16,15 @@ import {
   registerForPushNotificationsAsync,
   saveUserPushTokenAsync,
 } from '../services/NotificationService';
+import { NetworkProvider } from '../services/NetworkProvider';
+import { useNetwork } from '../services/useNetwork';
 
 // inside app/_layout.jsx
 function RootNavigator() {
   const { isLoading, user } = useAuth();
-  const { profile, isLoading: isProfileLoading } = useUserProfile();
+  const { isLoading: isProfileLoading } = useUserProfile();
   const { theme } = useThemeContext();
+  const { isChecking, isOnline, isOffline } = useNetwork();
   const colors = useColors();
   const [isNotificationsReady, setIsNotificationsReady] = useState(false);
   const [pushToken, setPushToken] = useState(null);
@@ -90,12 +92,16 @@ function RootNavigator() {
       });
   }, [user?.id, pushToken]);
 
-  if (!isNotificationsReady || isLoading || (user && isProfileLoading)) {
-    return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+  if (!isNotificationsReady || isLoading || (user && isProfileLoading) || isChecking) {
+    const subtitle = isChecking
+      ? 'Checking your connection...'
+      : isOffline
+        ? 'Working offline...'
+        : isOnline
+          ? 'Loading your workspace...'
+          : 'Preparing your workspace...';
+
+    return <StartupLoadingScreen subtitle={subtitle} />;
   }
 
   return (
@@ -172,18 +178,20 @@ function RootNavigator() {
 
 export default function RootLayout() {
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <ThemeProvider>
-          <AuthProvider>
-            <UserProfileProvider>
-              <CalculatorProvider>
-                <RootNavigator />
-              </CalculatorProvider>
-            </UserProfileProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <NetworkProvider>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <ThemeProvider>
+            <AuthProvider>
+              <UserProfileProvider>
+                <CalculatorProvider>
+                  <RootNavigator />
+                </CalculatorProvider>
+              </UserProfileProvider>
+            </AuthProvider>
+          </ThemeProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </NetworkProvider>
   );
 }
