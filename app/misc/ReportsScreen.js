@@ -21,8 +21,10 @@ import {
 import { db } from '../../firebase/config';
 import { useColors } from '../../hooks/useColors';
 import { useAuth } from '../../context/AuthContext';
+import { useNetwork } from '../../services/useNetwork';
 import { getReportTypeLabel } from '../../constants/reportTypes';
 import ReportModal from '../calculator_content/truckLoading/ReportModal';
+import { getReportsCache, setReportsCache } from '../../services/cache/ReportsCache';
 
 const ADMIN_EMAILS = ['jakub.jaskola7@gmail.com'];
 const REPORT_STATUSES = {
@@ -80,6 +82,7 @@ const formatTimestamp = (ts) => {
 const ReportsScreen = () => {
     const colors = useColors();
     const { user, isGuest } = useAuth();
+    const { isOnline } = useNetwork();
     const isAdmin =
         !!user?.email &&
         !isGuest &&
@@ -113,28 +116,59 @@ const ReportsScreen = () => {
     );
 
     useEffect(() => {
-        const q = query(
-            collection(db, 'reports'),
-            orderBy('createdAt', 'desc')
-        );
+        let isMounted = true;
+        let unsubscribe = () => {};
 
-        const unsubscribe = onSnapshot(
-            q,
-            (snapshot) => {
-                const data = snapshot.docs.map((doc) => ({
-                    id: doc.id,
-                    ...doc.data(),
-                }));
-                setReports(data);
-                setLoading(false);
-            },
-            (error) => {
-                console.log('Error fetching reports:', error);
+        (async () => {
+            // Cache-first: show the last known reports instantly (offline/restart support).
+            const cachedReports = await getReportsCache();
+            if (isMounted && cachedReports) {
+                setReports(cachedReports);
                 setLoading(false);
             }
-        );
+            if (!isMounted) return;
 
-        return () => unsubscribe();
+            const q = query(
+                collection(db, 'reports'),
+                orderBy('createdAt', 'desc')
+            );
+
+            unsubscribe = onSnapshot(
+                q,
+                (snapshot) => {
+                    const isFromCache = snapshot.metadata.fromCache;
+
+                    // Empty local/cache snapshot (e.g. cold start offline) isn't a real
+                    // "collection is empty" answer - never let it wipe reports or the cache.
+                    if (isFromCache && snapshot.docs.length === 0) {
+                        setLoading(false);
+                        return;
+                    }
+
+                    const data = snapshot.docs.map((doc) => ({
+                        id: doc.id,
+                        ...doc.data(),
+                    }));
+                    setReports(data);
+
+                    // Only persist data confirmed by the server, never local/cache-only reads.
+                    if (!isFromCache) {
+                        setReportsCache(data);
+                    }
+                    setLoading(false);
+                },
+                (error) => {
+                    console.log('Error fetching reports:', error);
+                    // Keep whatever reports are already shown (cache or previous state).
+                    setLoading(false);
+                }
+            );
+        })();
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
     }, []);
 
     const filteredReports = useMemo(() => {
@@ -274,9 +308,14 @@ const ReportsScreen = () => {
                                 onPress={() =>
                                     handleStatusChange(item.id, REPORT_STATUSES.reported)
                                 }
+                                disabled={isOnline === false}
                                 style={[
                                     styles.statusButton,
-                                    { borderColor: '#D64545', backgroundColor: colors.cardBackground },
+                                    {
+                                        borderColor: '#D64545',
+                                        backgroundColor: colors.cardBackground,
+                                        opacity: isOnline === false ? 0.5 : 1,
+                                    },
                                 ]}
                             >
                                 <Text style={[styles.statusButtonText, { color: '#D64545' }]}>Reset</Text>
@@ -285,9 +324,14 @@ const ReportsScreen = () => {
                                 onPress={() =>
                                     handleStatusChange(item.id, REPORT_STATUSES.submitted)
                                 }
+                                disabled={isOnline === false}
                                 style={[
                                     styles.statusButton,
-                                    { borderColor: '#E68A00', backgroundColor: colors.cardBackground },
+                                    {
+                                        borderColor: '#E68A00',
+                                        backgroundColor: colors.cardBackground,
+                                        opacity: isOnline === false ? 0.5 : 1,
+                                    },
                                 ]}
                             >
                                 <Text style={[styles.statusButtonText, { color: '#E68A00' }]}>Zgłoszone</Text>
@@ -296,9 +340,14 @@ const ReportsScreen = () => {
                                 onPress={() =>
                                     handleStatusChange(item.id, REPORT_STATUSES.fixed)
                                 }
+                                disabled={isOnline === false}
                                 style={[
                                     styles.statusButton,
-                                    { borderColor: '#2E9B57', backgroundColor: colors.cardBackground },
+                                    {
+                                        borderColor: '#2E9B57',
+                                        backgroundColor: colors.cardBackground,
+                                        opacity: isOnline === false ? 0.5 : 1,
+                                    },
                                 ]}
                             >
                                 <Text style={[styles.statusButtonText, { color: '#2E9B57' }]}>Naprawione</Text>
@@ -311,9 +360,14 @@ const ReportsScreen = () => {
                     {canEdit && (
                         <TouchableOpacity
                             onPress={() => openEditReport(item)}
+                            disabled={isOnline === false}
                             style={[
                                 styles.editButton,
-                                { borderColor: colors.border, backgroundColor: colors.cardBackground },
+                                {
+                                    borderColor: colors.border,
+                                    backgroundColor: colors.cardBackground,
+                                    opacity: isOnline === false ? 0.5 : 1,
+                                },
                             ]}
                         >
                             <Text style={[styles.deleteText, { color: colors.textSecondary }]}>✎</Text>
@@ -323,9 +377,14 @@ const ReportsScreen = () => {
                     {canDelete && (
                         <TouchableOpacity
                             onPress={() => handleDelete(item.id, item)}
+                            disabled={isOnline === false}
                             style={[
                                 styles.deleteButton,
-                                { borderColor: colors.border, backgroundColor: colors.cardBackground },
+                                {
+                                    borderColor: colors.border,
+                                    backgroundColor: colors.cardBackground,
+                                    opacity: isOnline === false ? 0.5 : 1,
+                                },
                             ]}
                         >
                             <Text style={[styles.deleteText, { color: colors.textSecondary }]}>✕</Text>
@@ -470,11 +529,13 @@ const ReportsScreen = () => {
 
                             <TouchableOpacity
                                 onPress={openReport}
+                                disabled={isOnline === false}
                                 style={[
                                     styles.reportButton,
                                     {
                                         backgroundColor: colors.butBackground,
                                         borderColor: colors.butBorder,
+                                        opacity: isOnline === false ? 0.5 : 1,
                                     },
                                 ]}
                             >

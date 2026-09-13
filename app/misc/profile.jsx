@@ -1,10 +1,11 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Modal, View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TouchableOpacity } from 'react-native';
-import { collection, getDocs, orderBy, query } from 'firebase/firestore';
+import { collection, getDocsFromServer, orderBy, query } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useUserProfile } from '../../context/UserProfileContext';
+import { getUserScoreHistoryCache, setUserScoreHistoryCache } from '../../services/ScoreDataCache';
 import { useColors } from '../../hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
 import { ACHIEVEMENTS, calculateLevelFromXP, isAchievementUnlocked, } from '../../constants/LevelSystem';
@@ -213,11 +214,27 @@ export default function Profile() {
         return;
       }
 
+      setSessionsLoading(true);
+
+      // Cache-first: show last known sessions instantly, independent of network state.
+      let hasCachedSessions = false;
       try {
-        setSessionsLoading(true);
+        const cachedSessions = await getUserScoreHistoryCache(userId);
+        if (cachedSessions) {
+          hasCachedSessions = true;
+          setSessions(cachedSessions);
+          setSessionsLoading(false);
+        }
+      } catch (cacheError) {
+        console.warn('Failed to read profile sessions cache:', cacheError);
+      }
+
+      // getDocsFromServer forces a real network round-trip, so being offline throws
+      // instead of silently resolving to an empty snapshot that would poison the cache.
+      try {
         const sessionsRef = collection(db, 'users', userId, 'scoreHistory');
         const q = query(sessionsRef, orderBy('date', 'desc'));
-        const snapshot = await getDocs(q);
+        const snapshot = await getDocsFromServer(q);
 
         const fetchedSessions = snapshot.docs.map((doc) => ({
           id: doc.id,
@@ -225,8 +242,12 @@ export default function Profile() {
         }));
 
         setSessions(fetchedSessions);
+        await setUserScoreHistoryCache(userId, fetchedSessions);
       } catch (error) {
-        console.error('Failed to load profile sessions:', error);
+        // A server error must never wipe out sessions already shown from cache.
+        if (!hasCachedSessions) {
+          console.error('Failed to load profile sessions:', error);
+        }
       } finally {
         setSessionsLoading(false);
       }
