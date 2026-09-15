@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,13 @@ import { useAuth } from '../../context/AuthContext';
 import { useColors } from '../../hooks/useColors';
 import { MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useNetwork } from '../../services/useNetwork';
+import {
+  getPalletMappingsCache,
+  setPalletMappingsCache,
+  getScheduleItemsCache,
+  setScheduleItemsCache,
+} from '../../services/cache/MappingCache';
 
 const LOCATION_OPTIONS = ['Biuro', 'B35', 'Biuro KJ', 'R - P01', 'R - P21', 'Własna lokacja'];
 const PALLET_TYPE_OPTIONS = ['Komplet', 'PX', 'Techniczne', 'Kontener', 'Slov', 'R', 'Inne'];
@@ -65,6 +72,7 @@ export default function Mapping() {
   const colors = useColors();
   const { user, isGuest } = useAuth();
   const router = useRouter();
+  const { isOnline } = useNetwork();
 
   const [mappings, setMappings] = useState([]);
   const [scheduleItems, setScheduleItems] = useState([]);
@@ -84,6 +92,9 @@ export default function Mapping() {
   const [filterType, setFilterType] = useState(null);
 
   const isDisabled = !user || isGuest;
+  const isCrudDisabled = isDisabled || !isOnline;
+  const hasCachedMappingsRef = useRef(false);
+  const hasCachedScheduleRef = useRef(false);
 
   const scheduleLookup = useMemo(() => {
     const lookup = new Map();
@@ -195,7 +206,33 @@ export default function Mapping() {
       return undefined;
     }
 
+    let isActive = true;
+
+    // Tracks whether AsyncStorage cache primed the state, to guard against a
+    // spurious empty local Firestore snapshot (fromCache) wiping it out.
+    hasCachedMappingsRef.current = false;
+    hasCachedScheduleRef.current = false;
+
     setLoadingMappings(true);
+    setLoadingSchedule(true);
+
+    // Cache-first: show last known data immediately while Firestore connects.
+    (async () => {
+      const cachedMappings = await getPalletMappingsCache(user.id);
+      if (!isActive || cachedMappings === null) return;
+      hasCachedMappingsRef.current = true;
+      setMappings(cachedMappings);
+      setLoadingMappings(false);
+    })();
+
+    (async () => {
+      const cachedSchedule = await getScheduleItemsCache(user.id);
+      if (!isActive || cachedSchedule === null) return;
+      hasCachedScheduleRef.current = true;
+      setScheduleItems(cachedSchedule);
+      setLoadingSchedule(false);
+    })();
+
     const mappingsQuery = query(
       collection(db, 'users', user.id, 'palletMappings'),
       orderBy('createdAt', 'desc')
@@ -204,31 +241,49 @@ export default function Mapping() {
     const unsubscribeMappings = onSnapshot(
       mappingsQuery,
       (snapshot) => {
-        setMappings(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+        if (!isActive) return;
+        if (snapshot.metadata.fromCache && snapshot.empty && hasCachedMappingsRef.current) {
+          // Spurious empty local snapshot after restart - keep the cached data shown.
+          return;
+        }
+        const freshMappings = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        setMappings(freshMappings);
         setLoadingMappings(false);
+        setPalletMappingsCache(user.id, freshMappings);
       },
       (snapError) => {
         console.log('Error fetching mappings:', snapError);
+        if (!isActive) return;
+        // Keep any cached mappings already shown in the UI; just stop the spinner.
         setLoadingMappings(false);
       }
     );
 
-    setLoadingSchedule(true);
     const scheduleQuery = query(collection(db, 'users', user.id, 'scheduleItems'));
 
     const unsubscribeSchedule = onSnapshot(
       scheduleQuery,
       (snapshot) => {
-        setScheduleItems(snapshot.docs.map((item) => ({ id: item.id, ...item.data() })));
+        if (!isActive) return;
+        if (snapshot.metadata.fromCache && snapshot.empty && hasCachedScheduleRef.current) {
+          // Spurious empty local snapshot after restart - keep the cached data shown.
+          return;
+        }
+        const freshScheduleItems = snapshot.docs.map((item) => ({ id: item.id, ...item.data() }));
+        setScheduleItems(freshScheduleItems);
         setLoadingSchedule(false);
+        setScheduleItemsCache(user.id, freshScheduleItems);
       },
       (snapError) => {
         console.log('Error fetching schedule items:', snapError);
+        if (!isActive) return;
+        // Keep any cached schedule items already shown in the UI; just stop the spinner.
         setLoadingSchedule(false);
       }
     );
 
     return () => {
+      isActive = false;
       unsubscribeMappings();
       unsubscribeSchedule();
     };
@@ -365,11 +420,13 @@ export default function Mapping() {
           <View style={styles.itemActions}>
             <TouchableOpacity
               onPress={() => openEditModal(item)}
+              disabled={isCrudDisabled}
               style={[
                 styles.iconButton,
                 {
                   borderColor: colors.border,
                   backgroundColor: colors.cardBackground,
+                  opacity: isCrudDisabled ? 0.5 : 1,
                 },
               ]}
             >
@@ -377,11 +434,13 @@ export default function Mapping() {
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => handleDelete(item)}
+              disabled={isCrudDisabled}
               style={[
                 styles.iconButton,
                 {
                   borderColor: colors.border,
                   backgroundColor: colors.cardBackground,
+                  opacity: isCrudDisabled ? 0.5 : 1,
                 },
               ]}
             >
@@ -427,13 +486,13 @@ export default function Mapping() {
         <View style={styles.headerActionsRow}>
           <TouchableOpacity
             onPress={openCreateModal}
-            disabled={isDisabled}
+            disabled={isCrudDisabled}
             style={[
               styles.addButton,
               {
                 backgroundColor: colors.butBackground,
                 borderColor: colors.butBorder,
-                opacity: isDisabled ? 0.6 : 1,
+                opacity: isCrudDisabled ? 0.6 : 1,
               },
             ]}
           >
