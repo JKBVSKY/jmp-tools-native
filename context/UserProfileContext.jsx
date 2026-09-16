@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { calculateLevelFromXP, calculateXPFromScore, checkAchievements } from '../constants/LevelSystem';
 import { doc, getDoc, onSnapshot, runTransaction, updateDoc } from 'firebase/firestore';
@@ -6,6 +6,12 @@ import { db } from '../firebase/config';
 import { PendingXPService } from '../services/PendingXPService';
 import { useNetwork } from '../services/useNetwork';
 import { getCacheEntry, setCacheEntry } from '../services/cache/cacheStore';
+import { getPendingMutation, mergePendingMutation, applyPendingFields } from '../services/pendingMutations/pendingMutationStore';
+import {
+  USER_PROFILE_PENDING_DOMAIN,
+  syncPendingUserProfileMutation,
+  confirmPendingUserProfileMutationIfSatisfied,
+} from '../services/pendingMutations/userProfileSync';
 
 const UserProfileContext = createContext();
 
@@ -118,6 +124,14 @@ export function UserProfileProvider({ children }) {
   const [isStale, setIsStale] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState(null);
+  // Locally changed, not-yet-confirmed User Profile fields (dot-path keyed),
+  // e.g. { 'preferences.sections': ['kompletacja'] }. Overlaid on top of
+  // `profile` so consumers always see the latest user-intended state.
+  const [pendingProfileFields, setPendingProfileFields] = useState(null);
+  // False while the initial pending-mutation read (AsyncStorage) for the
+  // current user is still in flight - lets consumers avoid rendering a
+  // "ready" profile before local pending changes have been overlaid.
+  const [pendingFieldsLoaded, setPendingFieldsLoaded] = useState(true);
 
   const loadRequestRef = useRef(0);
   const unsubscribeRef = useRef(null);
@@ -162,6 +176,8 @@ export function UserProfileProvider({ children }) {
         setIsStale(false);
         setIsSyncing(false);
         setError(null);
+        setPendingProfileFields(null);
+        setPendingFieldsLoaded(true);
       } else {
         console.log('📱 Loading profile for user:', user?.id); // DEBUG LOG
         // Reset immediately so a user switch can never render the previous user's profile, even briefly.
@@ -169,7 +185,19 @@ export function UserProfileProvider({ children }) {
         setError(null);
         setIsStale(false);
         setIsLoading(true);
+        setPendingProfileFields(null);
+        setPendingFieldsLoaded(false);
         loadUserProfile(user?.id, () => isMounted);
+        // loadUserProfile() synchronously bumps loadRequestRef before its first
+        // await, so this capture reflects the request we're about to restore for.
+        const pendingRequestId = loadRequestRef.current;
+        // Restore any not-yet-synced local profile changes (survives app restarts).
+        getPendingMutation(USER_PROFILE_PENDING_DOMAIN, user.id).then((pending) => {
+          if (isMounted && user?.id && pendingRequestId === loadRequestRef.current) {
+            setPendingProfileFields(pending?.fields || null);
+            setPendingFieldsLoaded(true);
+          }
+        });
       }
     } else {
       teardownSubscription();
@@ -181,12 +209,24 @@ export function UserProfileProvider({ children }) {
       setIsStale(false);
       setIsSyncing(false);
       setError(null);
+      setPendingProfileFields(null);
+      setPendingFieldsLoaded(true);
     }
     return () => {
       isMounted = false;
       teardownSubscription();
     };
   }, [user?.id, user?.isGuest]);
+
+  // Flushes a pending profile mutation whenever one exists and we're online:
+  // right after app start (once restored above) and on every offline -> online
+  // transition. Does NOT belong in NetworkProvider - it only reads isOffline.
+  // Clearing the pending mutation happens in handleProfileSnapshot once a
+  // server-confirmed snapshot proves Firestore reflects these values, not here.
+  useEffect(() => {
+    if (!user?.id || user?.isGuest || isOffline || !pendingProfileFields) return;
+    syncPendingUserProfileMutation(user.id);
+  }, [isOffline, user?.id, user?.isGuest, pendingProfileFields]);
 
   // Applies a Firestore snapshot to React state + cache. Distinguishes
   // server-confirmed data (metadata.fromCache === false && !hasPendingWrites)
@@ -199,6 +239,15 @@ export function UserProfileProvider({ children }) {
     const fromCache = snapshot.metadata.fromCache;
     const hasPendingWrites = snapshot.metadata.hasPendingWrites;
     const serverConfirmed = !fromCache && !hasPendingWrites;
+
+    // TEMP diagnostics for reconnect-delay investigation (T6 in the offline sync trace).
+    console.log('🔄 [reconnect-diag] onSnapshot received T6:', {
+      userId,
+      fromCache,
+      hasPendingWrites,
+      serverConfirmed,
+      timestamp: Date.now(),
+    });
 
     if (!snapshot.exists()) {
       if (!serverConfirmed || hasAnyDataRef.current) {
@@ -236,6 +285,14 @@ export function UserProfileProvider({ children }) {
       setIsSyncing(false);
       setCacheEntry(PROFILE_CACHE_DOMAIN, userId, hydratedProfile).catch(() => {});
       runBackfillIfNeeded(userId, backfill);
+      // Only a server-confirmed snapshot can retire a pending mutation, and only
+      // if it still matches the generation we sent (a newer local change may
+      // have appeared meanwhile) and its values actually satisfy the pending
+      // fields (an older/unrelated snapshot must never clear a newer pending).
+      confirmPendingUserProfileMutationIfSatisfied(userId, existingProfile).then((confirmResult) => {
+        if (requestId !== loadRequestRef.current || !getIsMounted() || !confirmResult.cleared) return;
+        setPendingProfileFields(confirmResult.current?.fields || null);
+      });
     } else {
       // Local-only snapshot: show it, but don't treat it as confirmed truth yet.
       setIsStale(true);
@@ -487,9 +544,43 @@ export function UserProfileProvider({ children }) {
     );
   };
 
+  // Coalesces a patch of dot-path User Profile fields (e.g. notifications.enabled,
+  // preferences.notificationLeadHours, preferences.sections) into the pending
+  // mutation, updates the UI immediately, and - if online - tries to sync it
+  // to Firestore right away. Safe to call while offline: the change is kept
+  // as a pending mutation and flushed later by the reconnect effect above.
+  const updateUserProfileFields = async (fieldsPatch) => {
+    const userId = user?.id || profile?.userId;
+    if (!userId || user?.isGuest) {
+      return { success: false, error: 'no-user' };
+    }
+
+    const merged = await mergePendingMutation(USER_PROFILE_PENDING_DOMAIN, userId, fieldsPatch);
+    setPendingProfileFields(merged?.fields || null);
+
+    if (isOffline) {
+      return { success: true, synced: false };
+    }
+
+    // Pending is only cleared once a server-confirmed snapshot proves Firestore
+    // reflects these values (see handleProfileSnapshot); not cleared here.
+    const result = await syncPendingUserProfileMutation(userId);
+    return { success: true, synced: result.synced === true };
+  };
+
+  // The "effective" profile: last known/confirmed profile with any
+  // not-yet-synced local changes overlaid on top, so every consumer of
+  // useUserProfile() sees the same up-to-date values Settings shows.
+  const effectiveProfile = useMemo(
+    () => (pendingProfileFields ? applyPendingFields(profile, pendingProfileFields) : profile),
+    [profile, pendingProfileFields]
+  );
+
   const value = {
-    profile,
-    isLoading,
+    profile: effectiveProfile,
+    // Stays "loading" until pending mutations are hydrated too, so consumers
+    // never render a profile that hasn't had local pending changes overlaid.
+    isLoading: isLoading || !pendingFieldsLoaded,
     isStale,
     isSyncing,
     error,
@@ -499,6 +590,7 @@ export function UserProfileProvider({ children }) {
     loadUserProfile,
     getLocalCachedXP,
     updateProfileNameLocally,
+    updateUserProfileFields,
   };
 
   return (

@@ -6,10 +6,8 @@ import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
 import { useThemeContext } from '../../context/ThemeContext';
-import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../../context/AuthContext';
 import { useUserProfile } from '../../context/UserProfileContext';
-import { db } from '../../firebase/config';
 import {
   registerForPushNotificationsAsync,
   saveUserPushTokenAsync,
@@ -23,7 +21,7 @@ const Settings = () => {
     isGuest,
     deleteAccount,
   } = useAuth();
-  const { profile, isLoading: profileLoading, loadUserProfile } = useUserProfile();
+  const { profile, isLoading: profileLoading, updateUserProfileFields } = useUserProfile();
   const colors = useColors();
   const { themeMode, setThemeMode } = useThemeContext();
   const router = useRouter();
@@ -80,17 +78,10 @@ const Settings = () => {
     }
 
     try {
-      await updateDoc(
-        doc(db, 'users', userId),
-        {
-          'preferences.sections': sectionPreferences,
-          hasCompletedSetup: true,
-        }
-      );
-
-      if (loadUserProfile) {
-        await loadUserProfile(userId);
-      }
+      await updateUserProfileFields({
+        'preferences.sections': sectionPreferences,
+        hasCompletedSetup: true,
+      });
 
       Alert.alert('Zapisano', 'Ustawienia sekcji zostały zapisane.');
     } catch (error) {
@@ -104,13 +95,7 @@ const Settings = () => {
     const userId = user?.id || profile?.userId;
     if (!userId) return;
     try {
-      await updateDoc(
-        doc(db, 'users', userId),
-        { 'preferences.notificationLeadHours': value }
-      );
-      if (loadUserProfile) {
-        await loadUserProfile(userId);
-      }
+      await updateUserProfileFields({ 'preferences.notificationLeadHours': value });
     } catch (error) {
       console.error('Błąd zapisu lead hours:', error);
       Alert.alert('Błąd', 'Nie udało się zapisać ustawienia powiadomień.');
@@ -159,10 +144,7 @@ const Settings = () => {
           console.log('Push notification registration skipped or failed in preview/simulator:', pushRegErr);
         }
 
-        await updateDoc(
-          doc(db, 'users', userId),
-          { 'notifications.enabled': true }
-        );
+        await updateUserProfileFields({ 'notifications.enabled': true });
       } else {
         try {
           await clearUserPushTokenAsync(userId);
@@ -171,14 +153,7 @@ const Settings = () => {
           console.log('Clear push notifications error:', clearErr);
         }
 
-        await updateDoc(
-          doc(db, 'users', userId),
-          { 'notifications.enabled': false }
-        );
-      }
-
-      if (loadUserProfile) {
-        await loadUserProfile(userId);
+        await updateUserProfileFields({ 'notifications.enabled': false });
       }
     } catch (error) {
       console.error('Błąd zmiany powiadomień:', error);
