@@ -22,6 +22,7 @@ import {
     GestureDetector,
 } from 'react-native-gesture-handler';
 import { runOnJS } from 'react-native-reanimated';
+import { useFocusEffect } from '@react-navigation/native';
 import { useColors } from "../../hooks/useColors";
 import { useAuth } from "../../context/AuthContext";
 import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -111,7 +112,10 @@ const Timetable = () => {
     // Multi-day selection
     const [selectionMode, setSelectionMode] = useState(false);
     const [selectedDays, setSelectedDays] = useState([]);
+    const scrollViewRef = useRef(null);
     const dayLayoutsRef = useRef({});
+    const focusFrameRef = useRef(null);
+    const isScreenFocusedRef = useRef(false);
     const dragSelectionStartRef = useRef(null);
     const lastDragDayRef = useRef(null);
 
@@ -1119,6 +1123,64 @@ const Timetable = () => {
 
     const todayKey = getDateKey(new Date());
 
+    const focusToday = useCallback(() => {
+        const now = new Date();
+        const isCurrentMonth =
+            currentDate.getFullYear() === now.getFullYear() &&
+            currentDate.getMonth() === now.getMonth();
+        const dayLayout = dayLayoutsRef.current[todayKey];
+
+        if (!isCurrentMonth || !dayLayout) {
+            return;
+        }
+
+        const targetY = Math.max(0, dayLayout.y - 12);
+
+        scrollViewRef.current?.scrollTo({ y: targetY, animated: false });
+    }, [currentDate, todayKey]);
+
+    const requestFocusToday = useCallback(() => {
+        if (!isScreenFocusedRef.current) {
+            return;
+        }
+
+        if (focusFrameRef.current !== null) {
+            cancelAnimationFrame(focusFrameRef.current);
+        }
+
+        focusFrameRef.current = requestAnimationFrame(() => {
+            focusFrameRef.current = null;
+            focusToday();
+        });
+    }, [focusToday]);
+
+    useEffect(() => {
+        requestFocusToday();
+
+        return () => {
+            if (focusFrameRef.current !== null) {
+                cancelAnimationFrame(focusFrameRef.current);
+                focusFrameRef.current = null;
+            }
+        };
+    }, [requestFocusToday, monthlyPhotoUri]);
+
+    useFocusEffect(
+        useCallback(() => {
+            isScreenFocusedRef.current = true;
+            requestFocusToday();
+
+            return () => {
+                isScreenFocusedRef.current = false;
+
+                if (focusFrameRef.current !== null) {
+                    cancelAnimationFrame(focusFrameRef.current);
+                    focusFrameRef.current = null;
+                }
+            };
+        }, [requestFocusToday])
+    );
+
     /*
      * --------------------------------------------------
      * MONTH TITLE
@@ -2061,87 +2123,87 @@ const Timetable = () => {
     </View>
 )}
 
-            <ScrollView
-                scrollEnabled={!isDraggingSelection}
-                contentContainerStyle={styles.content}
-                showsVerticalScrollIndicator={false}
-            >
-
-                {/* MONTH */}
-
-                <View style={styles.monthHeader}>
-                    <Pressable
-                        onPress={() => changeMonth(-1)}
-                        style={({ pressed }) => [
-                            styles.monthButton,
-                            {
-                                backgroundColor: colors.cardBackground,
-                                borderColor: colors.headerBorder,
-                            },
-                            pressed && styles.pressed,
-                        ]}
-                    >
-                        <Ionicons
-                            name="chevron-back"
-                            size={20}
-                            color={colors.iconColor}
-                        />
-                    </Pressable>
-
-                    <View style={styles.monthTitleContainer}>
-                        <Pressable onPress={testScheduleAllShifts}>
-                            <Text style={[styles.monthTitle, { color: colors.title }]}>
-                                {monthTitle} {currentDate.getFullYear()} 🧪
-                            </Text>
-                        </Pressable>
-
-                        <Text
-                            style={[
-                                styles.monthSubtitle,
-                                { color: colors.textSecondary },
+                <View style={styles.fixedMonthSection}>
+                    <View style={styles.monthHeader}>
+                        <Pressable
+                            onPress={() => changeMonth(-1)}
+                            style={({ pressed }) => [
+                                styles.monthButton,
+                                {
+                                    backgroundColor: colors.cardBackground,
+                                    borderColor: colors.headerBorder,
+                                },
+                                pressed && styles.pressed,
                             ]}
                         >
-                            {selectionMode
-                                ? `Wybrano ${selectedDays.length}`
-                                : 'Twój grafik'}
-                        </Text>
+                            <Ionicons
+                                name="chevron-back"
+                                size={20}
+                                color={colors.iconColor}
+                            />
+                        </Pressable>
+
+                        <View style={styles.monthTitleContainer}>
+                            <Pressable onPress={testScheduleAllShifts}>
+                                <Text style={[styles.monthTitle, { color: colors.title }]}>
+                                    {monthTitle} {currentDate.getFullYear()} 🧪
+                                </Text>
+                            </Pressable>
+
+                            <Text
+                                style={[
+                                    styles.monthSubtitle,
+                                    { color: colors.textSecondary },
+                                ]}
+                            >
+                                {selectionMode
+                                    ? `Wybrano ${selectedDays.length}`
+                                    : 'Twój grafik'}
+                            </Text>
+                        </View>
+
+                        <Pressable
+                            onPress={() => changeMonth(1)}
+                            style={({ pressed }) => [
+                                styles.monthButton,
+                                {
+                                    backgroundColor: colors.cardBackground,
+                                    borderColor: colors.headerBorder,
+                                },
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <Ionicons
+                                name="chevron-forward"
+                                size={20}
+                                color={colors.iconColor}
+                            />
+                        </Pressable>
                     </View>
 
-                    <Pressable
-                        onPress={() => changeMonth(1)}
-                        style={({ pressed }) => [
-                            styles.monthButton,
-                            {
-                                backgroundColor: colors.cardBackground,
-                                borderColor: colors.headerBorder,
-                            },
-                            pressed && styles.pressed,
-                        ]}
-                    >
-                        <Ionicons
-                            name="chevron-forward"
-                            size={20}
-                            color={colors.iconColor}
-                        />
-                    </Pressable>
+                    {monthlyPhotoUri && (
+                        <View style={[styles.photoCard, { backgroundColor: colors.cardBackground, borderColor: colors.headerBorder }]}>
+                            <Pressable
+                                style={{ flex: 1 }}
+                                onPress={() => setIsPhotoFullscreen(true)}
+                            >
+                                <Image source={{ uri: monthlyPhotoUri }} style={styles.monthlyPhoto} contentFit="cover" />
+                            </Pressable>
+                            <Pressable onPress={handleDeleteMonthlyPhoto} style={[styles.deletePhotoBtn, { backgroundColor: colors.cardBackground }]}> 
+                                <Ionicons name="trash-outline" size={18} color={colors.textRed} />
+                            </Pressable>
+                        </View>
+                    )}
                 </View>
 
-                {/* MONTHLY PHOTO PREVIEW */}
-                {monthlyPhotoUri && (
-                    <View style={[styles.photoCard, { backgroundColor: colors.cardBackground, borderColor: colors.headerBorder }]}>
-                        <Pressable
-                            style={{ flex: 1 }}
-                            onPress={() => setIsPhotoFullscreen(true)}
-                        >
-                            <Image source={{ uri: monthlyPhotoUri }} style={styles.monthlyPhoto} contentFit="cover" />
-                        </Pressable>
-                        <Pressable onPress={handleDeleteMonthlyPhoto} style={[styles.deletePhotoBtn, { backgroundColor: colors.cardBackground }]}>
-                            <Ionicons name="trash-outline" size={18} color={colors.textRed} />
-                        </Pressable>
-                    </View>
-                )}
-
-                {/* DAYS */}
+            <ScrollView
+                ref={scrollViewRef}
+                style={styles.daysScrollView}
+                scrollEnabled={!isDraggingSelection}
+                contentContainerStyle={styles.daysContent}
+                showsVerticalScrollIndicator={false}
+                onContentSizeChange={requestFocusToday}
+            >
 
                 <GestureDetector gesture={rangeGesture}>
                     <View style={styles.scheduleContainer}>
@@ -2204,9 +2266,17 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
 
-    content: {
+    fixedMonthSection: {
         paddingHorizontal: 16,
         paddingTop: 18,
+    },
+
+    daysScrollView: {
+        flex: 1,
+    },
+
+    daysContent: {
+        paddingHorizontal: 16,
         paddingBottom: 24,
     },
 
