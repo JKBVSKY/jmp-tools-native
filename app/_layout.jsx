@@ -1,6 +1,8 @@
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
@@ -28,6 +30,15 @@ function RootNavigator() {
   const colors = useColors();
   const [isNotificationsReady, setIsNotificationsReady] = useState(false);
   const [pushToken, setPushToken] = useState(null);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') {
+      return;
+    }
+
+    NavigationBar.setBackgroundColorAsync(colors.navBackground);
+    NavigationBar.setButtonStyleAsync(theme === 'dark' ? 'light' : 'dark');
+  }, [colors.navBackground, theme]);
 
   useEffect(() => {
     let isMounted = true;

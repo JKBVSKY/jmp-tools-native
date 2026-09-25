@@ -8,8 +8,7 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "androidNavigationBar": {
-      "backgroundColor": "#1A1B1E",
-      "barStyle": "light-content"
+      "enforceContrast": false
     },
     "ios": {
       "supportsTablet": true,
@@ -26,7 +25,7 @@
         "foregroundImage": "./assets/android-adaptive-foreground.png",
         "backgroundColor": "#f2f2f2"
       },
-      "edgeToEdgeEnabled": true,
+      "edgeToEdgeEnabled": false,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "CAMERA",

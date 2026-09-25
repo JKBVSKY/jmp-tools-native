@@ -2,7 +2,6 @@
 import React, { useCallback, useState, useRef, useEffect, useMemo } from 'react';
 import { Animated, Easing, Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as NavigationBar from 'expo-navigation-bar';
 
 import { PendingXPService } from '../../../services/PendingXPService';
 import { db } from '../../../firebase/config';
@@ -64,13 +63,6 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
     const colors = useColors();
     const detailsAnimation = useRef(new Animated.Value(0)).current;
     const palletsInputRef = useRef(null);
-
-    useEffect(() => {
-        if (Platform.OS === 'android') {
-            NavigationBar.setBackgroundColorAsync(colors.navBackground);
-            NavigationBar.setButtonStyleAsync('light'); // or 'dark'
-        }
-    }, [colors]);
 
     // Compute context-backed values before wiring the session engine.
     const trucks = calc.trucks || [];

@@ -1,6 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Alert, Platform } from 'react-native';
-import * as NavigationBar from 'expo-navigation-bar';
 
 import { calculateLevelFromXP } from '../../../constants/LevelSystem';
 import { useCalculator } from '../../../context/CalculatorContext';
@@ -130,13 +129,6 @@ export function usePickingLogic({
             elapsedSeconds: deltaSeconds,
         };
     };
-
-    useEffect(() => {
-        if (Platform.OS === 'android') {
-            NavigationBar.setBackgroundColorAsync(colors.navBackground);
-            NavigationBar.setButtonStyleAsync('light');
-        }
-    }, [colors]);
 
     const session = useSessionEngine({
         calc,
