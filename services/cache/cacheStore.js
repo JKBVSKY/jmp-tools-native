@@ -8,7 +8,7 @@ const CACHE_VERSION = 1;
 const KEY_PREFIX = 'cache:v1:';
 
 // Keep in sync with every domain that starts using this store.
-const KNOWN_DOMAINS = ['profile'];
+const KNOWN_DOMAINS = ['profile', 'timetable'];
 
 const buildKey = (domain, userId) => `${KEY_PREFIX}${domain}:${userId}`;
 
