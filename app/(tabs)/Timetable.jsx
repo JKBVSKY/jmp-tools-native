@@ -21,7 +21,10 @@ import {
     Gesture,
     GestureDetector,
 } from 'react-native-gesture-handler';
-import { runOnJS } from 'react-native-reanimated';
+import Animated, {
+    useAnimatedStyle,
+    useSharedValue,
+} from 'react-native-reanimated';
 import { useFocusEffect } from '@react-navigation/native';
 import { useColors } from "../../hooks/useColors";
 import { useAuth } from "../../context/AuthContext";
@@ -126,6 +129,75 @@ const Timetable = () => {
     const [monthlyPhotoUri, setMonthlyPhotoUri] = useState(null);
     const [isPhotoFullscreen, setIsPhotoFullscreen] = useState(false);
     const [massShiftModalVisible, setMassShiftModalVisible] = useState(false);
+    const [photoViewport, setPhotoViewport] = useState({ width: 0, height: 0 });
+    const [photoNaturalSize, setPhotoNaturalSize] = useState({ width: 0, height: 0 });
+    const photoTranslateX = useSharedValue(0);
+    const photoTranslateY = useSharedValue(0);
+    const photoStartX = useSharedValue(0);
+    const photoStartY = useSharedValue(0);
+    const photoMaxX = useSharedValue(0);
+    const photoMaxY = useSharedValue(0);
+
+    const photoScale = photoViewport.width > 0 && photoViewport.height > 0 &&
+        photoNaturalSize.width > 0 && photoNaturalSize.height > 0
+        ? Math.max(
+            photoViewport.width / photoNaturalSize.width,
+            photoViewport.height / photoNaturalSize.height,
+        )
+        : 1;
+    const photoSize = {
+        width: photoNaturalSize.width > 0
+            ? photoNaturalSize.width * photoScale
+            : photoViewport.width,
+        height: photoNaturalSize.height > 0
+            ? photoNaturalSize.height * photoScale
+            : photoViewport.height,
+    };
+
+    useEffect(() => {
+        photoMaxX.value = Math.max(0, (photoSize.width - photoViewport.width) / 2);
+        photoMaxY.value = Math.max(0, (photoSize.height - photoViewport.height) / 2);
+        photoTranslateX.value = 0;
+        photoTranslateY.value = 0;
+    }, [
+        photoSize.width,
+        photoSize.height,
+        photoViewport.width,
+        photoViewport.height,
+        photoMaxX,
+        photoMaxY,
+        photoTranslateX,
+        photoTranslateY,
+    ]);
+
+    useEffect(() => {
+        setPhotoNaturalSize({ width: 0, height: 0 });
+        photoTranslateX.value = 0;
+        photoTranslateY.value = 0;
+    }, [monthlyPhotoUri, photoTranslateX, photoTranslateY]);
+
+    const photoAnimatedStyle = useAnimatedStyle(() => ({
+        transform: [
+            { translateX: photoTranslateX.value },
+            { translateY: photoTranslateY.value },
+        ],
+    }));
+
+    const photoPanGesture = Gesture.Pan()
+        .onStart(() => {
+            photoStartX.value = photoTranslateX.value;
+            photoStartY.value = photoTranslateY.value;
+        })
+        .onUpdate((event) => {
+            photoTranslateX.value = Math.min(
+                photoMaxX.value,
+                Math.max(-photoMaxX.value, photoStartX.value + event.translationX),
+            );
+            photoTranslateY.value = Math.min(
+                photoMaxY.value,
+                Math.max(-photoMaxY.value, photoStartY.value + event.translationY),
+            );
+        });
 
     const getPhotoStorageKey = (date) => `@jmp_tools_timetable_photo_${date.getFullYear()}_${date.getMonth()}`;
 
@@ -1134,7 +1206,7 @@ const Timetable = () => {
             return;
         }
 
-        const targetY = Math.max(0, dayLayout.y - 12);
+        const targetY = Math.max(0, dayLayout.y - 24);
 
         scrollViewRef.current?.scrollTo({ y: targetY, animated: false });
     }, [currentDate, todayKey]);
@@ -2123,7 +2195,7 @@ const Timetable = () => {
     </View>
 )}
 
-                <View style={styles.fixedMonthSection}>
+                <View style={[styles.fixedMonthSection, { backgroundColor: colors.navBackground, borderColor: colors.border, borderBottomWidth: 1, }]}>
                     <View style={styles.monthHeader}>
                         <Pressable
                             onPress={() => changeMonth(-1)}
@@ -2182,12 +2254,45 @@ const Timetable = () => {
                     </View>
 
                     {monthlyPhotoUri && (
-                        <View style={[styles.photoCard, { backgroundColor: colors.cardBackground, borderColor: colors.headerBorder }]}>
+                        <View
+                            style={[styles.photoCard, { backgroundColor: colors.cardBackground, borderColor: colors.headerBorder }]}
+                            onLayout={({ nativeEvent }) => {
+                                const { width, height } = nativeEvent.layout;
+                                setPhotoViewport({ width, height });
+                            }}
+                        >
                             <Pressable
                                 style={{ flex: 1 }}
                                 onPress={() => setIsPhotoFullscreen(true)}
                             >
-                                <Image source={{ uri: monthlyPhotoUri }} style={styles.monthlyPhoto} contentFit="cover" />
+                                <GestureDetector gesture={photoPanGesture}>
+                                    <Animated.View
+                                        style={[
+                                            styles.monthlyPhoto,
+                                            {
+                                                width: photoSize.width,
+                                                height: photoSize.height,
+                                                left: (photoViewport.width - photoSize.width) / 2,
+                                                top: (photoViewport.height - photoSize.height) / 2,
+                                            },
+                                            photoAnimatedStyle,
+                                        ]}
+                                    >
+                                        <Image
+                                            source={{ uri: monthlyPhotoUri }}
+                                            style={StyleSheet.absoluteFill}
+                                            contentFit="contain"
+                                            onLoad={({ source }) => {
+                                                if (source?.width && source?.height) {
+                                                    setPhotoNaturalSize({
+                                                        width: source.width,
+                                                        height: source.height,
+                                                    });
+                                                }
+                                            }}
+                                        />
+                                    </Animated.View>
+                                </GestureDetector>
                             </Pressable>
                             <Pressable onPress={handleDeleteMonthlyPhoto} style={[styles.deletePhotoBtn, { backgroundColor: colors.cardBackground }]}> 
                                 <Ionicons name="trash-outline" size={18} color={colors.textRed} />
@@ -2199,7 +2304,6 @@ const Timetable = () => {
             <ScrollView
                 ref={scrollViewRef}
                 style={styles.daysScrollView}
-                scrollEnabled={!isDraggingSelection}
                 contentContainerStyle={styles.daysContent}
                 showsVerticalScrollIndicator={false}
                 onContentSizeChange={requestFocusToday}
@@ -2251,7 +2355,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        borderBottomWidth: 1,
+        // borderBottomWidth: 1,
     },
 
     headerTitle: {
@@ -2268,7 +2372,9 @@ const styles = StyleSheet.create({
 
     fixedMonthSection: {
         paddingHorizontal: 16,
-        paddingTop: 18,
+        paddingTop: 8,
+        borderBottomLeftRadius: 16,
+        borderBottomRightRadius: 16,
     },
 
     daysScrollView: {
@@ -2597,7 +2703,7 @@ selectionDivider: {
     },
 
     photoCard: {
-        height: 160,
+        height: 180,
         borderRadius: 14,
         borderWidth: 1,
         overflow: 'hidden',
