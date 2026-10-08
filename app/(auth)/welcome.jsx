@@ -56,7 +56,7 @@ export default function Welcome() {
 
   const handleGuestMode = async () => {
     await continueAsGuest();
-    router.replace('/');
+    // Navigation after guest sign-in is handled centrally by (auth)/_layout.jsx's <Redirect>.
   };
 
   if (!onboardingChecked) {

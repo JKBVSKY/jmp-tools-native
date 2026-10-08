@@ -75,7 +75,7 @@ export default function Login() {
         await StorageManager.removeItem(REMEMBER_CREDENTIALS_KEY);
       }
 
-      router.replace('/');
+      // Navigation after sign-in is handled centrally by (auth)/_layout.jsx's <Redirect>.
     } else {
       Alert.alert('Logowanie nieudane', result.error);
     }

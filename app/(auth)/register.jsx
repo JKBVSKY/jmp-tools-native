@@ -39,7 +39,7 @@ export default function Register() {
     setLoading(false);
 
     if (result.success) {
-      router.replace('/');
+      // Navigation after sign-up is handled centrally by (auth)/_layout.jsx's <Redirect>.
     } else {
       Alert.alert('Rejestracja nieudana', result.error);
     }
