@@ -187,41 +187,42 @@ export default function AdjustTimeModal({ visible, onClose, onConfirm, initialTi
     const selectedMinute = parseInt(minutes, 10);
     const selectedSecond = parseInt(seconds, 10);
 
-    let day = now.getDate();
+    let adjusted;
 
-    // ✅ START TIME: if chosen time-of-day is later than now, treat as previous day
-    if (type === 'start') {
-      const selectedTotalSeconds =
-        selectedHour * 3600 + selectedMinute * 60 + selectedSecond;
-      const nowTotalSeconds =
-        now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+    if (type === 'finish' && startTime) {
+      const sessionStart = new Date(startTime);
+      const finishDate = new Date(sessionStart);
+      finishDate.setHours(selectedHour, selectedMinute, selectedSecond, 0);
 
-      if (selectedTotalSeconds > nowTotalSeconds) {
-        // User picked a time "later than now" → interpret it as yesterday
-        day = day - 1;
+      if (finishDate.getTime() <= sessionStart.getTime()) {
+        finishDate.setDate(finishDate.getDate() + 1);
       }
-    }
 
-    // If finish range crosses midnight, move 0..maxHours to next day
-    if (type === 'finish' && timeRange) {
-      const minHours = parseInt(timeRange.minHours, 10);
-      const maxHours = parseInt(timeRange.maxHours, 10);
-      const wrapsMidnight = minHours > maxHours;
+      adjusted = finishDate.getTime();
+    } else {
+      let day = now.getDate();
 
-      if (wrapsMidnight && selectedHour <= maxHours) {
-        // Example: range 13:45–01:45 → hours 0–1 should be next day
-        day = day + 1;
+      // START TIME: if chosen time-of-day is later than now, treat as previous day
+      if (type === 'start') {
+        const selectedTotalSeconds =
+          selectedHour * 3600 + selectedMinute * 60 + selectedSecond;
+        const nowTotalSeconds =
+          now.getHours() * 3600 + now.getMinutes() * 60 + now.getSeconds();
+
+        if (selectedTotalSeconds > nowTotalSeconds) {
+          day = day - 1;
+        }
       }
-    }
 
-    const adjusted = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      day,
-      selectedHour,
-      selectedMinute,
-      selectedSecond
-    ).getTime();
+      adjusted = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        day,
+        selectedHour,
+        selectedMinute,
+        selectedSecond
+      ).getTime();
+    }
 
     if (type === 'finish' && startTime) {
       if (!isFinishTimeValid(adjusted, startTime)) {
