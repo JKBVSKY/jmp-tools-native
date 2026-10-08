@@ -16,6 +16,10 @@ export default function Calculator() {
   const colors = useColors();
   const forcedFinishTime = calc.forcedFinishTime;
   const setForcedFinishTime = (time) => calc.updateState({ forcedFinishTime: time });
+  const setInitStartTime = (time) => calc.updateState({
+    startTime: time,
+    forcedFinishTime: time + 8 * 60 * 60 * 1000 + 15 * 60 * 1000,
+  });
 
   const changeMode = (newMode) => calc.updateState({ mode: newMode });
 
@@ -110,7 +114,7 @@ export default function Calculator() {
           changeMode={changeMode}
           calcUpdateState={calc.updateState}
           onStartSession={handleStartSession}
-          setStartTime={(time) => calc.updateState({ startTime: time })}
+          setStartTime={setInitStartTime}
           startTime={calc.startTime || getAutoStartTime()}
           forcedFinishTime={forcedFinishTime}
           setForcedFinishTime={setForcedFinishTime}
