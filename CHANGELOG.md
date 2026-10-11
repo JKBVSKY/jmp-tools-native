@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0-beta.1] - Onboarding and Personalized Statistics - ONGOING
+
+### Added
+- Added first-run onboarding and first-login profile setup.
+- Added selectable work sections in Settings.
+- New "shift chips" for faster schedule creation
+- Monthly schedule photo preview
+- Added Firestore synchronization for the work timetable.
+- Added persistent offline caching for the work timetable.
+- Added automatic focus on the current day when opening or returning to the timetable.
+- Added a fixed month navigation and schedule photo panel while scrolling through the days.
+- Added custom image cropping for OCR using expo-image-manipulator.
+- Added offline data caching and persistence across the app.
+- Added offline caching for pallet mapping.
+- Added offline support for profile and reports.
+- Added permission guidance when notification access is denied or blocked.
+
+### Changed
+- Dashboard, leaderboards, score history, and profile now show only statistics for selected sections.
+- Guests skip profile setup and go directly to the dashboard.
+- Refactor timetable's selection control to sticky top bar
+- Work timetable now uses Firestore as its shared data source with cache-first offline support.
+- Improved offline support for profile and reports.
+- Improved timetable's UI
+- Notification permission is no longer requested automatically at app launch.
+- Notification preferences are saved independently from push-token registration.
+- Shift reminders are reconciled through a serialized planner using the current schedule and profile.
+- Improved first setup's UI
+
+### Fixed
+- Fixed Android navigation overlay in the timetable.
+- Fixed the Android system navigation bar color so it follows the active light or dark theme and disabled automatic contrast tinting.
+- Fixed verification modal scrolling and made it keyboard-aware.
+- Kept verification modal action buttons pinned to the bottom with safe-area spacing.
+- Fixed offline profile mutations so changes can synchronize after reconnecting.
+- Fixed a race condition where signing in right after a logout could briefly show a "not handled by any navigator" warning before the dashboard loaded correctly.
+- Fixed automatic finish-time selection for overnight sessions by anchoring the selected date to the session start.
+- Fixed forced finish time not updating after a manual start-time change; it is now set to 8 hours and 15 minutes later.
+- Prevented stale planning requests from restoring reminders after notifications are disabled.
+- Made reminder planning fail closed when reading pending profile mutations fails.
+
 ## [0.11.0] - Picking Subsection Engine and Workflow Upgrade - 2026-08-25
 
 ### Added

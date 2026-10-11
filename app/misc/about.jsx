@@ -12,7 +12,7 @@ const About = () => {
   const appVersion =
     Constants.expoConfig?.version ??
     Application.nativeApplicationVersion ??
-    '0.11.0'; // Bezpieczny fallback na nową wersję
+    '0.12.0'; // Bezpieczny fallback na nową wersję
 
   const configuredBuildNumber = Platform.select({
     android: Constants.expoConfig?.android?.versionCode,
@@ -50,7 +50,7 @@ const About = () => {
 
           <View style={[styles.versionPill, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder }]}>
             <Text style={[styles.versionText, { color: colors.textSecondary }]}>
-              {`v${appVersion} (build ${buildNumber})`}
+              {`v${appVersion}-beta.1 (build ${buildNumber})`}
             </Text>
           </View>
         </View>
