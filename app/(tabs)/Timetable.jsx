@@ -28,11 +28,18 @@ import Animated, {
 import { useFocusEffect } from '@react-navigation/native';
 import { useColors } from "../../hooks/useColors";
 import { useAuth } from "../../context/AuthContext";
-import { doc, getDoc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
+import { useUserProfile } from "../../context/UserProfileContext";
+import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNetwork } from '../../services/useNetwork';
 import { getCacheEntry, setCacheEntry } from '../../services/cache/cacheStore';
+import {
+    ensureNotificationPermissionsAsync,
+    getAllFutureWorkShifts,
+    scheduleTestNotificationAsync,
+    scheduleShiftReminderAsync,
+} from '../../services/NotificationService';
 
 const STORAGE_KEY = '@jmp_tools_timetable';
 const MIGRATED_USER_KEY = '@jmp_tools_timetable_migrated_user';
@@ -93,6 +100,7 @@ const SHIFT_PRESETS = {
 const Timetable = () => {
     const colors = useColors();
     const { user, isGuest } = useAuth();
+    const { profile, isLoading: profileLoading } = useUserProfile();
     const { isOffline } = useNetwork();
     const insets = useSafeAreaInsets();
 
@@ -106,7 +114,8 @@ const Timetable = () => {
     // guards against an incoming (stale) snapshot overwriting it.
     const pendingSyncRef = useRef(false);
     const timetableUnsubscribeRef = useRef(null);
-    const remindersScheduledRef = useRef(false);
+    const profileRef = useRef(profile);
+    profileRef.current = profile;
 
     // Single-day modal
     const [modalVisible, setModalVisible] = useState(false);
@@ -420,50 +429,9 @@ const Timetable = () => {
         Alert.alert('Test powiadomień', message);
     };
 
-    const getAllFutureWorkShifts = (schedule) => {
-        const now = new Date();
-        const shifts = [];
-
-        const entries = Object.entries(schedule);
-
-        for (const [dateKey, entry] of entries) {
-            if (entry.type !== 'work') continue;
-
-            // dateKey: "YYYY-MM-DD"
-            const [year, month, day] = dateKey.split('-').map(Number);
-            const shiftDate = new Date(year, month - 1, day);
-
-            // Godzina rozpoczęcia, np. "06:00"
-            const [hours, mins] = (entry.start || '06:00').split(':').map(Number);
-            shiftDate.setHours(hours, mins, 0, 0);
-
-            // Tylko przyszłe zmiany
-            if (shiftDate <= now) continue;
-
-            shifts.push({
-                dateKey,
-                shift: entry,
-                date: shiftDate,
-            });
-        }
-
-        // Opcjonalnie posortuj chronologicznie
-        shifts.sort((a, b) => a.date.getTime() - b.date.getTime());
-
-        return shifts;
-    };
-
     const sendTestNotification = async () => {
-        // 1. Sprawdź uprawnienia
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-
-        if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-        }
-
-        if (finalStatus !== 'granted') {
+        const permissionResult = await ensureNotificationPermissionsAsync();
+        if (permissionResult.status !== 'granted') {
             Alert.alert('Brak uprawnień', 'Nie można wysłać powiadomienia testowego.');
             return;
         }
@@ -474,7 +442,7 @@ const Timetable = () => {
             seconds: 5,
         };
 
-        await Notifications.scheduleNotificationAsync({
+        await scheduleTestNotificationAsync({
             content: {
                 title: 'Test powiadomienia',
                 body: 'Jeśli to widzisz, powiadomienia działają!',
@@ -519,111 +487,34 @@ const Timetable = () => {
         return nextShiftDate ? { shift: nextShift, date: nextShiftDate } : null;
     };
 
-    const scheduleShiftReminder = async (schedule) => {
-        let leadHours = 10;
-        if (!user?.id) {
-            return;
+    const scheduleShiftReminder = (schedule) => {
+        if (!user?.id || isGuest) {
+            return Promise.resolve({ status: 'retry', reason: 'no-user' });
+        }
+        if (profileLoading || !profileRef.current) {
+            return Promise.resolve({ status: 'retry', reason: 'profile-loading' });
         }
 
-        try {
-            // 1. Fetch doc(db, 'users', user.id)
-            const userSnap = await getDoc(doc(db, 'users', user.id));
-            const userData = userSnap.exists() ? userSnap.data() : null;
-
-            // 2. Check userData?.notifications?.enabled !== false. If false, run await Notifications.cancelAllScheduledNotificationsAsync() and return.
-            if (userData?.notifications?.enabled === false) {
-                await Notifications.cancelAllScheduledNotificationsAsync();
-                return;
-            }
-
-            // 3. Check userData?.preferences?.notificationLeadHours. If it is null or 'disabled', run await Notifications.cancelAllScheduledNotificationsAsync() and return.
-            const leadHoursPref = userData?.preferences?.notificationLeadHours;
-            if (leadHoursPref === null || leadHoursPref === 'disabled') {
-                await Notifications.cancelAllScheduledNotificationsAsync();
-                console.log('Powiadomienia o zmianach wyłączone (leadHours = null)');
-                return;
-            }
-
-            // 4. Otherwise, parse leadHours securely
-            if (userData?.preferences?.notificationLeadHours) {
-                const parsed = parseInt(userData.preferences.notificationLeadHours, 10);
-                if (!isNaN(parsed)) leadHours = parsed;
-            }
-        } catch (e) {
-            console.error('Błąd pobierania preferences.notificationLeadHours:', e);
-        }
-
-        // 1. Anuluj wszystkie wcześniej zaplanowane powiadomienia o zmianach
-        await Notifications.cancelAllScheduledNotificationsAsync();
-
-        const futureShifts = getAllFutureWorkShifts(schedule);
-        if (futureShifts.length === 0) {
-            console.log('Brak przyszłych zmian typu work do powiadomienia');
-            return;
-        }
-
-        // 2. Sprawdź uprawnienia
-        const { status: existingStatus } = await Notifications.getPermissionsAsync();
-        let finalStatus = existingStatus;
-
-        if (existingStatus !== 'granted') {
-            const { status } = await Notifications.requestPermissionsAsync();
-            finalStatus = status;
-        }
-
-        if (finalStatus !== 'granted') {
-            console.warn('Brak uprawnień na powiadomienia');
-            return;
-        }
-
-        // 3. Zaplanuj po jednym powiadomieniu na każdą zmianę
-        const scheduledIds = [];
-
-        for (const { shift, date } of futureShifts) {
-            const reminderDate = new Date(date.getTime() - leadHours * 60 * 60 * 1000);
-            const now = new Date();
-
-            // Nie planuj powiadomień w przeszłości
-            if (reminderDate <= now) {
-                continue;
-            }
-
-            const dateStr = date.toLocaleDateString('pl-PL', {
-                weekday: 'long',
-                day: '2-digit',
-                month: '2-digit',
-            });
-
-            const content = {
-                title: 'Nadchodząca zmiana',
-                body: `Masz pracę ${dateStr} o ${shift.start}.`,
-                sound: true,
-                data: {
-                    type: 'shift_reminder',
-                    dateKey: shift.date,
-                },
-            };
-
-            const trigger = {
-                type: Notifications.SchedulableTriggerInputTypes.DATE,
-                date: reminderDate,
-            };
-
-            console.log('Scheduling notification for shift at:', date, 'with reminderDate:', reminderDate, 'leadHours:', leadHours);
-
-            const notificationId = await Notifications.scheduleNotificationAsync({
-                content,
-                trigger,
-            });
-
-            scheduledIds.push(notificationId);
-        }
-
-        console.log(
-            `Zaplanowano ${scheduledIds.length} powiadomień o zmianach.`,
-            scheduledIds
-        );
+        return scheduleShiftReminderAsync(user.id, schedule, profileRef.current);
     };
+
+    useEffect(() => {
+        if (isGuest || !user?.id || profileLoading || loading || !profile) return;
+
+        scheduleShiftReminderAsync(user.id, schedule, profile).catch((error) =>
+            console.error('Error scheduling shift reminder:', error)
+        );
+    }, [
+        isGuest,
+        user?.id,
+        profileLoading,
+        loading,
+        profile,
+        profile?.notifications?.enabled,
+        profile?.preferences?.notificationLeadHours,
+        schedule,
+    ]);
+
     /*
     * -----------------------------
     * GESTURE
@@ -735,8 +626,6 @@ const Timetable = () => {
         const userId = user.id;
         let isMounted = true;
         pendingSyncRef.current = false;
-        remindersScheduledRef.current = false;
-
         const handleTimetableSnapshot = async (snapshot) => {
             if (!isMounted) return;
 
@@ -761,12 +650,9 @@ const Timetable = () => {
             setLoading(false);
             setCacheEntry(TIMETABLE_CACHE_DOMAIN, userId, { schedule: remoteSchedule, pendingSync: false }).catch(() => {});
 
-            if (!remindersScheduledRef.current) {
-                remindersScheduledRef.current = true;
-                scheduleShiftReminder(remoteSchedule).catch((error) =>
-                    console.error('Error scheduling shift reminder:', error)
-                );
-            }
+            scheduleShiftReminder(remoteSchedule).catch((error) =>
+                console.error('Error scheduling shift reminder:', error)
+            );
         };
 
         const loadFromCache = async () => {
@@ -778,12 +664,9 @@ const Timetable = () => {
                     pendingSyncRef.current = Boolean(cached.data.pendingSync);
                     setLoading(false);
 
-                    if (!remindersScheduledRef.current) {
-                        remindersScheduledRef.current = true;
-                        scheduleShiftReminder(cached.data.schedule || {}).catch((error) =>
-                            console.error('Error scheduling shift reminder:', error)
-                        );
-                    }
+                    scheduleShiftReminder(cached.data.schedule || {}).catch((error) =>
+                        console.error('Error scheduling shift reminder:', error)
+                    );
                 }
             } catch (error) {
                 console.error('Error loading timetable cache:', error);

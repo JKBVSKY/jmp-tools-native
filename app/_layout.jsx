@@ -28,7 +28,6 @@ function RootNavigator() {
   const { theme } = useThemeContext();
   const { isChecking, isOnline, isOffline } = useNetwork();
   const colors = useColors();
-  const [isNotificationsReady, setIsNotificationsReady] = useState(false);
   const [pushToken, setPushToken] = useState(null);
 
   useEffect(() => {
@@ -43,7 +42,7 @@ function RootNavigator() {
   useEffect(() => {
     let isMounted = true;
 
-    registerForPushNotificationsAsync()
+    registerForPushNotificationsAsync({ requestPermission: false })
       .then(({ token, error }) => {
         if (!isMounted) {
           return;
@@ -58,10 +57,8 @@ function RootNavigator() {
           console.log('Push setup:', error);
         }
       })
-      .finally(() => {
-        if (isMounted) {
-          setIsNotificationsReady(true);
-        }
+      .catch((error) => {
+        console.log('Push setup error:', error?.message ?? String(error));
       });
 
     const detachTokenRefreshListener = attachPushTokenRefreshListener(async (token) => {
@@ -103,7 +100,7 @@ function RootNavigator() {
       });
   }, [user?.id, pushToken]);
 
-  if (!isNotificationsReady || isLoading || (user && isProfileLoading) || isChecking) {
+  if (isLoading || (user && isProfileLoading) || isChecking) {
     const subtitle = isChecking
       ? 'Checking your connection...'
       : isOffline

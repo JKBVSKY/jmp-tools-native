@@ -3,17 +3,24 @@ import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Linking,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { doc, updateDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { useUserProfile } from '../context/UserProfileContext';
-import { db } from '../firebase/config';
 import { useColors } from '../hooks/useColors';
+import {
+  ensureNotificationPermissionsAsync,
+  registerForPushNotificationsAsync,
+  saveUserPushTokenAsync,
+  scheduleCurrentShiftRemindersAsync,
+  enableShiftReminders,
+} from '../services/NotificationService';
 
 const SECTION_OPTIONS = [
   { id: 'zaladunek', label: 'Załadunek' },
@@ -27,12 +34,13 @@ export default function SetupScreen() {
   const {
     profile,
     isLoading: profileLoading,
-    loadUserProfile,
+    updateUserProfileFields,
   } = useUserProfile();
 
   const [selected, setSelected] = useState([]);
   const [saving, setSaving] = useState(false);
   const [initialChecked, setInitialChecked] = useState(false);
+  const [currentStep, setCurrentStep] = useState('sections');
 
   // Decide if this screen should show at all
   useEffect(() => {
@@ -56,21 +64,29 @@ export default function SetupScreen() {
     const hasCompletedSetup = profile?.hasCompletedSetup === true;
     const existingSections = profile?.preferences?.sections;
 
-    if (hasCompletedSetup && Array.isArray(existingSections) && existingSections.length > 0) {
+    if (
+      hasCompletedSetup &&
+      Array.isArray(existingSections) &&
+      existingSections.length > 0 &&
+      currentStep === 'sections' &&
+      !saving
+    ) {
       // Already configured, go to dashboard
       router.replace('/(tabs)');
       return;
     }
 
-    // Pre-fill from existing sections if any, otherwise default to Załadunek
-    if (Array.isArray(existingSections) && existingSections.length > 0) {
-      setSelected(existingSections);
-    } else {
-      setSelected(['zaladunek']);
-    }
+    if (!initialChecked) {
+      // Pre-fill from existing sections if any, otherwise default to Załadunek
+      if (Array.isArray(existingSections) && existingSections.length > 0) {
+        setSelected(existingSections);
+      } else {
+        setSelected(['zaladunek']);
+      }
 
-    setInitialChecked(true);
-  }, [user, isGuest, profile, profileLoading, router]);
+      setInitialChecked(true);
+    }
+  }, [user, isGuest, profile, profileLoading, initialChecked, currentStep, saving, router]);
 
   const toggleSection = (id) => {
     setSelected((prev) => {
@@ -91,7 +107,9 @@ export default function SetupScreen() {
     });
   };
 
-  const handleSave = async () => {
+  const handleSaveSections = async () => {
+    if (saving) return;
+
     if (!user?.id) {
       Alert.alert('Błąd', 'Nie znaleziono aktywnego użytkownika.');
       return;
@@ -107,15 +125,115 @@ export default function SetupScreen() {
 
     try {
       setSaving(true);
-      const userRef = doc(db, 'users', user.id);
-
-      await updateDoc(userRef, {
-        hasCompletedSetup: true,
+      const updateResult = await updateUserProfileFields({
         'preferences.sections': selected,
+        hasCompletedSetup: false,
       });
 
-      if (loadUserProfile) {
-        await loadUserProfile(user.id);
+      if (!updateResult?.success) {
+        throw new Error('Nie udało się zapisać wybranych sekcji.');
+      }
+
+      setCurrentStep('notifications');
+    } catch (error) {
+      console.error('Error saving setup preferences', error);
+      Alert.alert(
+        'Błąd',
+        'Nie udało się zapisać ustawień. Spróbuj ponownie.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const showNotificationSettingsAlert = () => {
+    Alert.alert(
+      'Powiadomienia zablokowane',
+      `Zezwól na powiadomienia JMP Tools w ${
+        Platform.OS === 'android' ? 'ustawieniach Androida' : 'ustawieniach urządzenia'
+      }, aby je włączyć.`,
+      [
+        {
+          text: 'Otwórz ustawienia',
+          onPress: () => {
+            Linking.openSettings().catch((error) => {
+              console.error('Błąd otwierania ustawień aplikacji:', error);
+              Alert.alert('Błąd', 'Nie udało się otworzyć ustawień aplikacji.');
+            });
+          },
+        },
+        { text: 'Anuluj', style: 'cancel' },
+      ]
+    );
+  };
+
+  const showPermissionIssue = (permissionResult) => {
+    if (permissionResult.status === 'blocked') {
+      showNotificationSettingsAlert();
+      return;
+    }
+
+    Alert.alert(
+      permissionResult.status === 'denied' ? 'Brak uprawnień' : 'Błąd',
+      permissionResult.status === 'denied'
+        ? 'Nie przyznano uprawnień do powiadomień. Możesz włączyć je później w ustawieniach aplikacji.'
+        : permissionResult.error?.message || 'Nie udało się sprawdzić uprawnień do powiadomień.'
+    );
+  };
+
+  const finishSetup = async (enableNotifications = false) => {
+    if (saving) return;
+
+    if (!user?.id) {
+      Alert.alert('Błąd', 'Nie znaleziono aktywnego użytkownika.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      if (enableNotifications) {
+        const permissionResult = await ensureNotificationPermissionsAsync();
+        if (permissionResult.status !== 'granted') {
+          showPermissionIssue(permissionResult);
+          return;
+        }
+      }
+
+      const fieldsPatch = { hasCompletedSetup: true };
+      if (enableNotifications) {
+        fieldsPatch['notifications.enabled'] = true;
+      }
+
+      const updateResult = await updateUserProfileFields(fieldsPatch);
+      if (!updateResult?.success) {
+        throw new Error('Nie udało się zapisać ustawień profilu.');
+      }
+
+      if (enableNotifications) {
+        enableShiftReminders(user.id);
+
+        try {
+          const pushRegistration = await registerForPushNotificationsAsync({
+            requestPermission: false,
+          });
+          if (pushRegistration.token) {
+            await saveUserPushTokenAsync(user.id, pushRegistration.token);
+          } else if (pushRegistration.error) {
+            console.log('Push notification token warning:', pushRegistration.error);
+          }
+        } catch (tokenError) {
+          console.log('Push token setup warning:', tokenError);
+        }
+
+        const schedulingProfile = {
+          ...(profile || {}),
+          notifications: { ...(profile?.notifications || {}), enabled: true },
+        };
+        try {
+          await scheduleCurrentShiftRemindersAsync(user.id, schedulingProfile);
+        } catch (error) {
+          console.error('Błąd planowania przypomnień o zmianach:', error);
+        }
       }
 
       router.replace('/(tabs)');
@@ -123,7 +241,7 @@ export default function SetupScreen() {
       console.error('Error saving setup preferences', error);
       Alert.alert(
         'Błąd',
-        'Nie udało się zapisać ustawień. Spróbuj ponownie.'
+        'Nie udało się zapisać ustawień. Możesz spróbować ponownie lub pominąć powiadomienia.'
       );
     } finally {
       setSaving(false);
@@ -157,7 +275,9 @@ export default function SetupScreen() {
             { color: colors.title },
           ]}
         >
-          Ustawienia profilu
+          {currentStep === 'sections'
+            ? 'Ustawienia profilu'
+            : 'Nie przegap nadchodzącej zmiany'}
         </Text>
         <Text
           style={[
@@ -165,92 +285,136 @@ export default function SetupScreen() {
             { color: colors.textSecondary },
           ]}
         >
-          Wybierz sekcje, w których pracujesz. Dzięki temu statystyki będą
-          dopasowane do Twojej pracy.
+          {currentStep === 'sections'
+            ? 'Wybierz sekcje, w których pracujesz. Dzięki temu statystyki będą dopasowane do Twojej pracy.'
+            : 'Włącz przypomnienia, aby JMP Tools informowało Cię o zbliżających się dniach pracy zapisanych w grafiku.'}
         </Text>
 
-        <View style={styles.sectionsRow}>
-          {SECTION_OPTIONS.map((section) => {
-            const isSelected = selected.includes(section.id);
-            return (
-              <Pressable
-                key={section.id}
-                onPress={() => toggleSection(section.id)}
-                style={[
-                  styles.chip,
-                  {
-                    backgroundColor: isSelected
-                      ? colors.butBackground
-                      : colors.cardBackground,
-                    borderColor: isSelected
-                      ? colors.butBorder
-                      : colors.border,
-                  },
-                ]}
-              >
-                <Text
+        {currentStep === 'sections' ? (
+          <>
+            <View style={styles.sectionsRow}>
+              {SECTION_OPTIONS.map((section) => {
+                const isSelected = selected.includes(section.id);
+                return (
+                  <Pressable
+                    key={section.id}
+                    onPress={() => toggleSection(section.id)}
+                    style={[
+                      styles.chip,
+                      {
+                        backgroundColor: isSelected
+                          ? colors.butBackground
+                          : colors.cardBackground,
+                        borderColor: isSelected
+                          ? colors.butBorder
+                          : colors.border,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.chipText,
+                        {
+                          color: isSelected
+                            ? colors.butText
+                            : colors.text,
+                        },
+                      ]}
+                    >
+                      {section.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Text
                   style={[
-                    styles.chipText,
-                    {
-                      color: isSelected
-                        ? colors.butText
-                        : colors.text,
-                    },
+                    styles.infoText,
+                    { color: colors.textSecondary },
                   ]}
-                >
-                  {section.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-
-        <Text
-          style={[
-            styles.infoText,
-            { color: colors.textSecondary },
-          ]}
-        >
-          Możesz zmienić te ustawienia później w zakładce Ustawienia.
-        </Text>
+            >
+              Możesz zmienić te ustawienia później w zakładce Ustawienia.
+            </Text>
+          </>
+        ) : null}
       </View>
 
       <View style={styles.buttonsRow}>
-        <Pressable
-          onPress={handleSave}
-          style={[
-            styles.saveButton,
-            {
-              backgroundColor:
-                selected.length === 0
-                  ? colors.disabledButBackground
-                  : colors.butBackground,
-              borderColor:
-                selected.length === 0
-                  ? colors.disabledButBorder
-                  : colors.butBorder,
-            },
-          ]}
-          disabled={saving || selected.length === 0}
-        >
-          {saving ? (
-            <ActivityIndicator size="small" color={colors.butText} />
-          ) : (
-            <Text
+        {currentStep === 'sections' ? (
+          <Pressable
+            onPress={handleSaveSections}
+            style={[
+              styles.saveButton,
+              {
+                backgroundColor:
+                  selected.length === 0
+                    ? colors.disabledButBackground
+                    : colors.butBackground,
+                borderColor:
+                  selected.length === 0
+                    ? colors.disabledButBorder
+                    : colors.butBorder,
+              },
+            ]}
+            disabled={saving || selected.length === 0}
+          >
+            {saving ? (
+              <ActivityIndicator size="small" color={colors.butText} />
+            ) : (
+              <Text
+                style={[
+                  styles.saveButtonText,
+                  {
+                    color:
+                      selected.length === 0
+                        ? colors.disabledButText
+                        : colors.butText,
+                  },
+                ]}
+              >
+                Zapisz i przejdź dalej
+              </Text>
+            )}
+          </Pressable>
+        ) : (
+          <>
+            <Pressable
+              onPress={() => finishSetup(true)}
               style={[
-                styles.saveButtonText,
+                styles.saveButton,
                 {
-                  color:
-                    selected.length === 0
-                      ? colors.disabledButText
-                      : colors.butText,
+                  backgroundColor: colors.butBackground,
+                  borderColor: colors.butBorder,
                 },
               ]}
+              disabled={saving}
             >
-              Zapisz i przejdź dalej
-            </Text>
-          )}
-        </Pressable>
+              {saving ? (
+                <ActivityIndicator size="small" color={colors.butText} />
+              ) : (
+                <Text style={[styles.saveButtonText, { color: colors.butText }]}>
+                  Włącz powiadomienia
+                </Text>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => finishSetup(false)}
+              style={[
+                styles.skipButton,
+                {
+                  backgroundColor: colors.cardBackground,
+                  borderColor: colors.border,
+                },
+              ]}
+              disabled={saving}
+            >
+              <Text style={[styles.skipButtonText, { color: colors.text }]}>
+                Pomiń
+              </Text>
+            </Pressable>
+          </>
+        )}
       </View>
     </View>
   );
@@ -308,6 +472,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   saveButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  skipButton: {
+    borderRadius: 999,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  skipButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

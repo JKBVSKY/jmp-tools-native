@@ -1,7 +1,6 @@
 // Settings.jsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Platform, Pressable } from 'react-native';
-import * as Notifications from 'expo-notifications';
+import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform, Pressable } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
@@ -9,7 +8,11 @@ import { useThemeContext } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useUserProfile } from '../../context/UserProfileContext';
 import {
+  ensureNotificationPermissionsAsync,
   registerForPushNotificationsAsync,
+  scheduleCurrentShiftRemindersAsync,
+  enableShiftReminders,
+  disableShiftRemindersAsync,
   saveUserPushTokenAsync,
   clearUserPushTokenAsync,
 } from '../../services/NotificationService';
@@ -113,6 +116,40 @@ const Settings = () => {
     );
   }
 
+  const showNotificationSettingsAlert = () => {
+    Alert.alert(
+      'Powiadomienia zablokowane',
+      `Zezwól na powiadomienia JMP Tools w ${Platform.OS === 'android' ? 'ustawieniach Androida' : 'ustawieniach urządzenia'
+      }, aby je włączyć.`,
+      [
+        {
+          text: 'Otwórz ustawienia',
+          onPress: () => {
+            Linking.openSettings().catch((error) => {
+              console.error('Błąd otwierania ustawień aplikacji:', error);
+              Alert.alert('Błąd', 'Nie udało się otworzyć ustawień aplikacji.');
+            });
+          },
+        },
+        { text: 'Anuluj', style: 'cancel' },
+      ]
+    );
+  };
+
+  const showNotificationPermissionIssue = (permissionResult) => {
+    if (permissionResult.status === 'blocked') {
+      showNotificationSettingsAlert();
+      return;
+    }
+
+    Alert.alert(
+      permissionResult.status === 'denied' ? 'Brak uprawnień' : 'Błąd',
+      permissionResult.status === 'denied'
+        ? 'Nie przyznano uprawnień do powiadomień. Możesz włączyć je później w ustawieniach aplikacji.'
+        : permissionResult.error?.message || 'Nie udało się sprawdzić uprawnień do powiadomień.'
+    );
+  };
+
   const handleToggleNotifications = async () => {
     const userId = user?.id || profile?.userId;
     if (!userId) {
@@ -129,35 +166,70 @@ const Settings = () => {
     setLoadingNotifications(true);
 
     const nextEnabledState = !notificationsEnabled;
-    setNotificationsEnabled(nextEnabledState);
+    if (!nextEnabledState) {
+      setNotificationsEnabled(false);
+    }
 
     try {
       if (nextEnabledState) {
+        const permissionResult = await ensureNotificationPermissionsAsync();
+        if (permissionResult.status !== 'granted') {
+          showNotificationPermissionIssue(permissionResult);
+          return;
+        }
+
+        const updateResult = await updateUserProfileFields({ 'notifications.enabled': true });
+        if (!updateResult?.success) {
+          throw new Error('Nie udało się zapisać ustawienia powiadomień.');
+        }
+        setNotificationsEnabled(true);
+        enableShiftReminders(userId);
+
         try {
-          const { token, error } = await registerForPushNotificationsAsync();
-          if (token) {
-            await saveUserPushTokenAsync(userId, token);
-          } else if (error) {
-            console.log('Push notification token warning:', error);
+          const pushRegistration = await registerForPushNotificationsAsync({
+            requestPermission: false,
+          });
+          if (pushRegistration.token) {
+            await saveUserPushTokenAsync(userId, pushRegistration.token);
+          } else if (pushRegistration.error) {
+            console.log(
+              'Push notification token warning (permission remains granted):',
+              pushRegistration.error
+            );
           }
-        } catch (pushRegErr) {
-          console.log('Push notification registration skipped or failed in preview/simulator:', pushRegErr);
+        } catch (tokenError) {
+          console.log('Push notification token setup warning:', tokenError);
         }
 
-        await updateUserProfileFields({ 'notifications.enabled': true });
-      } else {
+        const schedulingProfile = {
+          ...(profile || {}),
+          notifications: { ...(profile?.notifications || {}), enabled: true },
+        };
         try {
-          await clearUserPushTokenAsync(userId);
-          await Notifications.cancelAllScheduledNotificationsAsync();
-        } catch (clearErr) {
-          console.log('Clear push notifications error:', clearErr);
+          await scheduleCurrentShiftRemindersAsync(userId, schedulingProfile);
+        } catch (error) {
+          console.error('Błąd planowania przypomnień o zmianach:', error);
         }
+      } else {
+        const cancellationPromise = disableShiftRemindersAsync(userId);
+        const tokenClearPromise = clearUserPushTokenAsync(userId).catch((clearErr) => {
+          console.log('Clear push notifications error:', clearErr);
+        });
 
-        await updateUserProfileFields({ 'notifications.enabled': false });
+        try {
+          const updateResult = await updateUserProfileFields({
+            'notifications.enabled': false,
+          });
+          if (!updateResult?.success) {
+            throw new Error('Nie udało się zapisać ustawienia powiadomień.');
+          }
+        } finally {
+          await Promise.all([tokenClearPromise, cancellationPromise]);
+        }
       }
     } catch (error) {
       console.error('Błąd zmiany powiadomień:', error);
-      setNotificationsEnabled(!nextEnabledState);
+      setNotificationsEnabled(false);
       Alert.alert(
         'Błąd',
         error?.message || 'Nie udało się zmienić ustawień powiadomień.'

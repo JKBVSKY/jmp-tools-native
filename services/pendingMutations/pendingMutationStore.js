@@ -29,19 +29,37 @@ function generateMutationId() {
   return `${Date.now()}-${mutationCounter}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-export async function getPendingMutation(domain, userId) {
-  if (!domain || !userId) return null;
+export async function getPendingMutation(domain, userId, { strict = false } = {}) {
+  if (!domain || !userId) {
+    if (strict) throw new Error('A domain and userId are required for a strict pending mutation read');
+    return null;
+  }
   try {
     const raw = await AsyncStorage.getItem(buildKey(domain, userId));
-    if (!raw) return null;
+    if (raw === null || (!strict && !raw)) return null;
 
     const parsed = JSON.parse(raw);
-    if (!parsed || parsed.domain !== domain || parsed.userId !== userId || !parsed.fields) {
+    const hasFields = parsed?.fields;
+    const hasValidStrictFields =
+      hasFields &&
+      typeof parsed.fields === 'object' &&
+      !Array.isArray(parsed.fields);
+    if (
+      !parsed ||
+      parsed.domain !== domain ||
+      parsed.userId !== userId ||
+      !hasFields ||
+      (strict && !hasValidStrictFields)
+    ) {
+      if (strict) {
+        throw new Error(`Invalid "${domain}" pending mutation for ${userId}`);
+      }
       return null;
     }
     return parsed;
   } catch (error) {
     console.warn(`pendingMutationStore: failed to read "${domain}" mutation for ${userId}:`, error);
+    if (strict) throw error;
     return null;
   }
 }
@@ -68,6 +86,7 @@ export async function mergePendingMutation(domain, userId, fieldsPatch) {
       await AsyncStorage.setItem(buildKey(domain, userId), JSON.stringify(merged));
     } catch (error) {
       console.warn(`pendingMutationStore: failed to write "${domain}" mutation for ${userId}:`, error);
+      throw error;
     }
     return merged;
   });
