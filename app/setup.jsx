@@ -1,5 +1,5 @@
 // app/setup.jsx
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -10,7 +10,20 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { useNavigation, useRouter } from 'expo-router';
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useReducedMotion,
+  useAnimatedStyle,
+  useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../context/AuthContext';
 import { useUserProfile } from '../context/UserProfileContext';
 import { useColors } from '../hooks/useColors';
@@ -29,6 +42,8 @@ const SECTION_OPTIONS = [
 
 export default function SetupScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
   const router = useRouter();
   const { user, isGuest } = useAuth();
   const {
@@ -41,6 +56,96 @@ export default function SetupScreen() {
   const [saving, setSaving] = useState(false);
   const [initialChecked, setInitialChecked] = useState(false);
   const [currentStep, setCurrentStep] = useState('sections');
+  const savingRef = useRef(false);
+  const reduceMotion = useReducedMotion();
+  const gearRotation = useSharedValue(0);
+  const notificationScale = useSharedValue(1);
+  const notificationRotation = useSharedValue(0);
+  const gearStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${gearRotation.value}deg` }],
+  }));
+  const notificationStyle = useAnimatedStyle(() => ({
+    transform: [
+      { scale: notificationScale.value },
+      { rotate: `${notificationRotation.value}deg` },
+    ],
+  }));
+
+  useEffect(() => {
+    navigation.setOptions({ headerShown: false });
+  }, [navigation]);
+
+  useEffect(() => {
+    if (currentStep === 'sections') {
+      gearRotation.value = 0;
+      gearRotation.value = withRepeat(
+        withTiming(360, {
+          duration: 8000,
+          easing: Easing.linear,
+        }),
+        -1,
+        false
+      );
+    }
+
+    return () => cancelAnimation(gearRotation);
+  }, [currentStep, gearRotation]);
+
+  useEffect(() => {
+    if (currentStep === 'notifications' && !reduceMotion) {
+      notificationScale.value = 1;
+      notificationRotation.value = 0;
+      notificationScale.value = withRepeat(
+        withSequence(
+          withTiming(1.25, {
+            duration: 1000,
+            easing: Easing.out(Easing.quad),
+          }),
+          withDelay(
+            2000,
+            withTiming(1, {
+              duration: 1000,
+              easing: Easing.inOut(Easing.quad),
+            })
+          ),
+          withDelay(4000, withTiming(1, { duration: 1 }))
+        ),
+        -1,
+        false
+      );
+      notificationRotation.value = withRepeat(
+        withSequence(
+          withDelay(
+            1000,
+            withSequence(
+              withTiming(-12, { duration: 125 }),
+              withTiming(12, { duration: 250 }),
+              withTiming(-10, { duration: 250 }),
+              withTiming(10, { duration: 250 }),
+              withTiming(-7, { duration: 250 }),
+              withTiming(7, { duration: 250 }),
+              withTiming(-3, { duration: 250 }),
+              withTiming(3, { duration: 250 }),
+              withTiming(0, { duration: 125 })
+            )
+          ),
+          withDelay(5000, withTiming(0, { duration: 1 }))
+        ),
+        -1,
+        false
+      );
+    }
+
+    return () => {
+      cancelAnimation(notificationScale);
+      cancelAnimation(notificationRotation);
+    };
+  }, [
+    currentStep,
+    notificationRotation,
+    notificationScale,
+    reduceMotion,
+  ]);
 
   // Decide if this screen should show at all
   useEffect(() => {
@@ -108,7 +213,7 @@ export default function SetupScreen() {
   };
 
   const handleSaveSections = async () => {
-    if (saving) return;
+    if (savingRef.current) return;
 
     if (!user?.id) {
       Alert.alert('Błąd', 'Nie znaleziono aktywnego użytkownika.');
@@ -124,6 +229,7 @@ export default function SetupScreen() {
     }
 
     try {
+      savingRef.current = true;
       setSaving(true);
       const updateResult = await updateUserProfileFields({
         'preferences.sections': selected,
@@ -142,6 +248,7 @@ export default function SetupScreen() {
         'Nie udało się zapisać ustawień. Spróbuj ponownie.'
       );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -182,13 +289,14 @@ export default function SetupScreen() {
   };
 
   const finishSetup = async (enableNotifications = false) => {
-    if (saving) return;
+    if (savingRef.current) return;
 
     if (!user?.id) {
       Alert.alert('Błąd', 'Nie znaleziono aktywnego użytkownika.');
       return;
     }
 
+    savingRef.current = true;
     setSaving(true);
     try {
       if (enableNotifications) {
@@ -244,6 +352,7 @@ export default function SetupScreen() {
         'Nie udało się zapisać ustawień. Możesz spróbować ponownie lub pominąć powiadomienia.'
       );
     } finally {
+      savingRef.current = false;
       setSaving(false);
     }
   };
@@ -268,10 +377,39 @@ export default function SetupScreen() {
         { backgroundColor: colors.background },
       ]}
     >
-      <View style={styles.content}>
+      <View
+        style={[
+          styles.content,
+          styles.centeredContent,
+        ]}
+      >
+        {currentStep === 'sections' ? (
+          <Animated.View
+            style={[styles.setupIcon, gearStyle]}
+          >
+            <Ionicons name="settings-outline" size={72} color={colors.butBackground} />
+          </Animated.View>
+        ) : (
+          <Animated.View
+            style={[styles.notificationIcon, notificationStyle]}
+          >
+            <Ionicons
+              name="notifications-outline"
+              size={72}
+              color={colors.butBackground}
+            />
+            <View
+              style={[
+                styles.notificationBadge,
+                { borderColor: colors.background },
+              ]}
+            />
+          </Animated.View>
+        )}
         <Text
           style={[
             styles.title,
+            styles.centeredText,
             { color: colors.title },
           ]}
         >
@@ -282,17 +420,18 @@ export default function SetupScreen() {
         <Text
           style={[
             styles.subtitle,
+            styles.centeredText,
             { color: colors.textSecondary },
           ]}
         >
           {currentStep === 'sections'
-            ? 'Wybierz sekcje, w których pracujesz. Dzięki temu statystyki będą dopasowane do Twojej pracy.'
+            ? 'Skonfiguruj profil przed rozpoczęciem korzystania z aplikacji. Wybierz sekcje, w których pracujesz, aby dopasować do nich statystyki.'
             : 'Włącz przypomnienia, aby JMP Tools informowało Cię o zbliżających się dniach pracy zapisanych w grafiku.'}
         </Text>
 
         {currentStep === 'sections' ? (
           <>
-            <View style={styles.sectionsRow}>
+            <View style={[styles.sectionsRow, styles.centeredRow]}>
               {SECTION_OPTIONS.map((section) => {
                 const isSelected = selected.includes(section.id);
                 return (
@@ -331,6 +470,7 @@ export default function SetupScreen() {
             <Text
                   style={[
                     styles.infoText,
+                    styles.centeredText,
                     { color: colors.textSecondary },
                   ]}
             >
@@ -340,7 +480,12 @@ export default function SetupScreen() {
         ) : null}
       </View>
 
-      <View style={styles.buttonsRow}>
+      <View
+        style={[
+          styles.buttonsRow,
+          { paddingBottom: 16 + insets.bottom },
+        ]}
+      >
         {currentStep === 'sections' ? (
           <Pressable
             onPress={handleSaveSections}
@@ -405,6 +550,7 @@ export default function SetupScreen() {
                 {
                   backgroundColor: colors.cardBackground,
                   borderColor: colors.border,
+                  opacity: saving ? 0.5 : 1,
                 },
               ]}
               disabled={saving}
@@ -434,6 +580,33 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  centeredContent: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  setupIcon: {
+    marginBottom: 16,
+  },
+  notificationIcon: {
+    width: 72,
+    height: 72,
+    marginBottom: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 3,
+    width: 17,
+    height: 17,
+    borderRadius: 9,
+    borderWidth: 2,
+    backgroundColor: '#EF4444',
+  },
+  centeredText: {
+    textAlign: 'center',
+  },
   title: {
     fontSize: 24,
     fontWeight: '700',
@@ -447,6 +620,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
     marginBottom: 16,
+  },
+  centeredRow: {
+    justifyContent: 'center',
   },
   chip: {
     paddingHorizontal: 16,
