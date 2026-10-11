@@ -1,9 +1,10 @@
 // Settings.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, Switch, StyleSheet, TouchableOpacity, Alert, ActivityIndicator, Linking, Platform, Pressable } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
 import { useColors } from '../../hooks/useColors';
+import { useAppState } from '../../hooks/useAppState';
 import { useThemeContext } from '../../context/ThemeContext';
 import { useAuth } from '../../context/AuthContext';
 import { useUserProfile } from '../../context/UserProfileContext';
@@ -30,12 +31,21 @@ const Settings = () => {
   const router = useRouter();
 
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [notificationPermissionStatus, setNotificationPermissionStatus] = useState('unknown');
   const [notificationLeadHours, setNotificationLeadHours] = useState(10);
   const [loadingNotifications, setLoadingNotifications] = useState(false);
   const [isSavingNotification, setIsSavingNotification] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const notificationPermissionGrantedRef = useRef(null);
+  const permissionRefreshInFlightRef = useRef(false);
+  const notificationActivationInFlightRef = useRef(false);
+  const profileRef = useRef(profile);
 
   const [sectionPreferences, setSectionPreferences] = useState(['zaladunek', 'kompletacja']);
+
+  useEffect(() => {
+    profileRef.current = profile;
+  }, [profile]);
 
   useEffect(() => {
     if (profile?.notifications?.enabled !== undefined) {
@@ -53,6 +63,89 @@ const Settings = () => {
   }, [profile?.preferences?.sections]);
 
   const isDataReady = !authLoading && !profileLoading && (user || profile);
+
+  const activateNotificationsAsync = useCallback(async (userId, userProfile) => {
+    if (!userId || notificationActivationInFlightRef.current) return;
+
+    notificationActivationInFlightRef.current = true;
+    setLoadingNotifications(true);
+    try {
+      enableShiftReminders(userId);
+
+      try {
+        const pushRegistration = await registerForPushNotificationsAsync({
+          requestPermission: false,
+        });
+        if (pushRegistration.token) {
+          await saveUserPushTokenAsync(userId, pushRegistration.token);
+        } else if (pushRegistration.error) {
+          console.log(
+            'Push notification token warning (permission remains granted):',
+            pushRegistration.error
+          );
+        }
+      } catch (tokenError) {
+        console.log('Push notification token setup warning:', tokenError);
+      }
+
+      const schedulingProfile = {
+        ...(userProfile || {}),
+        notifications: { ...(userProfile?.notifications || {}), enabled: true },
+      };
+      try {
+        await scheduleCurrentShiftRemindersAsync(userId, schedulingProfile);
+      } catch (error) {
+        console.error('Błąd planowania przypomnień o zmianach:', error);
+      }
+    } finally {
+      notificationActivationInFlightRef.current = false;
+      setLoadingNotifications(false);
+    }
+  }, []);
+
+  const refreshNotificationPermissions = useCallback(async () => {
+    if (Platform.OS === 'web' || permissionRefreshInFlightRef.current) return;
+
+    permissionRefreshInFlightRef.current = true;
+    try {
+      const permissionResult = await ensureNotificationPermissionsAsync({
+        requestPermission: false,
+      });
+      if (permissionResult.status === 'error') {
+        setNotificationPermissionStatus('unknown');
+        console.error(
+          'Błąd sprawdzania uprawnień do powiadomień:',
+          permissionResult.error
+        );
+        return;
+      }
+
+      const isGranted = permissionResult.status === 'granted';
+      const wasGranted = notificationPermissionGrantedRef.current;
+      notificationPermissionGrantedRef.current = isGranted;
+      setNotificationPermissionStatus(permissionResult.status);
+
+      if (isGranted && wasGranted === false && notificationsEnabled) {
+        const userId = user?.id || profile?.userId;
+        await activateNotificationsAsync(userId, profileRef.current);
+      }
+    } finally {
+      permissionRefreshInFlightRef.current = false;
+    }
+  }, [
+    activateNotificationsAsync,
+    notificationsEnabled,
+    profile?.userId,
+    user?.id,
+  ]);
+
+  useEffect(() => {
+    if (isDataReady) {
+      refreshNotificationPermissions();
+    }
+  }, [isDataReady, refreshNotificationPermissions]);
+
+  useAppState({ onForeground: refreshNotificationPermissions });
 
   const toggleSectionPreference = (id) => {
     setSectionPreferences((prev) => {
@@ -116,38 +209,18 @@ const Settings = () => {
     );
   }
 
-  const showNotificationSettingsAlert = () => {
+  const showNotificationPermissionIssue = (permissionResult) => {
     Alert.alert(
-      'Powiadomienia zablokowane',
-      `Zezwól na powiadomienia JMP Tools w ${Platform.OS === 'android' ? 'ustawieniach Androida' : 'ustawieniach urządzenia'
-      }, aby je włączyć.`,
-      [
-        {
-          text: 'Otwórz ustawienia',
-          onPress: () => {
-            Linking.openSettings().catch((error) => {
-              console.error('Błąd otwierania ustawień aplikacji:', error);
-              Alert.alert('Błąd', 'Nie udało się otworzyć ustawień aplikacji.');
-            });
-          },
-        },
-        { text: 'Anuluj', style: 'cancel' },
-      ]
+      'Błąd',
+      permissionResult.error?.message || 'Nie udało się sprawdzić uprawnień do powiadomień.'
     );
   };
 
-  const showNotificationPermissionIssue = (permissionResult) => {
-    if (permissionResult.status === 'blocked') {
-      showNotificationSettingsAlert();
-      return;
-    }
-
-    Alert.alert(
-      permissionResult.status === 'denied' ? 'Brak uprawnień' : 'Błąd',
-      permissionResult.status === 'denied'
-        ? 'Nie przyznano uprawnień do powiadomień. Możesz włączyć je później w ustawieniach aplikacji.'
-        : permissionResult.error?.message || 'Nie udało się sprawdzić uprawnień do powiadomień.'
-    );
+  const openNotificationSettings = () => {
+    Linking.openSettings().catch((error) => {
+      console.error('Błąd otwierania ustawień aplikacji:', error);
+      Alert.alert('Błąd', 'Nie udało się otworzyć ustawień aplikacji.');
+    });
   };
 
   const handleToggleNotifications = async () => {
@@ -160,12 +233,17 @@ const Settings = () => {
       return;
     }
 
-    if (isSavingNotification || loadingNotifications) return;
+    if (
+      isSavingNotification ||
+      loadingNotifications ||
+      notificationActivationInFlightRef.current
+    ) return;
 
     setIsSavingNotification(true);
     setLoadingNotifications(true);
 
     const nextEnabledState = !notificationsEnabled;
+    let preferenceSaved = false;
     if (!nextEnabledState) {
       setNotificationsEnabled(false);
     }
@@ -173,42 +251,25 @@ const Settings = () => {
     try {
       if (nextEnabledState) {
         const permissionResult = await ensureNotificationPermissionsAsync();
-        if (permissionResult.status !== 'granted') {
+        if (permissionResult.status === 'error') {
+          setNotificationPermissionStatus('unknown');
           showNotificationPermissionIssue(permissionResult);
           return;
         }
+
+        const isGranted = permissionResult.status === 'granted';
+        notificationPermissionGrantedRef.current = isGranted;
+        setNotificationPermissionStatus(permissionResult.status);
 
         const updateResult = await updateUserProfileFields({ 'notifications.enabled': true });
         if (!updateResult?.success) {
           throw new Error('Nie udało się zapisać ustawienia powiadomień.');
         }
+        preferenceSaved = true;
         setNotificationsEnabled(true);
-        enableShiftReminders(userId);
 
-        try {
-          const pushRegistration = await registerForPushNotificationsAsync({
-            requestPermission: false,
-          });
-          if (pushRegistration.token) {
-            await saveUserPushTokenAsync(userId, pushRegistration.token);
-          } else if (pushRegistration.error) {
-            console.log(
-              'Push notification token warning (permission remains granted):',
-              pushRegistration.error
-            );
-          }
-        } catch (tokenError) {
-          console.log('Push notification token setup warning:', tokenError);
-        }
-
-        const schedulingProfile = {
-          ...(profile || {}),
-          notifications: { ...(profile?.notifications || {}), enabled: true },
-        };
-        try {
-          await scheduleCurrentShiftRemindersAsync(userId, schedulingProfile);
-        } catch (error) {
-          console.error('Błąd planowania przypomnień o zmianach:', error);
+        if (isGranted) {
+          await activateNotificationsAsync(userId, profile);
         }
       } else {
         const cancellationPromise = disableShiftRemindersAsync(userId);
@@ -223,13 +284,16 @@ const Settings = () => {
           if (!updateResult?.success) {
             throw new Error('Nie udało się zapisać ustawienia powiadomień.');
           }
+          preferenceSaved = true;
         } finally {
           await Promise.all([tokenClearPromise, cancellationPromise]);
         }
       }
     } catch (error) {
       console.error('Błąd zmiany powiadomień:', error);
-      setNotificationsEnabled(false);
+      if (!nextEnabledState || !preferenceSaved) {
+        setNotificationsEnabled(false);
+      }
       Alert.alert(
         'Błąd',
         error?.message || 'Nie udało się zmienić ustawień powiadomień.'
@@ -354,35 +418,73 @@ const Settings = () => {
               {
                 backgroundColor: colors.cardBackground,
                 borderColor: colors.border,
+                flexDirection: 'column',
+                alignItems: 'stretch',
               },
             ]}
           >
-            <Text
-              style={[
-                styles.label,
-                { color: colors.text },
-              ]}
+            <View
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+              }}
             >
-              Powiadomienia
-            </Text>
-            {!isDataReady ? (
-              <ActivityIndicator size="small" color={colors.text} />
-            ) : (
-              <Switch
-                value={notificationsEnabled}
-                onValueChange={handleToggleNotifications}
-                disabled={!isDataReady || loadingNotifications || isGuest || isSavingNotification}
-                thumbColor={
-                  notificationsEnabled
-                    ? (colors.butBackground || colors.textRed)
-                    : (colors.grayIconColor || colors.textSecondary)
-                }
-                trackColor={{
-                  true: colors.butBackground || colors.selection,
-                  false: colors.breakLine || colors.border,
-                }}
-              />
-            )}
+              <Text
+                style={[
+                  styles.label,
+                  { color: colors.text },
+                ]}
+              >
+                Powiadomienia
+              </Text>
+              {!isDataReady ? (
+                <ActivityIndicator size="small" color={colors.text} />
+              ) : (
+                <Switch
+                  value={notificationsEnabled}
+                  onValueChange={handleToggleNotifications}
+                  disabled={!isDataReady || loadingNotifications || isGuest || isSavingNotification}
+                  thumbColor={
+                    notificationsEnabled
+                      ? (colors.butBackground || colors.textRed)
+                      : (colors.grayIconColor || colors.textSecondary)
+                  }
+                  trackColor={{
+                    true: colors.butBackground || colors.selection,
+                    false: colors.breakLine || colors.border,
+                  }}
+                />
+              )}
+            </View>
+            {notificationsEnabled &&
+              (notificationPermissionStatus === 'blocked' ||
+                notificationPermissionStatus === 'denied') && (
+                <View>
+                  <Text
+                    style={{
+                      color: colors.textSecondary || colors.text,
+                      fontSize: 13,
+                      marginTop: 8,
+                    }}
+                  >
+                    Brak uprawnień do powiadomień. Możesz je przyznać w ustawieniach aplikacji.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={openNotificationSettings}
+                    style={{ alignSelf: 'flex-start', marginTop: 8 }}
+                  >
+                    <Text
+                      style={{
+                        color: colors.butBackground || colors.selection,
+                        fontWeight: '600',
+                      }}
+                    >
+                      Otwórz ustawienia
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              )}
           </View>
 
           {/* Czas powiadomienia o pracy */}
