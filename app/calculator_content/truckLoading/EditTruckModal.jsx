@@ -9,19 +9,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
-  Switch,
-  Pressable,
-  Animated,
-  Easing,
 } from "react-native";
-import { Ionicons, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from '../../../hooks/useColors';
+import DismissibleModalBackdrop from "../../../components/DismissibleModalBackdrop";
 
 export default function EditTruckModal({ visible, truck, onClose, onSave }) {
   const colors = useColors();
-
-  const [areSessionDetailsVisible, setAreSessionDetailsVisible] = useState(false);
-  const detailsAnimation = useRef(new Animated.Value(0)).current;
 
   const [form, setForm] = useState({
     shop: "",
@@ -33,13 +27,15 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
 
   const [palletsInProgress, setPalletsInProgress] = useState(false);
   const [connectedShops, setConnectedShops] = useState(false);
+  const [inputPage, setInputPage] = useState(0);
+  const [inputPagerWidth, setInputPagerWidth] = useState(0);
 
   // Refs
-  const palletsInputRef = useRef(null);
   const shopInputRef = useRef(null);
   const secondShopInputRef = useRef(null);
   const gateInputRef = useRef(null);
   const trailerInputRef = useRef(null);
+  const inputPagerRef = useRef(null);
 
   // Load truck data when modal becomes visible
   useEffect(() => {
@@ -73,6 +69,8 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
 
   const handleClose = () => {
     onClose();
+    setInputPage(0);
+    inputPagerRef.current?.scrollTo({ x: 0, animated: false });
   };
 
   const isPalletsValid = form.pallets &&
@@ -116,46 +114,12 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
     handleChange(name, value);
   };
 
-  useEffect(() => {
-    if (visible) {
-      const timer = setTimeout(() => {
-        palletsInputRef.current?.focus();
-      }, 300);
-
-      return () => clearTimeout(timer);
+  const goToInputPage = (page) => {
+    const nextPage = Math.max(0, Math.min(1, page));
+    setInputPage(nextPage);
+    if (inputPagerWidth) {
+      inputPagerRef.current?.scrollTo({ x: nextPage * inputPagerWidth, animated: true });
     }
-  }, [visible]);
-
-  useEffect(() => {
-    if (visible && palletsInProgress === false) {
-      const timer = setTimeout(() => {
-        palletsInputRef.current?.focus();
-      }, 300);
-
-      return () => clearTimeout(timer);
-    }
-  }, [palletsInProgress, visible]);
-
-  // Animation function
-  useEffect(() => {
-    Animated.timing(detailsAnimation, {
-      toValue: areSessionDetailsVisible ? 1 : 0,
-      duration: 260,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [areSessionDetailsVisible, detailsAnimation]);
-
-  const detailsAnimatedStyle = {
-    opacity: detailsAnimation,
-    transform: [
-      {
-        translateY: detailsAnimation.interpolate({
-          inputRange: [0, 1],
-          outputRange: [-12, 0],
-        }),
-      },
-    ],
   };
 
   return (
@@ -169,7 +133,8 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.overlay}
       >
-        <View style={styles.modalViewport}>
+        <DismissibleModalBackdrop onPress={handleClose}>
+          <View style={styles.modalViewport}>
           <View style={[styles.modalContainer, { backgroundColor: colors.background }] }>
             <ScrollView
               style={styles.modalScrollView}
@@ -178,110 +143,126 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
               showsVerticalScrollIndicator={false}
             >
               <View style={[styles.modalContent, { backgroundColor: colors.background }] }>
+                <TouchableOpacity
+                  accessibilityLabel="Zamknij"
+                  accessibilityRole="button"
+                  onPress={handleClose}
+                  style={styles.closeButton}
+                >
+                  <Text style={[styles.closeButtonText, { color: colors.text }]}>×</Text>
+                </TouchableOpacity>
 
-                {/* Title */}
-                <Text style={[styles.title, { color: colors.text }]}>Edytuj Transport</Text>
-                <Text style={[styles.description, { color: colors.textSecondary }]}>
-                  Edytuj szczegóły transportu #{truck?.displayId}.
-                </Text>
-
-                {/* First Row: Pallets and Shop */}
-                <View style={styles.inputRow}>
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
-                    <TextInput
-                      ref={shopInputRef}
-                      style={[
-                        styles.inputSmall,
-                        {
-                          backgroundColor: colors.inputBackground,
-                          color: colors.text,
-                          borderColor: colors.border
-                        }
-                      ]}
-                      value={form.shop}
-                      onChangeText={(value) => handleInputChange("shop", value)}
-                      placeholder="Sklep"
-                      placeholderTextColor={colors.phText}
-                      keyboardType="numeric"
+                <View style={styles.transportHeader}>
+                  <View style={styles.transportHeaderIcon}>
+                    <MaterialCommunityIcons
+                      name="truck-outline"
+                      size={68}
+                      color={colors.butBackground}
                     />
-                  </View>
-
-                  {connectedShops && (
-                    <View style={styles.inputHalf}>
-                      <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep 2</Text>
-                      <TextInput
-                        ref={secondShopInputRef}
-                        style={[
-                          styles.inputSmall,
-                          {
-                            backgroundColor: colors.inputBackground,
-                            color: colors.text,
-                            borderColor: colors.border
-                          }
-                        ]}
-                        value={form.secondShop}
-                        onChangeText={(value) => handleInputChange("secondShop", value)}
-                        placeholder="Sklep"
-                        placeholderTextColor={colors.phText}
-                        keyboardType="numeric"
-                      />
+                    <View style={[styles.transportHeaderBadge, { borderColor: colors.background }]}>
+                      <MaterialCommunityIcons name="pencil" size={14} color="#fff" />
                     </View>
-                  )}
-
-                  <View style={styles.inputHalf}>
-                    <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
-                    <TextInput
-                      ref={palletsInputRef}
-                      style={[
-                        styles.inputSmall,
-                        {
-                          backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
-                          color: colors.text,
-                          borderColor: palletsInProgress ? 'red' : colors.border
-                        },
-                        !isPalletsValid && form.pallets && styles.inputError
-                      ]}
-                      value={form.pallets}
-                      onChangeText={(value) => handleChange("pallets", value)}
-                      onSubmitEditing={handleSave}
-                      placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
-                      placeholderTextColor={palletsInProgress ? "red" : colors.phText}
-                      keyboardType="numeric"
-                      editable={!palletsInProgress}
-                      selectTextOnFocus={true}
-                    />
-                    {!isPalletsValid && form.pallets && (
-                      <Text style={styles.errorText}>Ilość musi być poprawna</Text>
-                    )}
                   </View>
+                  <View>
+                    <Text style={[styles.title, { color: colors.text }]}>Edytuj transport</Text>
+                    <Text style={[styles.description, { color: colors.textSecondary }]}>
+                      Transport #{truck?.displayId}
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons
+                    name="truck-edit"
+                    size={38}
+                    color={colors.butBackground}
+                    style={styles.transportHeaderIcon}
+                  />
                 </View>
 
-                {/* Hidden Inputs */}
-
-                {areSessionDetailsVisible && (
-                  <Animated.View
-                    pointerEvents={areSessionDetailsVisible ? 'auto' : 'none'}
-                    style={[
-                      styles.expandableContent,
-                      detailsAnimatedStyle,
-                      !areSessionDetailsVisible && styles.expandableContentHidden,
-                    ]}
+                <View
+                  style={[styles.inputPagerFrame, connectedShops && styles.inputPagerFrameConnected]}
+                >
+                  <TouchableOpacity
+                    accessibilityLabel="Poprzednie pola"
+                    accessibilityRole="button"
+                    disabled={inputPage === 0}
+                    onPress={() => goToInputPage(inputPage - 1)}
+                    style={[styles.chevronButton, styles.chevronLeft, inputPage === 0 && styles.chevronButtonDisabled]}
                   >
-                    {/* Second Row: Gate and Trailer */}
-                    <View style={styles.inputRow}>
-                      <View style={styles.inputHalf}>
-                        <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
+                    <Ionicons name="chevron-back" size={22} color={inputPage === 0 ? colors.disabledButText : colors.butBackground} />
+                  </TouchableOpacity>
+
+                  <ScrollView
+                    ref={inputPagerRef}
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    style={styles.inputPager}
+                    contentContainerStyle={styles.inputPagerContent}
+                    nestedScrollEnabled
+                    onLayout={(event) => setInputPagerWidth(event.nativeEvent.layout.width)}
+                    onMomentumScrollEnd={(event) => {
+                      if (inputPagerWidth) {
+                        setInputPage(Math.round(event.nativeEvent.contentOffset.x / inputPagerWidth));
+                      }
+                    }}
+                  >
+                    <View style={[styles.inputPage, { width: inputPagerWidth || '100%' }]}>
+                      <View style={styles.inputField}>
+                        <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
                         <TextInput
-                          ref={gateInputRef}
                           style={[
                             styles.inputSmall,
                             {
-                              backgroundColor: colors.inputBackground,
+                              backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
                               color: colors.text,
-                              borderColor: colors.border
-                            }
+                              borderColor: palletsInProgress ? 'red' : colors.border
+                            },
+                            !isPalletsValid && form.pallets && styles.inputError
                           ]}
+                          value={form.pallets}
+                          onChangeText={(value) => handleChange("pallets", value)}
+                          onSubmitEditing={handleSave}
+                          placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
+                          placeholderTextColor={palletsInProgress ? "red" : colors.phText}
+                          keyboardType="numeric"
+                          editable={!palletsInProgress}
+                          selectTextOnFocus={true}
+                        />
+                        {!isPalletsValid && form.pallets && <Text style={styles.errorText}>Ilość musi być poprawna</Text>}
+                      </View>
+                      <View style={styles.inputField}>
+                        <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
+                        <TextInput
+                          ref={shopInputRef}
+                          style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
+                          value={form.shop}
+                          onChangeText={(value) => handleInputChange("shop", value)}
+                          placeholder="Sklep"
+                          placeholderTextColor={colors.phText}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                      {connectedShops && (
+                        <View style={styles.inputField}>
+                          <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep 2</Text>
+                          <TextInput
+                            ref={secondShopInputRef}
+                            style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
+                            value={form.secondShop}
+                            onChangeText={(value) => handleInputChange("secondShop", value)}
+                            placeholder="Sklep 2"
+                            placeholderTextColor={colors.phText}
+                            keyboardType="numeric"
+                          />
+                        </View>
+                      )}
+                    </View>
+                    <View style={[styles.inputPage, { width: inputPagerWidth || '100%' }]}>
+                      <View style={styles.inputField}>
+                        <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
+                        <TextInput
+                          ref={gateInputRef}
+                          style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
                           value={form.gate}
                           onChangeText={(value) => handleInputChange("gate", value)}
                           placeholder="Brama"
@@ -289,19 +270,11 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                           keyboardType="numeric"
                         />
                       </View>
-
-                      <View style={styles.inputHalf}>
+                      <View style={styles.inputField}>
                         <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Naczepa</Text>
                         <TextInput
                           ref={trailerInputRef}
-                          style={[
-                            styles.inputSmall,
-                            {
-                              backgroundColor: colors.inputBackground,
-                              color: colors.text,
-                              borderColor: colors.border
-                            }
-                          ]}
+                          style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
                           value={form.trailer}
                           onChangeText={(value) => handleInputChange("trailer", value)}
                           placeholder="Naczepa"
@@ -310,69 +283,106 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                         />
                       </View>
                     </View>
-                  </Animated.View>
-                )}
+                  </ScrollView>
 
-                {/* Expand / collapse button */}
-                <View>
-                  <Pressable
-                    onPress={() => setAreSessionDetailsVisible(prev => !prev)}
-                    style={({ pressed }) => [
-                      styles.expandButton,
+                  <TouchableOpacity
+                    accessibilityLabel="Następne pola"
+                    accessibilityRole="button"
+                    disabled={inputPage === 1}
+                    onPress={() => goToInputPage(inputPage + 1)}
+                    style={[styles.chevronButton, styles.chevronRight, inputPage === 1 && styles.chevronButtonDisabled]}
+                  >
+                    <Ionicons name="chevron-forward" size={22} color={inputPage === 1 ? colors.disabledButText : colors.butBackground} />
+                  </TouchableOpacity>
+                </View>
+                <View style={styles.pageIndicator} accessibilityLabel={`Strona ${inputPage + 1} z 2`}>
+                  {[0, 1].map((page) => (
+                    <View
+                      key={page}
+                      style={[
+                        styles.pageDot,
+                        inputPage === page && styles.pageDotActive,
+                        { backgroundColor: inputPage === page ? colors.iconColor : colors.grayIconColor }
+                      ]}
+                    />
+                  ))}
+                </View>
+
+                <Text style={[styles.palletSuggestionsTitle, { color: colors.textSecondary }]}>
+                  Szybki wybór palet
+                </Text>
+                <View style={styles.palletSuggestions}>
+                  {[18, 21, 22, 24, 33].map((amount) => (
+                    <TouchableOpacity
+                      key={amount}
+                      accessibilityLabel={`Ustaw ${amount} palet`}
+                      accessibilityRole="button"
+                      onPress={() => handleChange("pallets", String(amount))}
+                      disabled={palletsInProgress}
+                      style={[
+                        styles.palletSuggestion,
+                        {
+                          borderColor: palletsInProgress ? colors.disabledButBorder : colors.outButBorder,
+                          backgroundColor: palletsInProgress ? colors.disabledButBackground : colors.outButBackground,
+                        }
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.palletSuggestionText,
+                          { color: palletsInProgress ? colors.disabledButText : colors.outButText }
+                        ]}
+                      >
+                        {amount}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <View style={styles.toggleCardsRow}>
+                  <TouchableOpacity
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: palletsInProgress }}
+                    onPress={() => handlePalletsInProgressChange(!palletsInProgress)}
+                    style={[
+                      styles.toggleCard,
                       {
-                        backgroundColor: colors.cardBackground,
-                        borderColor: colors.border,
-                        opacity: pressed ? 0.85 : 1,
-                      },
+                        backgroundColor: palletsInProgress ? colors.butBackground : colors.inputBackground,
+                        borderColor: palletsInProgress ? colors.butBackground : colors.border,
+                      }
                     ]}
                   >
-                    <View style={styles.expandButtonContent}>
-                      <Text style={[styles.expandButtonText, { color: colors.text }]}>
-                        {areSessionDetailsVisible ? 'Mniej' : 'Więcej'}
-                      </Text>
+                    <Text style={[styles.toggleCardIndicator, { color: palletsInProgress ? colors.butText : colors.grayIconColor }]}>
+                      {palletsInProgress ? "✓" : "○"}
+                    </Text>
+                    <Text style={[styles.toggleCardLabel, { color: palletsInProgress ? colors.butText : colors.text }]}>
+                      Palety w trakcie
+                    </Text>
+                  </TouchableOpacity>
 
-                      <Ionicons
-                        name={areSessionDetailsVisible ? 'chevron-up' : 'chevron-down'}
-                        size={20}
-                        color={colors.grayIconColor}
-                      />
-                    </View>
-                  </Pressable>
-                </View>
-
-                {/* Pallets in Progress Switch */}
-                <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 16, borderColor: colors.border, borderWidth: 1 }]}>
-                  <Text style={[styles.checkboxLabel, { color: colors.text }]}>Palety w trakcie</Text>
-                  <Switch
-                    value={palletsInProgress}
-                    onValueChange={handlePalletsInProgressChange}
-                    trackColor={{ false: "#333", true: colors.butBackground }}
-                    thumbColor={"#fff"}
-                  />
-                </View>
-
-                {/* Multiple Shops Switch */}
-                <View style={[styles.checkboxContainer, { backgroundColor: colors.inputBackground, borderRadius: 16, borderColor: colors.border, borderWidth: 1 }]}>
-                  <Text style={[styles.checkboxLabel, { color: colors.text }]}>Łączenie</Text>
-                  <Switch
-                    value={connectedShops}
-                    onValueChange={handleConnectedShopsChange}
-                    trackColor={{ false: "#333", true: colors.butBackground }}
-                    thumbColor={"#fff"}
-                  />
+                  <TouchableOpacity
+                    accessibilityRole="switch"
+                    accessibilityState={{ checked: connectedShops }}
+                    onPress={() => handleConnectedShopsChange(!connectedShops)}
+                    style={[
+                      styles.toggleCard,
+                      {
+                        backgroundColor: connectedShops ? colors.butBackground : colors.inputBackground,
+                        borderColor: connectedShops ? colors.butBackground : colors.border,
+                      }
+                    ]}
+                  >
+                    <Text style={[styles.toggleCardIndicator, { color: connectedShops ? colors.butText : colors.grayIconColor }]}>
+                      {connectedShops ? "✓" : "○"}
+                    </Text>
+                    <Text style={[styles.toggleCardLabel, { color: connectedShops ? colors.butText : colors.text }]}>
+                      Łączenie
+                    </Text>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Button Container */}
                 <View style={styles.buttonContainer}>
-                  <TouchableOpacity
-                    style={[styles.cancelButton, { backgroundColor: colors.outButBackground, borderColor: colors.border }]}
-                    onPress={handleClose}
-                  >
-                    <Text style={[styles.cancelButtonText, { color: colors.text }]}>
-                      Anuluj
-                    </Text>
-                  </TouchableOpacity>
-
                   <TouchableOpacity
                     style={[
                       styles.addButton,
@@ -397,7 +407,8 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
               </View>
             </ScrollView>
           </View>
-        </View>
+          </View>
+        </DismissibleModalBackdrop>
       </KeyboardAvoidingView>
     </Modal >
   );
@@ -411,12 +422,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   modalViewport: {
-    flex: 1,
     width: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 24,
   },
   modalContainer: {
     borderRadius: 16,
@@ -438,6 +446,48 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
+    paddingTop: 52,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 8,
+    right: 10,
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1,
+  },
+  closeButtonText: {
+    fontSize: 30,
+    fontWeight: '300',
+    lineHeight: 32,
+  },
+  transportHeader: {
+    minHeight: 112,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    paddingHorizontal: 36,
+  },
+  transportHeaderIcon: {
+    width: 72,
+    height: 76,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 2,
+  },
+  transportHeaderBadge: {
+    position: 'absolute',
+    top: 1,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: '#EF4444',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 20,
@@ -475,20 +525,9 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
+    justifyContent: 'flex-end',
     gap: 16,
     marginTop: 20,
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  cancelButtonText: {
-    textAlign: 'center',
-    fontSize: 16,
   },
   addButton: {
     flex: 1,
@@ -532,6 +571,63 @@ const styles = StyleSheet.create({
     gap: 12,
     marginBottom: 16,
   },
+  inputPagerFrame: {
+    height: 190,
+    position: 'relative',
+    marginBottom: 16,
+  },
+  inputPagerFrameConnected: {
+    height: 230,
+  },
+  inputPager: {
+    flex: 1,
+    marginHorizontal: 36,
+  },
+  inputPagerContent: {
+    flexGrow: 1,
+  },
+  inputPage: {
+    flex: 1,
+    gap: 14,
+  },
+  inputField: {
+    width: '100%',
+  },
+  chevronButton: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    width: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  chevronLeft: {
+    left: 0,
+  },
+  chevronRight: {
+    right: 0,
+  },
+  chevronButtonDisabled: {
+    opacity: 0.55,
+  },
+  pageIndicator: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: -4,
+    marginBottom: 12,
+  },
+  pageDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  pageDotActive: {
+    width: 18,
+    borderRadius: 4,
+  },
   inputHalf: {
     flex: 1,
   },
@@ -547,35 +643,55 @@ const styles = StyleSheet.create({
     padding: 10,
     fontSize: 14,
   },
-  checkboxContainer: {
+  palletSuggestionsTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: -4,
+    marginBottom: 8,
+  },
+  palletSuggestions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 8,
-  },
-  checkboxLabel: {
-    paddingLeft: 8,
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  expandButton: {
-    width: '100%',
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    marginTop: 0,
+    gap: 8,
     marginBottom: 12,
   },
-  expandButtonContent: {
-    flexDirection: 'row',
+  palletSuggestion: {
+    minWidth: 52,
+    height: 46,
+    paddingHorizontal: 10,
+    borderWidth: 1,
+    borderRadius: 999,
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
   },
-  expandButtonText: {
-    fontSize: 15,
+  palletSuggestionText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  toggleCardsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 4,
+  },
+  toggleCard: {
+    flex: 1,
+    minHeight: 76,
+    borderWidth: 1,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+    gap: 4,
+  },
+  toggleCardIndicator: {
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 22,
+  },
+  toggleCardLabel: {
+    fontSize: 13,
     fontWeight: '600',
+    textAlign: 'center',
   },
 });
