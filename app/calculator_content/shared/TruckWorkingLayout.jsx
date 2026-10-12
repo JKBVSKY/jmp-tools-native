@@ -171,6 +171,22 @@ export default function TruckWorkingLayout(props) {
         setRateColor(getPalletsRateColor(value));
     }, [palletsRate]);
 
+    useEffect(() => {
+        if (!showPalletsModal) return undefined;
+
+        const focusTimer = setTimeout(() => {
+            palletsInputRef?.current?.focus();
+        }, 100);
+
+        return () => clearTimeout(focusTimer);
+    }, [showPalletsModal, palletsInputRef]);
+
+    const adjustPalletsInput = (amount) => {
+        const currentValue = Number.parseFloat(String(palletsInput).replace(',', '.'));
+        const nextValue = (Number.isFinite(currentValue) ? currentValue : 0) + amount;
+        setPalletsInput(String(Number(nextValue.toFixed(2))));
+    };
+
     const sessionDuration = startTime && forcedFinishTime
         ? Math.max(0, Math.floor((forcedFinishTime - startTime) / 1000))
         : 0;
@@ -608,55 +624,130 @@ export default function TruckWorkingLayout(props) {
                 >
                     <View style={styles.palletsModalBackdrop}>
                         <View style={[styles.palletsModalContent, { backgroundColor: colors.cardBackground }]}>
-                            <Text style={[styles.palletsModalTitle, { color: colors.text }]}>
-                                Podaj liczbę palet!
-                            </Text>
+                            <View style={styles.palletsModalTopContent}>
+                                <View style={styles.palletsModalIcon}>
+                                    <MaterialCommunityIcons
+                                        name="shipping-pallet"
+                                        size={72}
+                                        color={colors.butBackground}
+                                    />
+                                    <Ionicons
+                                        name="help-circle"
+                                        size={26}
+                                        color="#D32F2F"
+                                        style={styles.palletsModalHelpIcon}
+                                    />
+                                </View>
+                                <Text style={[styles.palletsModalTitle, { color: colors.text }]}>
+                                    Podaj liczbę palet!
+                                </Text>
 
-                            <Text style={[styles.palletsModalSubtitle, { color: colors.textSecondary }]}>
-                                Skończyłeś ładować ten transport, ale nie podałeś liczby palet. Wpisz liczbę palet (np. 12.75) i zatwierdź, aby zakończyć transport.
-                            </Text>
+                                <Text style={[styles.palletsModalSubtitle, { color: colors.textSecondary }]}>
+                                    Skończyłeś ładować ten transport, ale nie podałeś liczby palet. Wpisz liczbę palet (np. 12.75) i zatwierdź, aby zakończyć transport.
+                                </Text>
+                            </View>
 
-                            <TextInput
-                                ref={palletsInputRef}
-                                style={[
-                                    styles.palletsInput,
-                                    { borderColor: colors.border, color: colors.text }
-                                ]}
-                                value={palletsInput}
-                                onChangeText={setPalletsInput}
-                                keyboardType="decimal-pad"
-                                placeholder="Np. 12.75"
-                                placeholderTextColor={colors.textSecondary}
-                            />
+                            <View style={styles.palletsModalMiddleContent}>
+                                <View style={styles.palletsInputRow}>
+                                    <TouchableOpacity
+                                        accessibilityLabel="Odejmij 0.25 palety"
+                                        onPress={() => adjustPalletsInput(-0.25)}
+                                        style={[
+                                            styles.palletsAdjustButton,
+                                            {
+                                                borderColor: colors.outButBorder,
+                                                backgroundColor: colors.outButBackground
+                                            }
+                                        ]}
+                                    >
+                                        <Text style={[styles.palletsAdjustButtonText, { color: colors.outButText }]}>
+                                            -0.25
+                                        </Text>
+                                    </TouchableOpacity>
 
-                            <View style={styles.palletsButtonsRow}>
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        setShowPalletsModal(false);
-                                        setPendingTruckId(null);
-                                        setPalletsInput("");
-                                    }}
-                                    style={[
-                                        styles.btnOutline,
-                                        {
-                                            borderColor: colors.outButBorder,
-                                            backgroundColor: colors.outButBackground
-                                        }
-                                    ]}
-                                >
-                                    <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>
-                                        Anuluj
-                                    </Text>
-                                </TouchableOpacity>
+                                    <TextInput
+                                        ref={palletsInputRef}
+                                        autoFocus
+                                        style={[
+                                            styles.palletsInput,
+                                            { borderColor: colors.border, color: colors.text }
+                                        ]}
+                                        value={palletsInput}
+                                        onChangeText={setPalletsInput}
+                                        keyboardType="decimal-pad"
+                                        placeholder="Np. 12.75"
+                                        placeholderTextColor={colors.textSecondary}
+                                    />
 
-                                <TouchableOpacity
-                                    onPress={handleConfirmPallets}
-                                    style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
-                                >
-                                    <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>
-                                        OK
-                                    </Text>
-                                </TouchableOpacity>
+                                    <TouchableOpacity
+                                        accessibilityLabel="Dodaj 0.25 palety"
+                                        onPress={() => adjustPalletsInput(0.25)}
+                                        style={[
+                                            styles.palletsAdjustButton,
+                                            {
+                                                borderColor: colors.outButBorder,
+                                                backgroundColor: colors.outButBackground
+                                            }
+                                        ]}
+                                    >
+                                        <Text style={[styles.palletsAdjustButtonText, { color: colors.outButText }]}>
+                                            +0.25
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
+
+                                <View style={styles.palletSuggestions}>
+                                    {[18, 21, 22, 24, 33].map((amount) => (
+                                        <TouchableOpacity
+                                            key={amount}
+                                            accessibilityLabel={`Ustaw ${amount} palet`}
+                                            onPress={() => setPalletsInput(String(amount))}
+                                            style={[
+                                                styles.palletSuggestion,
+                                                {
+                                                    borderColor: colors.outButBorder,
+                                                    backgroundColor: colors.outButBackground
+                                                }
+                                            ]}
+                                        >
+                                            <Text style={[styles.palletSuggestionText, { color: colors.outButText }]}>
+                                                {amount}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
+                            </View>
+
+                            <View style={styles.palletsModalBottomContent}>
+                                <View style={styles.palletsButtonsRow}>
+                                    <TouchableOpacity
+                                        onPress={() => {
+                                            setShowPalletsModal(false);
+                                            setPendingTruckId(null);
+                                            setPalletsInput("");
+                                        }}
+                                        style={[
+                                            styles.btnOutline,
+                                            {
+                                                borderColor: colors.outButBorder,
+                                                backgroundColor: colors.outButBackground
+                                            }
+                                        ]}
+                                    >
+                                        <Text style={[styles.btnOutlineText, { color: colors.outButText }]}>
+                                            Anuluj
+                                        </Text>
+                                    </TouchableOpacity>
+
+                                    <TouchableOpacity
+                                        onPress={handleConfirmPallets}
+                                        style={[styles.btnPrimary, { backgroundColor: colors.butBackground }]}
+                                    >
+                                        <Text style={[styles.btnPrimaryText, { color: colors.butText }]}>
+                                            OK
+                                        </Text>
+                                    </TouchableOpacity>
+                                </View>
                             </View>
                         </View>
                     </View>
@@ -1313,22 +1404,79 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         padding: 20,
     },
+    palletsModalTopContent: {
+        alignItems: 'center',
+    },
+    palletsModalIcon: {
+        position: 'relative',
+        marginBottom: 12,
+    },
+    palletsModalHelpIcon: {
+        position: 'absolute',
+        top: -4,
+        right: -10,
+    },
     palletsModalTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        marginBottom: 8,
+        fontSize: 24,
+        fontWeight: "800",
+        textAlign: 'center',
+        marginBottom: 10,
     },
     palletsModalSubtitle: {
         fontSize: 13,
         marginBottom: 12,
+        textAlign: 'center',
+    },
+    palletsModalMiddleContent: {
+        paddingVertical: 20,
+        gap: 4,
     },
     palletsInput: {
+        flex: 1,
         borderWidth: 1,
         borderRadius: 10,
         paddingHorizontal: 12,
         paddingVertical: 8,
         fontSize: 16,
+        textAlign: 'center',
+    },
+    palletsInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 12,
+    },
+    palletsAdjustButton: {
+        minWidth: 54,
+        height: 42,
+        paddingHorizontal: 6,
+        borderWidth: 1,
+        borderRadius: 10,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    palletsAdjustButtonText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    palletSuggestions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 8,
         marginBottom: 16,
+    },
+    palletSuggestion: {
+        minWidth: 52,
+        height: 46,
+        paddingHorizontal: 10,
+        borderWidth: 1,
+        borderRadius: 999,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    palletSuggestionText: {
+        fontSize: 14,
+        fontWeight: '700',
     },
     palletsButtonsRow: {
         flexDirection: "row",

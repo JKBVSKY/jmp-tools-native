@@ -470,6 +470,7 @@ export function useTruckLogic({ changeMode, startTime, endTime, sessionTime, set
         palletsLeft,
         isOverGoal,
         goalReachedUntilSeconds,
+        palletsInputRef,
 
         // UI state
         activeTab,
