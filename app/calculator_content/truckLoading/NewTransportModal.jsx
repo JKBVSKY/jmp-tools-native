@@ -129,32 +129,35 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
               showsVerticalScrollIndicator={false}
             >
               <View style={[styles.modalContent, { backgroundColor: colors.background }] }>
-                <TouchableOpacity
-                  accessibilityLabel="Zamknij"
-                  accessibilityRole="button"
-                  onPress={handleClose}
-                  style={styles.closeButton}
-                >
-                  <Text style={[styles.closeButtonText, { color: colors.text }]}>×</Text>
-                </TouchableOpacity>
+                <View style={styles.modalHeaderSection}>
+                  <TouchableOpacity
+                    accessibilityLabel="Zamknij"
+                    accessibilityRole="button"
+                    onPress={handleClose}
+                    style={styles.closeButton}
+                  >
+                    <Text style={[styles.closeButtonText, { color: colors.text }]}>×</Text>
+                  </TouchableOpacity>
 
-                <View style={styles.transportHeader}>
-                  <View style={styles.transportHeaderIcon}>
-                    <MaterialCommunityIcons
-                      name="truck-outline"
-                      size={68}
-                      color={colors.butBackground}
-                    />
-                    <View style={[styles.transportHeaderBadge, { borderColor: colors.background }]}>
-                      <MaterialCommunityIcons name="plus" size={15} color="#fff" />
+                  <View style={styles.transportHeader}>
+                    <View style={styles.transportHeaderIcon}>
+                      <MaterialCommunityIcons
+                        name="truck-outline"
+                        size={68}
+                        color={colors.butBackground}
+                      />
+                      <View style={[styles.transportHeaderBadge, { borderColor: colors.background }]}>
+                        <MaterialCommunityIcons name="plus" size={15} color="#fff" />
+                      </View>
                     </View>
+                    <Text style={[styles.title, { color: colors.text }]}>Nowy transport</Text>
                   </View>
-                  <Text style={[styles.title, { color: colors.text }]}>Nowy transport</Text>
                 </View>
 
-                <View
-                  style={[styles.inputPagerFrame, connectedShops && styles.inputPagerFrameConnected]}
-                >
+                <View style={styles.inputSection}>
+                  <View
+                    style={[styles.inputPagerFrame, connectedShops && styles.inputPagerFrameConnected]}
+                  >
                   <TouchableOpacity
                     accessibilityLabel="Poprzednie pola"
                     accessibilityRole="button"
@@ -208,7 +211,14 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                         <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
                         <TextInput
                           ref={shopInputRef}
-                          style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
+                          style={[
+                            styles.inputSmall,
+                            {
+                              backgroundColor: colors.inputBackground,
+                              color: colors.text,
+                              borderColor: colors.border
+                            }
+                          ]}
                           value={form.shop}
                           onChangeText={(value) => handleInputChange("shop", value)}
                           placeholder="Sklep"
@@ -221,7 +231,14 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                           <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep 2</Text>
                           <TextInput
                             ref={secondShopInputRef}
-                            style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
+                            style={[
+                              styles.inputSmall,
+                              {
+                                backgroundColor: colors.inputBackground,
+                                color: colors.text,
+                                borderColor: colors.border
+                              }
+                            ]}
                             value={form.secondShop}
                             onChangeText={(value) => handleInputChange("secondShop", value)}
                             placeholder="Sklep 2"
@@ -268,24 +285,26 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                   >
                     <Ionicons name="chevron-forward" size={22} color={inputPage === 1 ? colors.disabledButText : colors.butBackground} />
                   </TouchableOpacity>
-                </View>
-                <View style={styles.pageIndicator} accessibilityLabel={`Strona ${inputPage + 1} z 2`}>
-                  {[0, 1].map((page) => (
-                    <View
-                      key={page}
-                      style={[
-                        styles.pageDot,
-                        inputPage === page && styles.pageDotActive,
-                        { backgroundColor: inputPage === page ? colors.iconColor : colors.grayIconColor }
-                      ]}
-                    />
-                  ))}
+                  </View>
+                  <View style={styles.pageIndicator} accessibilityLabel={`Strona ${inputPage + 1} z 2`}>
+                    {[0, 1].map((page) => (
+                      <View
+                        key={page}
+                        style={[
+                          styles.pageDot,
+                          inputPage === page && styles.pageDotActive,
+                          { backgroundColor: inputPage === page ? colors.iconColor : colors.grayIconColor }
+                        ]}
+                      />
+                    ))}
+                  </View>
                 </View>
 
-                <Text style={[styles.palletSuggestionsTitle, { color: colors.textSecondary }]}>
-                  Szybki wybór palet
-                </Text>
-                <View style={styles.palletSuggestions}>
+                <View style={styles.actionsSection}>
+                  <Text style={[styles.palletSuggestionsTitle, { color: colors.textSecondary }]}>
+                    Szybki wybór palet
+                  </Text>
+                  <View style={styles.palletSuggestions}>
                   {[18, 21, 22, 24, 33].map((amount) => (
                     <TouchableOpacity
                       key={amount}
@@ -311,9 +330,9 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       </Text>
                     </TouchableOpacity>
                   ))}
-                </View>
+                  </View>
 
-                <View style={styles.toggleCardsRow}>
+                  <View style={styles.toggleCardsRow}>
                   <TouchableOpacity
                     accessibilityRole="switch"
                     accessibilityState={{ checked: palletsInProgress }}
@@ -353,10 +372,10 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       Łączenie
                     </Text>
                   </TouchableOpacity>
-                </View>
+                  </View>
 
-                {/* Button Container */}
-                <View style={styles.buttonContainer}>
+                  {/* Button Container */}
+                  <View style={styles.buttonContainer}>
                   <TouchableOpacity
                     onPress={handleAdd}
                     disabled={!canAddTransport}
@@ -378,6 +397,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       Dodaj
                     </Text>
                   </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             </ScrollView>
@@ -422,6 +442,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     paddingTop: 52,
+  },
+  modalHeaderSection: {
+    position: 'relative',
+  },
+  inputSection: {
+    width: '100%',
+  },
+  actionsSection: {
+    width: '100%',
   },
   closeButton: {
     position: 'absolute',

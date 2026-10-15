@@ -1,17 +1,18 @@
 import React from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 export default function DismissibleModalBackdrop({ onPress, children }) {
   return (
-    <Pressable style={styles.backdrop} onPress={onPress} accessible={false}>
+    <View style={styles.backdrop}>
       <Pressable
-        style={styles.content}
-        onPress={(event) => event.stopPropagation()}
+        style={StyleSheet.absoluteFill}
+        onPress={onPress}
         accessible={false}
-      >
+      />
+      <View style={styles.content} pointerEvents="box-none">
         {children}
-      </Pressable>
-    </Pressable>
+      </View>
+    </View>
   );
 }
 
