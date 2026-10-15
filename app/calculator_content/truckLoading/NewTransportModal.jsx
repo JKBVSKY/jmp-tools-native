@@ -100,6 +100,43 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     handleChange(name, value);
   };
 
+  const adjustPallets = (amount) => {
+    if (palletsInProgress) return;
+
+    const currentValue = Number(form.pallets) || 0;
+    const nextValue = Math.round((currentValue + amount) * 100) / 100;
+
+    if (nextValue > 0 && nextValue <= 50) {
+      handleChange("pallets", String(nextValue));
+    }
+  };
+
+  const renderPalletAdjustmentChip = (amount) => (
+    <TouchableOpacity
+      key={amount}
+      accessibilityLabel={`${amount > 0 ? "Dodaj" : "Odejmij"} ${Math.abs(amount).toFixed(2)} palety`}
+      accessibilityRole="button"
+      onPress={() => adjustPallets(amount)}
+      disabled={palletsInProgress}
+      style={[
+        styles.palletSuggestion,
+        {
+          borderColor: palletsInProgress ? colors.disabledButBorder : colors.outButBorder,
+          backgroundColor: palletsInProgress ? colors.disabledButBackground : colors.outButBackground,
+        }
+      ]}
+    >
+      <Text
+        style={[
+          styles.palletSuggestionText,
+          { color: palletsInProgress ? colors.disabledButText : colors.outButText }
+        ]}
+      >
+        {amount > 0 ? "+" : ""}{amount.toFixed(2)}
+      </Text>
+    </TouchableOpacity>
+  );
+
   const goToInputPage = (page) => {
     const nextPage = Math.max(0, Math.min(1, page));
     setInputPage(nextPage);
@@ -129,16 +166,16 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
               showsVerticalScrollIndicator={false}
             >
               <View style={[styles.modalContent, { backgroundColor: colors.background }] }>
-                <View style={styles.modalHeaderSection}>
-                  <TouchableOpacity
-                    accessibilityLabel="Zamknij"
-                    accessibilityRole="button"
-                    onPress={handleClose}
-                    style={styles.closeButton}
-                  >
-                    <Text style={[styles.closeButtonText, { color: colors.text }]}>×</Text>
-                  </TouchableOpacity>
+                <TouchableOpacity
+                  accessibilityLabel="Zamknij"
+                  accessibilityRole="button"
+                  onPress={handleClose}
+                  style={styles.closeButton}
+                >
+                  <Text style={[styles.closeButtonText, { color: colors.text }]}>×</Text>
+                </TouchableOpacity>
 
+                <View style={styles.modalHeaderSection}>
                   <View style={styles.transportHeader}>
                     <View style={styles.transportHeaderIcon}>
                       <MaterialCommunityIcons
@@ -150,11 +187,23 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                         <MaterialCommunityIcons name="plus" size={15} color="#fff" />
                       </View>
                     </View>
-                    <Text style={[styles.title, { color: colors.text }]}>Nowy transport</Text>
+                    <View style={styles.transportHeaderText}>
+                      <Text style={[styles.title, { color: colors.text }]}>Nowy transport</Text>
+                      <Text style={[styles.description, { color: colors.textSecondary }]}>
+                        Uzupełnij dane transportu
+                      </Text>
+                    </View>
                   </View>
                 </View>
+                <View style={[styles.headerDivider, { backgroundColor: colors.border }]} />
 
                 <View style={styles.inputSection}>
+                  <View style={styles.inputSectionHeader}>
+                    <Text style={[styles.sectionLabel, { color: colors.text }]}>Dane transportu</Text>
+                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                      {inputPage + 1} z 2
+                    </Text>
+                  </View>
                   <View
                     style={[styles.inputPagerFrame, connectedShops && styles.inputPagerFrameConnected]}
                   >
@@ -187,50 +236,40 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                     <View style={[styles.inputPage, { width: inputPagerWidth || '100%' }]}>
                       <View style={styles.inputField}>
                         <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
-                        <TextInput
-                          style={[
-                            styles.inputSmall,
-                            {
-                              backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
-                              color: colors.text,
-                              borderColor: palletsInProgress ? 'red' : colors.border
-                            },
-                            !isPalletsValid && form.pallets && styles.inputError
-                          ]}
-                          value={form.pallets}
-                          onChangeText={(value) => handleChange("pallets", value)}
-                          onSubmitEditing={handleAdd}
-                          placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
-                          placeholderTextColor={palletsInProgress ? "red" : colors.phText}
-                          keyboardType="numeric"
-                          editable={!palletsInProgress}
-                        />
+                        <View style={styles.palletInputRow}>
+                          <View style={[styles.inputWithIcon, styles.palletInput]}>
+                            <MaterialCommunityIcons name="shipping-pallet" size={18} color={colors.inputIconColor} style={styles.inputIcon} />
+                            <TextInput
+                              style={[
+                                styles.inputSmall,
+                                styles.palletTextInput,
+                                {
+                                  backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
+                                  color: colors.text,
+                                  borderColor: palletsInProgress ? 'red' : colors.border
+                                },
+                                !isPalletsValid && form.pallets && styles.inputError
+                              ]}
+                              value={form.pallets}
+                              onChangeText={(value) => handleChange("pallets", value)}
+                              onSubmitEditing={handleAdd}
+                              placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
+                              placeholderTextColor={palletsInProgress ? "red" : colors.phText}
+                              keyboardType="numeric"
+                              editable={!palletsInProgress}
+                            />
+                          </View>
+                          {renderPalletAdjustmentChip(-0.25)}
+                          {renderPalletAdjustmentChip(0.25)}
+                        </View>
                         {!isPalletsValid && form.pallets && <Text style={styles.errorText}>Must be valid</Text>}
                       </View>
                       <View style={styles.inputField}>
                         <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep</Text>
-                        <TextInput
-                          ref={shopInputRef}
-                          style={[
-                            styles.inputSmall,
-                            {
-                              backgroundColor: colors.inputBackground,
-                              color: colors.text,
-                              borderColor: colors.border
-                            }
-                          ]}
-                          value={form.shop}
-                          onChangeText={(value) => handleInputChange("shop", value)}
-                          placeholder="Sklep"
-                          placeholderTextColor={colors.phText}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                      {connectedShops && (
-                        <View style={styles.inputField}>
-                          <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep 2</Text>
+                        <View style={styles.inputWithIcon}>
+                          <MaterialCommunityIcons name="store-outline" size={18} color={colors.inputIconColor} style={styles.inputIcon} />
                           <TextInput
-                            ref={secondShopInputRef}
+                            ref={shopInputRef}
                             style={[
                               styles.inputSmall,
                               {
@@ -239,39 +278,69 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                                 borderColor: colors.border
                               }
                             ]}
-                            value={form.secondShop}
-                            onChangeText={(value) => handleInputChange("secondShop", value)}
-                            placeholder="Sklep 2"
+                            value={form.shop}
+                            onChangeText={(value) => handleInputChange("shop", value)}
+                            placeholder="Sklep"
                             placeholderTextColor={colors.phText}
                             keyboardType="numeric"
                           />
+                        </View>
+                      </View>
+                      {connectedShops && (
+                        <View style={styles.inputField}>
+                          <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Sklep 2</Text>
+                          <View style={styles.inputWithIcon}>
+                            <MaterialCommunityIcons name="store-outline" size={18} color={colors.inputIconColor} style={styles.inputIcon} />
+                            <TextInput
+                              ref={secondShopInputRef}
+                              style={[
+                                styles.inputSmall,
+                                {
+                                  backgroundColor: colors.inputBackground,
+                                  color: colors.text,
+                                  borderColor: colors.border
+                                }
+                              ]}
+                              value={form.secondShop}
+                              onChangeText={(value) => handleInputChange("secondShop", value)}
+                              placeholder="Sklep 2"
+                              placeholderTextColor={colors.phText}
+                              keyboardType="numeric"
+                            />
+                          </View>
                         </View>
                       )}
                     </View>
                     <View style={[styles.inputPage, { width: inputPagerWidth || '100%' }]}>
                       <View style={styles.inputField}>
                         <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Brama</Text>
-                        <TextInput
-                          ref={gateInputRef}
-                          style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
-                          value={form.gate}
-                          onChangeText={(value) => handleInputChange("gate", value)}
-                          placeholder="Brama"
-                          placeholderTextColor={colors.phText}
-                          keyboardType="numeric"
-                        />
+                        <View style={styles.inputWithIcon}>
+                          <MaterialCommunityIcons name="gate" size={18} color={colors.inputIconColor} style={styles.inputIcon} />
+                          <TextInput
+                            ref={gateInputRef}
+                            style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
+                            value={form.gate}
+                            onChangeText={(value) => handleInputChange("gate", value)}
+                            placeholder="Brama"
+                            placeholderTextColor={colors.phText}
+                            keyboardType="numeric"
+                          />
+                        </View>
                       </View>
                       <View style={styles.inputField}>
                         <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Naczepa</Text>
-                        <TextInput
-                          ref={trailerInputRef}
-                          style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
-                          value={form.trailer}
-                          onChangeText={(value) => handleInputChange("trailer", value)}
-                          placeholder="Naczepa"
-                          placeholderTextColor={colors.phText}
-                          keyboardType="numeric"
-                        />
+                        <View style={styles.inputWithIcon}>
+                          <MaterialCommunityIcons name="truck-trailer" size={18} color={colors.inputIconColor} style={styles.inputIcon} />
+                          <TextInput
+                            ref={trailerInputRef}
+                            style={[styles.inputSmall, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.border }]}
+                            value={form.trailer}
+                            onChangeText={(value) => handleInputChange("trailer", value)}
+                            placeholder="Naczepa"
+                            placeholderTextColor={colors.phText}
+                            keyboardType="numeric"
+                          />
+                        </View>
                       </View>
                     </View>
                   </ScrollView>
@@ -299,9 +368,10 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                     ))}
                   </View>
                 </View>
+                <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
 
                 <View style={styles.actionsSection}>
-                  <Text style={[styles.palletSuggestionsTitle, { color: colors.textSecondary }]}>
+                  <Text style={[styles.sectionLabel, styles.palletSuggestionsTitle, { color: colors.text }]}>
                     Szybki wybór palet
                   </Text>
                   <View style={styles.palletSuggestions}>
@@ -434,6 +504,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
   },
   modalContent: {
+    position: 'relative',
     borderRadius: 16,
     padding: 24,
     elevation: 8,
@@ -441,16 +512,38 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
-    paddingTop: 52,
+    paddingTop: 44,
   },
   modalHeaderSection: {
     position: 'relative',
   },
+  headerDivider: {
+    height: 1,
+    marginHorizontal: 36,
+    marginBottom: 8,
+  },
+  sectionDivider: {
+    height: 1,
+    marginHorizontal: 36,
+    marginVertical: 14,
+  },
   inputSection: {
     width: '100%',
+    paddingTop: 12,
+  },
+  inputSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginHorizontal: 36,
+    marginBottom: 12,
+  },
+  sectionLabel: {
+    fontSize: 15,
+    fontWeight: '600',
   },
   actionsSection: {
-    width: '100%',
+    marginHorizontal: 36,
   },
   closeButton: {
     position: 'absolute',
@@ -468,18 +561,25 @@ const styles = StyleSheet.create({
     lineHeight: 32,
   },
   transportHeader: {
-    minHeight: 112,
+    minHeight: 76,
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 14,
-    paddingHorizontal: 36,
+    justifyContent: 'flex-start',
+    marginBottom: 0,
+    paddingHorizontal: 20,
   },
   transportHeaderIcon: {
     width: 72,
     height: 76,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 2,
+    marginBottom: 0,
+  },
+  transportHeaderText: {
+    height: 76,
+    flex: 1,
+    justifyContent: 'center',
+    marginLeft: 12,
   },
   transportHeaderBadge: {
     position: 'absolute',
@@ -496,13 +596,13 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 20,
     fontWeight: 'bold',
-    textAlign: 'center',
-    marginBottom: 8,
+    textAlign: 'left',
+    marginBottom: 4,
   },
   description: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
+    fontSize: 14,
+    textAlign: 'left',
+    marginBottom: 0,
   },
   inputContainer: {
     marginBottom: 16,
@@ -535,7 +635,8 @@ const styles = StyleSheet.create({
   },
   addButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingTop: 18,
+    paddingBottom: 12,
     paddingHorizontal: 20,
     borderRadius: 8,
   },
@@ -559,7 +660,6 @@ const styles = StyleSheet.create({
   inputPagerFrame: {
     height: 190,
     position: 'relative',
-    marginBottom: 16,
   },
   inputPagerFrameConnected: {
     height: 230,
@@ -588,10 +688,10 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   chevronLeft: {
-    left: 0,
+    left: -8,
   },
   chevronRight: {
-    right: 0,
+    right: -8,
   },
   chevronButtonDisabled: {
     opacity: 0.55,
@@ -601,8 +701,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     gap: 7,
-    marginTop: -4,
-    marginBottom: 12,
+    marginTop: 10,
+    marginBottom: 10,
   },
   pageDot: {
     width: 7,
@@ -628,12 +728,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
+    height: 46,
     padding: 10,
+    paddingLeft: 36,
     fontSize: 14,
   },
+  inputWithIcon: {
+    position: 'relative',
+  },
+  inputIcon: {
+    position: 'absolute',
+    left: 10,
+    top: 14,
+    zIndex: 1,
+  },
   palletSuggestionsTitle: {
-    fontSize: 12,
-    fontWeight: '600',
     marginTop: -4,
     marginBottom: 8,
   },
@@ -643,6 +752,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: 8,
     marginBottom: 12,
+  },
+  palletInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  palletInput: {
+    flex: 1,
+  },
+  palletTextInput: {
+    paddingLeft: 10,
+    textAlign: 'center',
   },
   palletSuggestion: {
     minWidth: 52,

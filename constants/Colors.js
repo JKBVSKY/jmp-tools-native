@@ -44,6 +44,7 @@ export const Colors = {
     breakLine: '#3F4144',        // Gray break line
     grayIconColor: '#a6a6b1',        // Gray icons
     iconColor: '#9AA0A6',        // Light gray icons
+    inputIconColor: '#4B4F54',   // Dark gray icons inside inputs
     sIconColor: '#e3452d',        // Red icons
     inputBackground: '#292A2D',
     inputBorder: '#5F6368',
@@ -101,6 +102,7 @@ export const Colors = {
     breakLine: '#DADCE0',        // Light gray line
     grayIconColor: '#968c8c',        // Gray icons
     iconColor: '#e3452d',        // Red icons
+    inputIconColor: '#6B7280',   // Dark gray icons inside inputs
     sIconColor: '#e3452d',        // Red icons
     inputBackground: '#FFFFFF',
     inputBorder: '#DADCE0',
