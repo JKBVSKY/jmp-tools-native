@@ -31,7 +31,7 @@ export async function getCacheEntry(domain, userId) {
 }
 
 export async function setCacheEntry(domain, userId, data) {
-  if (!domain || !userId) return;
+  if (!domain || !userId) return false;
   const entry = {
     version: CACHE_VERSION,
     userId,
@@ -40,8 +40,10 @@ export async function setCacheEntry(domain, userId, data) {
   };
   try {
     await AsyncStorage.setItem(buildKey(domain, userId), JSON.stringify(entry));
+    return true;
   } catch (error) {
     console.warn(`cacheStore: failed to write "${domain}" cache for ${userId}:`, error);
+    return false;
   }
 }
 

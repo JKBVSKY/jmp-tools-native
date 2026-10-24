@@ -7,13 +7,19 @@ import Results from "./shared/Results";
 import Picking from './picking/picking';
 import PickingResults from './picking/PickingResults';
 import { useCalculator } from "../../context/CalculatorContext";
+import { useTimetable } from "../../context/TimetableContext";
 import { getAutoStartTime } from "./shared/utils";
 import { useColors } from '../../hooks/useColors';
 import { getAutoForcedFinishTime } from '../../utils/timeUtils';
+import { appAlert } from '../../utils/crossPlatformAlert';
+import { isSessionStartAllowed } from '../../utils/timetableAvailability';
 
 export default function Calculator() {
   const calc = useCalculator();
+  const { getCurrentSnapshot } = useTimetable();
   const colors = useColors();
+  const startInProgressRef = React.useRef(false);
+  const currentModeRef = React.useRef(calc.mode);
   const forcedFinishTime = calc.forcedFinishTime;
   const setForcedFinishTime = (time) => calc.updateState({ forcedFinishTime: time });
   const setInitStartTime = (time) => calc.updateState({
@@ -25,55 +31,87 @@ export default function Calculator() {
 
   const sessionType = calc.sessionType || 'truck-loading';
 
+  React.useLayoutEffect(() => {
+    const previousMode = currentModeRef.current;
+    currentModeRef.current = calc.mode;
+    if (previousMode !== 'init' && calc.mode === 'init') {
+      startInProgressRef.current = false;
+    }
+  }, [calc.mode]);
+
   const handleStartSession = React.useCallback((config = {}) => {
-    const initialPickingSubsection = (config.initialPickingSubsection || '').trim().toUpperCase();
-    const hasInitialPickingSubsection = Boolean(initialPickingSubsection);
-
-    const sharedStartState = {
-      mode: 'working',
-      sessionStatus: 'active',
-      endTime: null,
-      sessionTime: 0,
-      sessionXPEarned: 0,
-      isPaused: false,
-      pauseStart: null,
-      totalPausedTime: 0,
-    };
-
-    if (sessionType === 'picking') {
-      const initialStartTimestamp = calc.startTime || Date.now();
-      calc.updateState({
-        ...sharedStartState,
-        boxesCount: 0,
-        ordersCount: 0,
-        subsection: initialPickingSubsection,
-        boxesRateGoal: 0,
-        pickingSubsectionGoals: hasInitialPickingSubsection ? { [initialPickingSubsection]: 0 } : {},
-        pickingSubsectionStats: {},
-        activePickingSubsection: hasInitialPickingSubsection ? initialPickingSubsection : null,
-        activePickingStartedAt: hasInitialPickingSubsection ? initialStartTimestamp : null,
-        trucks: [],
-        trucksHistory: [],
-        nextTruckId: 1,
-      });
+    if (currentModeRef.current !== 'init' || startInProgressRef.current) {
       return;
     }
 
-    calc.updateState({
-      ...sharedStartState,
-      trucks: [],
-      trucksHistory: [],
-      nextTruckId: 1,
-      boxesCount: 0,
-      ordersCount: 0,
-      subsection: '',
-      boxesRateGoal: 0,
-      pickingSubsectionGoals: {},
-      pickingSubsectionStats: {},
-      activePickingSubsection: null,
-      activePickingStartedAt: null,
-    });
-  }, [calc, sessionType]);
+    startInProgressRef.current = true;
+
+    try {
+      const { schedule, isReady } = getCurrentSnapshot();
+      if (!isSessionStartAllowed(schedule, isReady, new Date())) {
+        startInProgressRef.current = false;
+        appAlert(
+          'Nie można rozpocząć sesji',
+          'Nową sesję można rozpocząć tylko podczas zaplanowanej zmiany roboczej.'
+        );
+        return;
+      }
+
+      const initialPickingSubsection = (config.initialPickingSubsection || '').trim().toUpperCase();
+      const hasInitialPickingSubsection = Boolean(initialPickingSubsection);
+
+      const sharedStartState = {
+        mode: 'working',
+        sessionStatus: 'active',
+        endTime: null,
+        sessionTime: 0,
+        sessionXPEarned: 0,
+        isPaused: false,
+        pauseStart: null,
+        totalPausedTime: 0,
+      };
+
+      if (sessionType === 'picking') {
+        const initialStartTimestamp = calc.startTime || Date.now();
+        calc.updateState({
+          ...sharedStartState,
+          boxesCount: 0,
+          ordersCount: 0,
+          subsection: initialPickingSubsection,
+          boxesRateGoal: 0,
+          pickingSubsectionGoals: hasInitialPickingSubsection ? { [initialPickingSubsection]: 0 } : {},
+          pickingSubsectionStats: {},
+          activePickingSubsection: hasInitialPickingSubsection ? initialPickingSubsection : null,
+          activePickingStartedAt: hasInitialPickingSubsection ? initialStartTimestamp : null,
+          trucks: [],
+          trucksHistory: [],
+          nextTruckId: 1,
+        });
+        currentModeRef.current = 'working';
+        return;
+      }
+
+      calc.updateState({
+        ...sharedStartState,
+        trucks: [],
+        trucksHistory: [],
+        nextTruckId: 1,
+        boxesCount: 0,
+        ordersCount: 0,
+        subsection: '',
+        boxesRateGoal: 0,
+        pickingSubsectionGoals: {},
+        pickingSubsectionStats: {},
+        activePickingSubsection: null,
+        activePickingStartedAt: null,
+      });
+      currentModeRef.current = 'working';
+    } catch (error) {
+      startInProgressRef.current = false;
+      console.error('Failed to start session:', error);
+      appAlert('Błąd', 'Nie udało się rozpocząć sesji. Spróbuj ponownie.');
+    }
+  }, [calc, getCurrentSnapshot, sessionType]);
 
   // This runs when the screen comes into focus
   useFocusEffect(
@@ -111,8 +149,6 @@ export default function Calculator() {
     ]}>
       {calc.mode === "init" && (
         <Init
-          changeMode={changeMode}
-          calcUpdateState={calc.updateState}
           onStartSession={handleStartSession}
           setStartTime={setInitStartTime}
           startTime={calc.startTime || getAutoStartTime()}

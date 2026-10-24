@@ -7,6 +7,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { CalculatorProvider } from '../context/CalculatorContext';
+import { TimetableProvider } from '../context/TimetableContext';
 import { ThemeProvider, useThemeContext } from '../context/ThemeContext';
 import { UserProfileProvider, useUserProfile } from '../context/UserProfileContext';
 import { useColors } from '../hooks/useColors';
@@ -192,9 +193,11 @@ export default function RootLayout() {
           <ThemeProvider>
             <AuthProvider>
               <UserProfileProvider>
-                <CalculatorProvider>
-                  <RootNavigator />
-                </CalculatorProvider>
+                <TimetableProvider>
+                  <CalculatorProvider>
+                    <RootNavigator />
+                  </CalculatorProvider>
+                </TimetableProvider>
               </UserProfileProvider>
             </AuthProvider>
           </ThemeProvider>

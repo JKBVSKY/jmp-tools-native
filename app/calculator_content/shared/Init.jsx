@@ -15,12 +15,10 @@ import Clock from "./Clock";
 const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
 
 export default function Init({
-  changeMode,
   setStartTime,
   startTime,
   forcedFinishTime,
   setForcedFinishTime,
-  calcUpdateState,
   onStartSession,
   sessionType = 'truck-loading',
   initialPickingSubsection = '',
@@ -76,18 +74,14 @@ export default function Init({
       return;
     }
 
-    if (onStartSession) {
-      onStartSession({
-        initialPickingSubsection: isPickingSession ? selectedPickingSubsection : '',
-      });
+    if (typeof onStartSession !== 'function') {
+      console.error('Init requires an onStartSession handler.');
       return;
     }
 
-    calcUpdateState({  // ✅ Use the prop passed from Calculator
-      sessionStatus: 'active',
-      subsection: isPickingSession ? selectedPickingSubsection : '',
+    onStartSession({
+      initialPickingSubsection: isPickingSession ? selectedPickingSubsection : '',
     });
-    changeMode("working");
   };
 
   return (

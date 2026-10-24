@@ -29,21 +29,14 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useColors } from "../../hooks/useColors";
 import { useAuth } from "../../context/AuthContext";
 import { useUserProfile } from "../../context/UserProfileContext";
-import { doc, onSnapshot, serverTimestamp, setDoc } from 'firebase/firestore';
-import { db } from '../../firebase/config';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNetwork } from '../../services/useNetwork';
-import { getCacheEntry, setCacheEntry } from '../../services/cache/cacheStore';
+import { useTimetable } from '../../context/TimetableContext';
 import {
     ensureNotificationPermissionsAsync,
     getAllFutureWorkShifts,
     scheduleTestNotificationAsync,
     scheduleShiftReminderAsync,
 } from '../../services/NotificationService';
-
-const STORAGE_KEY = '@jmp_tools_timetable';
-const MIGRATED_USER_KEY = '@jmp_tools_timetable_migrated_user';
-const TIMETABLE_CACHE_DOMAIN = 'timetable';
 
 const MONTHS = [
     'styczeń',
@@ -101,19 +94,15 @@ const Timetable = () => {
     const colors = useColors();
     const { user, isGuest } = useAuth();
     const { profile, isLoading: profileLoading } = useUserProfile();
-    const { isOffline } = useNetwork();
+    const {
+        schedule,
+        loading,
+        saveSchedule: saveTimetableSchedule,
+    } = useTimetable();
     const insets = useSafeAreaInsets();
 
     const [currentDate, setCurrentDate] = useState(new Date());
 
-    const [schedule, setSchedule] = useState({});
-
-    const [loading, setLoading] = useState(true);
-
-    // True while a locally-changed schedule hasn't been confirmed by Firestore yet;
-    // guards against an incoming (stale) snapshot overwriting it.
-    const pendingSyncRef = useRef(false);
-    const timetableUnsubscribeRef = useRef(null);
     const profileRef = useRef(profile);
     profileRef.current = profile;
 
@@ -498,6 +487,42 @@ const Timetable = () => {
         return scheduleShiftReminderAsync(user.id, schedule, profileRef.current);
     };
 
+    const persistSchedule = async (newSchedule) => {
+        const result = await saveTimetableSchedule(newSchedule);
+        if (!result.localSaved) {
+            if (result.reason === 'not-ready') {
+                Alert.alert(
+                    'Grafik niedostępny',
+                    'Poczekaj, aż grafik zostanie wczytany, i spróbuj ponownie.'
+                );
+            } else {
+                Alert.alert(
+                    'Błąd zapisu',
+                    'Nie udało się bezpiecznie zachować grafiku na urządzeniu. Zmiana pozostaje w pamięci bieżącej sesji; spróbuj zapisać ją ponownie.'
+                );
+            }
+            return false;
+        }
+
+        if (result.syncStatus === 'firestore-error') {
+            Alert.alert(
+                'Synchronizacja nieudana',
+                'Grafik został zapisany na urządzeniu, ale nie udało się zsynchronizować go z Firestore. Zmiana pozostaje oczekująca i zostanie ponowiona.'
+            );
+            return false;
+        }
+
+        if (result.syncStatus === 'cache-error') {
+            Alert.alert(
+                'Synchronizacja niepotwierdzona',
+                'Grafik został zapisany na urządzeniu, ale nie udało się potwierdzić zakończenia synchronizacji. Zmiana pozostaje oczekująca i zostanie ponowiona.'
+            );
+            return false;
+        }
+
+        return result.syncStatus !== 'stale';
+    };
+
     useEffect(() => {
         if (isGuest || !user?.id || profileLoading || loading || !profile) return;
 
@@ -575,222 +600,6 @@ const Timetable = () => {
             lastDragDayRef.current = null;
             setIsDraggingSelection(false);
         });
-
-    /*
-     * --------------------------------------------------
-     * LEGACY MIGRATION (AsyncStorage -> Firestore)
-     * --------------------------------------------------
-     */
-
-    // Only called when users/{userId}/timetable/current is server-confirmed absent.
-    const migrateLegacyTimetableIfNeeded = async (userId) => {
-        const timetableRef = doc(db, 'users', userId, 'timetable', 'current');
-
-        try {
-            const migratedUserId = await AsyncStorage.getItem(MIGRATED_USER_KEY);
-            const legacyRaw = await AsyncStorage.getItem(STORAGE_KEY);
-
-            if (!legacyRaw || (migratedUserId && migratedUserId !== userId)) {
-                // Nothing to migrate for this user, or legacy data belongs to a different account.
-                await setDoc(timetableRef, { schedule: {}, updatedAt: serverTimestamp() });
-                await setCacheEntry(TIMETABLE_CACHE_DOMAIN, userId, { schedule: {}, pendingSync: false });
-                return;
-            }
-
-            const legacySchedule = JSON.parse(legacyRaw);
-
-            await setDoc(timetableRef, { schedule: legacySchedule, updatedAt: serverTimestamp() });
-
-            // Only after the Firestore write is confirmed do we mark migration done and drop legacy data.
-            await AsyncStorage.setItem(MIGRATED_USER_KEY, userId);
-            await setCacheEntry(TIMETABLE_CACHE_DOMAIN, userId, { schedule: legacySchedule, pendingSync: false });
-            await AsyncStorage.removeItem(STORAGE_KEY);
-        } catch (error) {
-            console.error('Error migrating legacy timetable:', error);
-            // Leave legacy AsyncStorage untouched so migration can be retried on next launch.
-        }
-    };
-
-    /*
-     * --------------------------------------------------
-     * LOAD (cache-first + Firestore live sync)
-     * --------------------------------------------------
-     */
-
-    useEffect(() => {
-        if (isGuest || !user?.id) {
-            setLoading(false);
-            return;
-        }
-
-        const userId = user.id;
-        let isMounted = true;
-        pendingSyncRef.current = false;
-        const handleTimetableSnapshot = async (snapshot) => {
-            if (!isMounted) return;
-
-            if (!snapshot.exists()) {
-                if (snapshot.metadata.fromCache) {
-                    // Inconclusive local-only read - wait for a server-confirmed snapshot before migrating.
-                    return;
-                }
-                await migrateLegacyTimetableIfNeeded(userId);
-                if (isMounted) setLoading(false);
-                return;
-            }
-
-            if (pendingSyncRef.current) {
-                // A not-yet-synced local change exists - never let an incoming snapshot overwrite it.
-                setLoading(false);
-                return;
-            }
-
-            const remoteSchedule = snapshot.data()?.schedule || {};
-            setSchedule(remoteSchedule);
-            setLoading(false);
-            setCacheEntry(TIMETABLE_CACHE_DOMAIN, userId, { schedule: remoteSchedule, pendingSync: false }).catch(() => {});
-
-            scheduleShiftReminder(remoteSchedule).catch((error) =>
-                console.error('Error scheduling shift reminder:', error)
-            );
-        };
-
-        const loadFromCache = async () => {
-            try {
-                const cached = await getCacheEntry(TIMETABLE_CACHE_DOMAIN, userId);
-                if (!isMounted) return;
-                if (cached?.data) {
-                    setSchedule(cached.data.schedule || {});
-                    pendingSyncRef.current = Boolean(cached.data.pendingSync);
-                    setLoading(false);
-
-                    scheduleShiftReminder(cached.data.schedule || {}).catch((error) =>
-                        console.error('Error scheduling shift reminder:', error)
-                    );
-                }
-            } catch (error) {
-                console.error('Error loading timetable cache:', error);
-            }
-        };
-
-        loadFromCache().finally(() => {
-            if (!isMounted) return;
-            const timetableRef = doc(db, 'users', userId, 'timetable', 'current');
-            timetableUnsubscribeRef.current = onSnapshot(
-                timetableRef,
-                handleTimetableSnapshot,
-                (error) => {
-                    console.error('Error observing timetable:', error);
-                    // Offline/unavailable - cache (if any) remains the source of truth for the UI.
-                    if (isMounted) setLoading(false);
-                }
-            );
-        });
-
-        return () => {
-            isMounted = false;
-            if (timetableUnsubscribeRef.current) {
-                timetableUnsubscribeRef.current();
-                timetableUnsubscribeRef.current = null;
-            }
-        };
-    }, [isGuest, user?.id]);
-
-    /*
-     * --------------------------------------------------
-     * RECONNECT: flush a pending offline schedule change
-     * --------------------------------------------------
-     */
-
-    useEffect(() => {
-        if (isGuest || !user?.id || isOffline) return;
-
-        const userId = user.id;
-        let isMounted = true;
-
-        const flushPendingSync = async () => {
-            try {
-                const cached = await getCacheEntry(TIMETABLE_CACHE_DOMAIN, userId);
-                if (!isMounted || !cached?.data?.pendingSync) return;
-
-                const pendingSchedule = cached.data.schedule || {};
-
-                await setDoc(doc(db, 'users', userId, 'timetable', 'current'), {
-                    schedule: pendingSchedule,
-                    updatedAt: serverTimestamp(),
-                });
-
-                if (!isMounted) return;
-                pendingSyncRef.current = false;
-                await setCacheEntry(TIMETABLE_CACHE_DOMAIN, userId, { schedule: pendingSchedule, pendingSync: false });
-            } catch (error) {
-                console.error('Error syncing pending timetable changes on reconnect:', error);
-                // Leave pendingSync: true so the next reconnect (or save) retries - no aggressive retry loop.
-            }
-        };
-
-        flushPendingSync();
-
-        return () => {
-            isMounted = false;
-        };
-    }, [isOffline, isGuest, user?.id]);
-
-    /*
-     * --------------------------------------------------
-     * SAVE
-     * --------------------------------------------------
-     */
-
-    const saveSchedule = async (newSchedule) => {
-        setSchedule(newSchedule);
-
-        if (isGuest || !user?.id) {
-            // Guest: unchanged, purely local behavior, no Firestore/cache involved.
-            try {
-                await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newSchedule));
-                await scheduleShiftReminder(newSchedule);
-            } catch (error) {
-                console.error('Error saving timetable:', error);
-                Alert.alert('Błąd', 'Nie udało się zapisać grafiku.');
-            }
-            return;
-        }
-
-        const userId = user.id;
-        pendingSyncRef.current = true;
-
-        try {
-            await setCacheEntry(TIMETABLE_CACHE_DOMAIN, userId, { schedule: newSchedule, pendingSync: true });
-        } catch (error) {
-            console.error('Error caching timetable:', error);
-        }
-
-        if (isOffline) {
-            // Offline is not an error - the schedule stays cached with pendingSync: true for the next reconnect.
-            await scheduleShiftReminder(newSchedule);
-            return;
-        }
-
-        try {
-            await setDoc(doc(db, 'users', userId, 'timetable', 'current'), {
-                schedule: newSchedule,
-                updatedAt: serverTimestamp(),
-            });
-
-            pendingSyncRef.current = false;
-            await setCacheEntry(TIMETABLE_CACHE_DOMAIN, userId, { schedule: newSchedule, pendingSync: false });
-        } catch (error) {
-            console.error('Error saving timetable:', error);
-
-            Alert.alert(
-                'Błąd',
-                'Nie udało się zapisać grafiku.'
-            );
-        }
-
-        await scheduleShiftReminder(newSchedule);
-    };
 
     /*
      * --------------------------------------------------
@@ -994,7 +803,8 @@ const Timetable = () => {
                 newSchedule[key] = entry;
             });
 
-            await saveSchedule(newSchedule);
+            const saved = await persistSchedule(newSchedule);
+            if (!saved) return;
 
             setModalVisible(false);
             setSelectedDays([]);
@@ -1025,7 +835,8 @@ const Timetable = () => {
             [key]: entry,
         };
 
-        await saveSchedule(newSchedule);
+        const saved = await persistSchedule(newSchedule);
+        if (!saved) return;
 
         setModalVisible(false);
     };
@@ -1061,7 +872,8 @@ const Timetable = () => {
 
                         delete newSchedule[key];
 
-                        await saveSchedule(newSchedule);
+                        const saved = await persistSchedule(newSchedule);
+                        if (!saved) return;
 
                         setModalVisible(false);
                     },
@@ -1792,7 +1604,8 @@ const Timetable = () => {
                 newSchedule[key] = entry;
             });
 
-            await saveSchedule(newSchedule);
+            const saved = await persistSchedule(newSchedule);
+            if (!saved) return;
             setMassShiftModalVisible(false);
             setSelectedDays([]);
             setSelectionMode(false);
