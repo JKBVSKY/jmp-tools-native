@@ -14,6 +14,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from '../../../hooks/useColors';
 import DismissibleModalBackdrop from "../../../components/DismissibleModalBackdrop";
+import { normalizeTransportInput } from "../shared/transportInputValidation";
 
 export default function EditTruckModal({ visible, truck, onClose, onSave }) {
   const colors = useColors();
@@ -114,8 +115,10 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
   };
 
   const handleInputChange = (name, value) => {
-    // Update form value
-    handleChange(name, value);
+    const normalizedValue = normalizeTransportInput(name, value);
+    if (normalizedValue !== null) {
+      handleChange(name, normalizedValue);
+    }
   };
 
   const adjustPallets = (amount) => {
@@ -351,6 +354,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                             placeholder="Sklep"
                             placeholderTextColor={colors.phText}
                             keyboardType="numeric"
+                            maxLength={4}
                           />
                         </View>
                       </View>
@@ -367,6 +371,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                               placeholder="Sklep 2"
                               placeholderTextColor={colors.phText}
                               keyboardType="numeric"
+                              maxLength={4}
                             />
                           </View>
                         </View>
@@ -385,6 +390,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                             placeholder="Brama"
                             placeholderTextColor={colors.phText}
                             keyboardType="numeric"
+                            maxLength={2}
                           />
                         </View>
                       </View>
@@ -400,6 +406,7 @@ export default function EditTruckModal({ visible, truck, onClose, onSave }) {
                             placeholder="Naczepa"
                             placeholderTextColor={colors.phText}
                             keyboardType="numeric"
+                            maxLength={6}
                           />
                         </View>
                       </View>

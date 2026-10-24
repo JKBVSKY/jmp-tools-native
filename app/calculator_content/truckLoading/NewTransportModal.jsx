@@ -14,6 +14,7 @@ import {
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { useColors } from "../../../hooks/useColors";
 import DismissibleModalBackdrop from "../../../components/DismissibleModalBackdrop";
+import { normalizeTransportInput } from "../shared/transportInputValidation";
 
 export default function NewTransportModal({ visible, onClose, onAdd }) {
   const colors = useColors();
@@ -99,8 +100,10 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   };
 
   const handleInputChange = (name, value) => {
-    // Update form value
-    handleChange(name, value);
+    const normalizedValue = normalizeTransportInput(name, value);
+    if (normalizedValue !== null) {
+      handleChange(name, normalizedValue);
+    }
   };
 
   const adjustPallets = (amount) => {
@@ -342,6 +345,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                             placeholder="Sklep"
                             placeholderTextColor={colors.phText}
                             keyboardType="numeric"
+                            maxLength={4}
                           />
                         </View>
                       </View>
@@ -365,6 +369,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                               placeholder="Sklep 2"
                               placeholderTextColor={colors.phText}
                               keyboardType="numeric"
+                              maxLength={4}
                             />
                           </View>
                         </View>
@@ -383,6 +388,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                             placeholder="Brama"
                             placeholderTextColor={colors.phText}
                             keyboardType="numeric"
+                            maxLength={2}
                           />
                         </View>
                       </View>
@@ -398,6 +404,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                             placeholder="Naczepa"
                             placeholderTextColor={colors.phText}
                             keyboardType="numeric"
+                            maxLength={6}
                           />
                         </View>
                       </View>
