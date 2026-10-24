@@ -280,12 +280,18 @@ export default function TruckWorkingLayout(props) {
         {
             icon: <Ionicons name="speedometer" color={colors.iconColor} size={24} />,
             value: palletsRate,
-            onPress: () => setShowSessionInfoModal(true),
+            onPress: () => {
+                setExpandedTruckId(null);
+                setShowSessionInfoModal(true);
+            },
         },
         {
             icon: <MaterialCommunityIcons name="shipping-pallet" color={colors.iconColor} size={24} />,
             value: palletsLoaded,
-            onPress: () => setShowSessionInfoModal(true),
+            onPress: () => {
+                setExpandedTruckId(null);
+                setShowSessionInfoModal(true);
+            },
         },
         {
             icon: <Text style={{ color: colors.iconColor, fontWeight: '700', fontSize: 18 }}>XP</Text>,
@@ -301,12 +307,16 @@ export default function TruckWorkingLayout(props) {
                     second: '2-digit',
                 })
                 : '—',
-            onPress: () => setShowAdjustFinishTimeModal(true),
+            onPress: () => {
+                setExpandedTruckId(null);
+                setShowAdjustFinishTimeModal(true);
+            },
         },
     ];
 
     const handleFinishSession = () => {
         const now = Date.now();
+        setExpandedTruckId(null);
         // write endTime + mode directly into context
         calc.updateState({
             endTime: now,
@@ -359,7 +369,12 @@ export default function TruckWorkingLayout(props) {
                     {
                         text: 'Usuń',
                         style: 'destructive',
-                        onPress: () => handleRemoveTruck(truckToRemove.id),
+                        onPress: () => {
+                            if (expandedTruckId === truckToRemove.id) {
+                                setExpandedTruckId(null);
+                            }
+                            handleRemoveTruck(truckToRemove.id);
+                        },
                     },
                 ],
             );
@@ -416,14 +431,20 @@ export default function TruckWorkingLayout(props) {
                             <View style={styles.expandedActions}>
                                 <TouchableOpacity
                                     accessibilityLabel="Zgłoś problem"
-                                    onPress={() => openReport(truck)}
+                                    onPress={() => {
+                                        setExpandedTruckId(null);
+                                        openReport(truck);
+                                    }}
                                     style={[styles.actionButton, { borderColor: colors.border }]}
                                 >
                                     <MaterialIcons name="report-problem" size={19} color={colors.text} />
                                 </TouchableOpacity>
                                 <TouchableOpacity
                                     accessibilityLabel="Edytuj transport"
-                                    onPress={() => setEditingTruck(truck)}
+                                    onPress={() => {
+                                        setExpandedTruckId(null);
+                                        setEditingTruck(truck);
+                                    }}
                                     style={[styles.actionButton, { borderColor: colors.border }]}
                                 >
                                     <MaterialCommunityIcons name="pencil-outline" size={19} color={colors.text} />
@@ -580,14 +601,22 @@ export default function TruckWorkingLayout(props) {
                             <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
                                 {trucks.length} aktywne · {trucksHistory.length} ukończone · {allTrucks.length} wszystkie
                             </Text>
-                            <TouchableOpacity onPress={() => setShowSessionInfoModal(true)}>
+                            <TouchableOpacity
+                                onPress={() => {
+                                    setExpandedTruckId(null);
+                                    setShowSessionInfoModal(true);
+                                }}
+                            >
                                 <Text style={[styles.sessionDetailsLink, { color: colors.outButText }]}>ⓘ Szczegóły sesji</Text>
                             </TouchableOpacity>
                         </View>
                         <TouchableOpacity
                             accessibilityLabel="Dodaj transport"
                             style={[styles.btnOutline, { backgroundColor: colors.outButBackground, borderColor: colors.outButBorder, marginTop: 16 }]}
-                            onPress={() => setShowNewTransportModal(true)}
+                            onPress={() => {
+                                setExpandedTruckId(null);
+                                setShowNewTransportModal(true);
+                            }}
                         >
                             <Ionicons name="add-outline" size={24} color={colors.outButText} />
                         </TouchableOpacity>
@@ -599,7 +628,10 @@ export default function TruckWorkingLayout(props) {
             <SessionActionBar
                 isPaused={isPaused}
                 onResume={handleResume}
-                onPause={() => setShowPauseModal(true)}
+                onPause={() => {
+                    setExpandedTruckId(null);
+                    setShowPauseModal(true);
+                }}
                 onFinish={handleFinishSession}
                 colors={colors}
                 bottomInset={insets.bottom}
