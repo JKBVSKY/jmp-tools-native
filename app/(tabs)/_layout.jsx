@@ -166,8 +166,9 @@ export default function TabLayout() {
         {/* Main content with Tabs. On web, tab bar is hidden; navigation is via sidebar. */}
         <View style={{ flex: 1 }}>
           <Tabs
+            initialRouteName="index"
+            backBehavior="initialRoute"
             screenOptions={{
-              initialRouteName: 'index',
               headerShown: false,
               tabBarActiveTintColor: 'red',
               tabBarInactiveTintColor: colors.tabInactive || '#9ca3af',
