@@ -2,17 +2,19 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { collection, doc, getDoc, getDocsFromServer, orderBy, query } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ThemedCard from '../../components/ThemedCard';
 import ThemedView from '../../components/ThemedView';
-import { ACHIEVEMENTS, calculateLevelFromXP } from '../../constants/LevelSystem';
+import { calculateLevelFromXP } from '../../constants/LevelSystem';
 import { useAuth } from '../../context/AuthContext';
 import { useCalculator } from '../../context/CalculatorContext';
+import { useThemeContext } from '../../context/ThemeContext';
 import { useUserProfile } from '../../context/UserProfileContext';
 import { db } from '../../firebase/config';
 import { useAutoHorizontalScroll } from '../../hooks/useAutoHorizontalScroll';
@@ -32,11 +34,181 @@ const calculateSummary = (sessionsArray) => {
   return { totalPallets, totalTime, averageRate };
 };
 
+const AVERAGE_CHART_DATA = {
+  today: {
+    label: 'Dzisiaj',
+    values: [38, 45, 34, 49, 41, 36, 47, 32, 44, 39],
+    labels: Array(10).fill('00:00'),
+  },
+  week: {
+    label: 'Tydzień',
+    values: [42, 35, 48, 39, 45, 33, 50],
+    labels: ['pon', 'wt', 'śr', 'czw', 'pt', 'sob', 'nd'],
+  },
+  month: {
+    label: 'Miesiąc',
+    values: [36, 44, 39, 48, 32, 45, 41, 37, 49, 34, 43, 38, 46, 31, 50, 40, 35, 47, 42, 33],
+    labels: Array.from({ length: 20 }, (_, index) => String(index + 1)),
+  },
+  year: {
+    label: 'Rok',
+    values: [45, 38, 49, 34, 42, 36, 48, 40, 33, 46, 39, 50],
+    labels: ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'],
+  },
+};
+
+const MONTHLY_CARD_PALETTE = {
+  light: {
+    background: '#FFFDFC',
+    surface: '#F4F3F1',
+    border: '#E3E4E8',
+    text: '#202226',
+    textSecondary: '#737780',
+    bar: '#647C89',
+    barBottom: '#34454D',
+    highlightedBar: '#F0785F',
+  },
+  dark: {
+    background: '#292C31',
+    surface: '#202226',
+    border: '#383B40',
+    text: '#F3F4F6',
+    textSecondary: '#A5A9B1',
+    bar: '#8499A5',
+    barBottom: '#202226',
+    highlightedBar: '#F0785F',
+  },
+};
+
+function AverageChartTabs({ selectedPeriod, onSelectPeriod, palette }) {
+  return (
+    <View style={[styles.averageChartTabs, { backgroundColor: palette.surface }]}>
+      {Object.entries(AVERAGE_CHART_DATA).map(([period, { label }]) => {
+        const isSelected = selectedPeriod === period;
+        return (
+          <Pressable
+            key={period}
+            onPress={() => onSelectPeriod(period)}
+            style={[
+              styles.averageChartTab,
+              isSelected && styles.averageChartTabSelected,
+              isSelected && {
+                backgroundColor: palette.background,
+                borderColor: palette.border,
+              },
+            ]}
+          >
+            <Text
+              style={[
+                styles.averageChartTabText,
+                { color: isSelected ? palette.text : palette.textSecondary },
+              ]}
+              numberOfLines={1}
+            >
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
+function AverageBarChart({ selectedPeriod, palette }) {
+  const chartData = AVERAGE_CHART_DATA[selectedPeriod];
+  const [plotHeight, setPlotHeight] = useState(0);
+  const [selectedBarIndex, setSelectedBarIndex] = useState(null);
+  useEffect(() => {
+    setSelectedBarIndex(null);
+  }, [selectedPeriod]);
+
+  const labelFontSize = selectedPeriod === 'week'
+    ? 11
+    : selectedPeriod === 'year'
+      ? 9
+      : 8;
+  const handleBarAreaLayout = (event) => {
+    const nextHeight = Math.round(event.nativeEvent.layout.height);
+    if (nextHeight > 0) {
+      setPlotHeight((currentHeight) => (
+        currentHeight === nextHeight ? currentHeight : nextHeight
+      ));
+    }
+  };
+
+  return (
+    <View style={styles.averageChartBars}>
+      {chartData.values.map((value, index) => {
+        const isSelected = selectedBarIndex === index;
+        const barAreaHeight = Math.max(10, plotHeight - 14);
+        const barHeight = Math.max(
+          10,
+          barAreaHeight * (0.6 + ((value - 30) / 20) * 0.4)
+        );
+        return (
+          <View key={`${selectedPeriod}-${index}`} style={styles.averageChartColumn}>
+            <View
+              style={styles.averageChartBarArea}
+              onLayout={index === 0 ? handleBarAreaLayout : undefined}
+            >
+              {isSelected && (
+                <Text
+                  style={[
+                    styles.averageChartBarValue,
+                    {
+                      bottom: barHeight + 2,
+                      color: palette.highlightedBar,
+                    },
+                  ]}
+                >
+                  {value}
+                </Text>
+              )}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${chartData.labels[index]}: ${value}`}
+                accessibilityState={{ selected: isSelected }}
+                onPress={() => setSelectedBarIndex((currentIndex) => (
+                  currentIndex === index ? null : index
+                ))}
+                style={[styles.averageChartBarPressable, { height: barHeight }]}
+              >
+                <LinearGradient
+                  colors={isSelected
+                    ? [palette.highlightedBar, palette.highlightedBar]
+                    : [palette.bar, palette.barBottom]}
+                  start={{ x: 0.5, y: 0 }}
+                  end={{ x: 0.5, y: 1 }}
+                  style={styles.averageChartBar}
+                >
+                  {index === chartData.values.length - 1 && !isSelected && (
+                    <View style={[styles.averageChartBarHighlight, { backgroundColor: palette.highlightedBar }]} />
+                  )}
+                </LinearGradient>
+              </Pressable>
+            </View>
+            <Text
+              style={[
+                styles.averageChartLabel,
+                { color: palette.textSecondary, fontSize: labelFontSize },
+              ]}
+              numberOfLines={1}
+            >
+              {chartData.labels[index]}
+            </Text>
+          </View>
+        );
+      })}
+    </View>
+  );
+}
 
 
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const colors = useColors();
+  const { theme } = useThemeContext();
+  const monthlyCardPalette = MONTHLY_CARD_PALETTE[theme];
   const { user, isGuest, signOut } = useAuth();
   const { profile } = useUserProfile();
   const router = useRouter();
@@ -50,8 +222,8 @@ export default function Dashboard() {
   const [rank, setRank] = useState('-');
   const [pickingRanks, setPickingRanks] = useState({});
   const [selectedPickingSubsection, setSelectedPickingSubsection] = useState(null);
-  const [dashboardSectionsOrder, setDashboardSectionsOrder] = useState('truck-first');
-  const [dashboardSectionsVisibility, setDashboardSectionsVisibility] = useState('both');
+  const [selectedDashboardTab, setSelectedDashboardTab] = useState('truck');
+  const [averageChartPeriod, setAverageChartPeriod] = useState('week');
   const userId = user?.id;
 
   // Derive section visibility flags from user preferences
@@ -62,7 +234,6 @@ export default function Dashboard() {
   const CARD_SIZE = 140;
 
   const calc = useCalculator();
-  const isWeb = Platform.OS === 'web';
 
   const isSessionActive =
     calc.mode === 'working' ||
@@ -170,17 +341,9 @@ export default function Dashboard() {
   useEffect(() => {
     const loadDashboardPreferences = async () => {
       try {
-        const [storedOrder, storedVisibility] = await Promise.all([
-          AsyncStorage.getItem('dashboardSectionsOrder'),
-          AsyncStorage.getItem('dashboardSectionsVisibility'),
-        ]);
-
-        if (storedOrder === 'truck-first' || storedOrder === 'picking-first') {
-          setDashboardSectionsOrder(storedOrder);
-        }
-
-        if (storedVisibility === 'both' || storedVisibility === 'truck' || storedVisibility === 'picking') {
-          setDashboardSectionsVisibility(storedVisibility);
+        const storedTab = await AsyncStorage.getItem('dashboardSectionsVisibility');
+        if (storedTab === 'truck' || storedTab === 'picking') {
+          setSelectedDashboardTab(storedTab);
         }
       } catch (error) {
         console.error('Failed to load dashboard preferences:', error);
@@ -190,24 +353,13 @@ export default function Dashboard() {
     loadDashboardPreferences();
   }, []);
 
-  const handleSwapDashboardSections = async () => {
-    const nextOrder = dashboardSectionsOrder === 'truck-first' ? 'picking-first' : 'truck-first';
-    setDashboardSectionsOrder(nextOrder);
+  const handleDashboardTabChange = async (nextTab) => {
+    setSelectedDashboardTab(nextTab);
 
     try {
-      await AsyncStorage.setItem('dashboardSectionsOrder', nextOrder);
+      await AsyncStorage.setItem('dashboardSectionsVisibility', nextTab);
     } catch (error) {
-      console.error('Failed to persist dashboard sections order:', error);
-    }
-  };
-
-  const handleSetDashboardSectionsVisibility = async (nextVisibility) => {
-    setDashboardSectionsVisibility(nextVisibility);
-
-    try {
-      await AsyncStorage.setItem('dashboardSectionsVisibility', nextVisibility);
-    } catch (error) {
-      console.error('Failed to persist dashboard sections visibility:', error);
+      console.error('Failed to persist dashboard tab:', error);
     }
   };
 
@@ -408,9 +560,10 @@ export default function Dashboard() {
   const level = levelData.level;
   const currentXP = levelData.currentXP;
   const nextXP = levelData.xpToNextLevel;
-  const achievementsUnlocked = profile?.achievements?.length || 0;
-  const achievementsTotal = Object.values(ACHIEVEMENTS).length;
   const xpProgress = nextXP > 0 ? (currentXP / nextXP) * 100 : 0;
+  const unlockedAchievementsCount = Array.isArray(profile?.achievements)
+    ? profile.achievements.length
+    : 0;
 
   const formatTime = (seconds) => {
     const h = Math.floor(seconds / 3600);
@@ -452,31 +605,36 @@ export default function Dashboard() {
   const avatarUri = profile?.photoURL || 'https://via.placeholder.com/150/cccccc/ffffff?text=Avatar';
 
   const truckSummarySection = (
-    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}>
-        Załadunek
-      </Text>
-      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
-        Podsumowanie Twojej aktywności w tym miesiącu
-      </Text>
+    <View style={styles.summaryContainer}>
       <View style={styles.statsGrid}>
         <ThemedCard
-          style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
+          style={[
+            styles.statCardWide,
+            {
+              backgroundColor: monthlyCardPalette.background,
+              borderColor: monthlyCardPalette.border,
+            },
+          ]}
         >
-          <Ionicons
-            name="flash-outline"
-            size={28}
-            style={[
-              styles.cardIcon,
-              { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-            ]}
-          />
-          <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-            Średnia miesięczna
-          </Text>
-          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}>
-            {summary.averageRate.toFixed(2)} pal/h
-          </Text>
+          <View style={styles.monthlyAverageContent}>
+            <AverageChartTabs
+              selectedPeriod={averageChartPeriod}
+              onSelectPeriod={setAverageChartPeriod}
+              palette={monthlyCardPalette}
+            />
+            <View style={styles.monthlyAverageMetric}>
+              <Text style={[styles.monthlyAverageTitle, { color: monthlyCardPalette.text }]}>
+                Średnia miesięczna
+              </Text>
+              <Text style={[styles.monthlyAverageValue, { color: monthlyCardPalette.text }]}>
+                {summary.averageRate.toFixed(2)} pal/h
+              </Text>
+            </View>
+            <AverageBarChart
+              selectedPeriod={averageChartPeriod}
+              palette={monthlyCardPalette}
+            />
+          </View>
         </ThemedCard>
 
         <Animated.ScrollView
@@ -547,14 +705,7 @@ export default function Dashboard() {
   );
 
   const pickingSummarySection = (
-    <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-      <Text style={[styles.gridTitle, { color: colors.text, fontSize: 24 }]}>
-        Kompletacja
-      </Text>
-      <Text style={[styles.gridSubtitle, { color: colors.textSecondary }]}>
-        Podsumowanie Twojej aktywności w tym miesiącu
-      </Text>
-
+    <View style={styles.summaryContainer}>
       <View style={styles.pickingSubsectionSelector}>
         {PICKING_SUBSECTIONS.map((subsection) => {
           const isActive = activePickingSubsection === subsection;
@@ -578,22 +729,33 @@ export default function Dashboard() {
 
       <View style={styles.statsGrid}>
         <ThemedCard
-          style={[styles.statCardWide, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border }]}
+          style={[
+            styles.statCardWide,
+            {
+              backgroundColor: monthlyCardPalette.background,
+              borderColor: monthlyCardPalette.border,
+            },
+          ]}
         >
-          <Ionicons
-            name="flash-outline"
-            size={28}
-            style={[
-              styles.cardIcon,
-              { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-            ]}
-          />
-          <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-            Średnia miesięczna ({activePickingSubsection})
-          </Text>
-          <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 24 }]}>
-            {activePickingStats.boxesRate.toFixed(2)} pacz/h
-          </Text>
+          <View style={styles.monthlyAverageContent}>
+            <AverageChartTabs
+              selectedPeriod={averageChartPeriod}
+              onSelectPeriod={setAverageChartPeriod}
+              palette={monthlyCardPalette}
+            />
+            <View style={styles.monthlyAverageMetric}>
+              <Text style={[styles.monthlyAverageTitle, { color: monthlyCardPalette.text }]}>
+                Średnia miesięczna ({activePickingSubsection})
+              </Text>
+              <Text style={[styles.monthlyAverageValue, { color: monthlyCardPalette.text }]}>
+                {activePickingStats.boxesRate.toFixed(2)} pacz/h
+              </Text>
+            </View>
+            <AverageBarChart
+              selectedPeriod={averageChartPeriod}
+              palette={monthlyCardPalette}
+            />
+          </View>
         </ThemedCard>
 
         <Animated.ScrollView
@@ -694,179 +856,7 @@ export default function Dashboard() {
         </View>
       )}
 
-      {!isGuest && isWeb && (
-        // WEB DASHBOARD LAYOUT
-        <View style={styles.webRoot}>
-          <ScrollView
-            style={[
-              styles.webShell,
-              { backgroundColor: colors.navBackground, borderColor: colors.border },
-            ]}
-          >
-            {/* Top header row */}
-            <View style={[styles.webHeader, { borderBottomColor: colors.border }]}>
-              <View style={styles.webHeaderLeft}>
-                <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
-                  <Ionicons name="person-circle" size={72} color={colors.iconColor} />
-                </TouchableOpacity>
-                <View style={{ marginLeft: 16, flexShrink: 1 }}>
-                  <Text style={[styles.welcome, { color: colors.text, fontSize: 26 }]}>
-                    Witaj, {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}!
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>
-                    Produktywność na wyciągnięcie ręki.
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Main two‑column content */}
-            <View style={styles.webMain}>
-              {/* Left column – level card */}
-              <View style={styles.webLeftColumn}>
-                <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground }]}>
-                  <View>
-                    <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
-                    <Text style={[styles.achievements, { color: colors.textSecondary }]}>
-                      Osiągnięcia: {achievementsUnlocked} / {achievementsTotal}
-                    </Text>
-                  </View>
-                  <View style={styles.progressContainer}>
-                    <View
-                      style={[
-                        styles.progressBar,
-                        {
-                          backgroundColor: colors.inputBackground,
-                          borderColor: colors.border,
-                          borderWidth: 1,
-                        },
-                      ]}
-                    >
-                      <View
-                        style={[
-                          styles.progressFill,
-                          {
-                            backgroundColor: colors.iconColor,
-                            width: `${Math.min(xpProgress, 100)}%`,
-                          },
-                        ]}
-                      />
-                    </View>
-                    <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-                      {currentXP} / {nextXP} XP
-                    </Text>
-                  </View>
-                </ThemedCard>
-
-                {/* Session button under the card on web - DISABLED FOR WEB
-                <View style={{ marginTop: 24 }}>
-                  <TouchableOpacity
-                    onPress={handleSessionButtonPress}
-                    disabled={isSessionModalVisible}
-                    style={[
-                      styles.webStartButton,
-                      {
-                        backgroundColor: colors.butBackground,
-                        opacity: isSessionModalVisible ? 0.85 : 1,
-                      },
-                    ]}
-                  >
-                    {isSessionModalVisible ? (
-                      <ActivityIndicator size="small" color={colors.butText} />
-                    ) : (
-                      <Text style={[styles.webStartButtonText, { color: colors.butText }]}>
-                        {sessionButtonLabel}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                </View> */}
-              </View>
-
-              {/* Right column – monthly summary grid */}
-              <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground }]}>
-                <Text style={[styles.gridTitle, { color: colors.text, fontSize: 22 }]}>
-                  Załadunek
-                </Text>
-                <View style={styles.statsGrid}>
-                  <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground }]}
-                  >
-                    <Ionicons
-                      name="flash-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Średnia miesięczna
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>
-                      {summary.averageRate.toFixed(2)} pal/h
-                    </Text>
-                  </ThemedCard>
-
-                  <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground }]}
-                  >
-                    <Ionicons
-                      name="layers-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Palety
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>
-                      {summary.totalPallets}
-                    </Text>
-                  </ThemedCard>
-
-                  <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground }]}
-                  >
-                    <Ionicons
-                      name="trophy-outline"
-                      size={28}
-                      style={[
-                        styles.cardIcon,
-                        { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-                      ]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Ranking
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>{rank}</Text>
-                  </ThemedCard>
-
-                  <ThemedCard
-                    style={[styles.statCard, { backgroundColor: colors.cardInCardBackground }]}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={28}
-                      style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4 }]}
-                    />
-                    <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-                      Czas ładowania
-                    </Text>
-                    <Text style={[styles.statValue, { color: colors.cardValue }]}>
-                      {formatTime(summary.totalTime)}
-                    </Text>
-                  </ThemedCard>
-                </View>
-              </View>
-            </View>
-          </ScrollView>
-        </View>
-      )}
-
-      {/* ORIGINAL MOBILE DASHBOARD – unchanged */}
-      {!isGuest && !isWeb && (
+      {!isGuest && (
         <View style={styles.content}>
           <ScrollView
             style={{ flex: 1 }}
@@ -879,57 +869,55 @@ export default function Dashboard() {
               <View
                 style={[
                   styles.headerRow,
-                  { backgroundColor: colors.navBackground, paddingTop: insets.top + 8 },
+                  {
+                    backgroundColor: colors.navBackground,
+                    paddingTop: insets.top + 8,
+                    paddingHorizontal: 24,
+                  },
                 ]}
               >
                 <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
                   <Ionicons name="person-circle" size={64} color={colors.iconColor} />
                   {/* <Image source={{ uri: avatarUri }} style={styles.avatar} /> */}
                 </TouchableOpacity>
-                <View style={{ marginLeft: 12, flexShrink: 1 }}>
+                <View style={styles.headerDetails}>
                   <Text style={[styles.welcome, { color: colors.text }]}>
                     Witaj, {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}!
                   </Text>
                   <Text style={{ color: colors.textSecondary, fontSize: 15 }}>
                     Produktywność na wyciągnięcie ręki.
                   </Text>
-                </View>
-              </View>
-
-              {/* Level Card */}
-              <ThemedCard style={[styles.levelCard, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                <View>
-                  <Text style={[styles.levelTitle, { color: colors.title }]}>Poziom {level}</Text>
-                  <Text style={[styles.achievements, { color: colors.textSecondary }]}>
-                    Osiągnięcia: {achievementsUnlocked} / {achievementsTotal}
-                  </Text>
-                </View>
-                <View style={styles.progressContainer}>
+                  <View style={styles.headerChipRow}>
+                    <View style={[styles.headerChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                      <Text style={[styles.headerChipText, { color: colors.title }]}>Poziom {level}</Text>
+                    </View>
+                    <View style={[styles.headerChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                      <Text style={[styles.headerChipText, { color: colors.text }]}>
+                        {unlockedAchievementsCount} osiągnięć
+                      </Text>
+                    </View>
+                  </View>
                   <View
                     style={[
-                      styles.progressBar,
-                      {
-                        backgroundColor: colors.inputBackground,
-                        borderColor: colors.border,
-                        borderWidth: 1,
-                      },
+                      styles.headerXPTrack,
+                      { backgroundColor: colors.inputBackground, borderColor: colors.border },
                     ]}
                   >
                     <View
                       style={[
-                        styles.progressFill,
+                        styles.headerXPFill,
                         { backgroundColor: colors.iconColor, width: `${Math.min(xpProgress, 100)}%` },
                       ]}
                     />
                   </View>
-                  <Text style={[styles.progressText, { color: colors.textSecondary }]}>
+                  <Text style={[styles.headerXPText, { color: colors.textSecondary }]} numberOfLines={1}>
                     {currentXP} / {nextXP} XP
                   </Text>
                 </View>
-              </ThemedCard>
+              </View>
 
               {hasNoSections ? (
-                <View style={[styles.summaryContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border, alignItems: 'center', paddingVertical: 32 }]}>
+                <View style={[styles.emptyStateContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border, alignItems: 'center', paddingVertical: 32 }]}>
                   <Ionicons name="settings-outline" size={54} color={colors.iconColor} />
                   <Text style={[styles.emptyTitle, { color: colors.text, textAlign: 'center', marginTop: 12 }]}>Brak wybranych sekcji</Text>
                   <Text style={[styles.emptyText, { color: colors.textSecondary, textAlign: 'center', marginHorizontal: 16, marginBottom: 20 }]}>
@@ -949,82 +937,41 @@ export default function Dashboard() {
                 // Pokaż statystyki tylko jeśli użytkownik wybrał sekcję "Kompletacja"
                 pickingSummarySection
               ) : (
-                // Oba wybrane - zachowaj dotychczasową logikę z przełącznikami i kolejnością
                 <>
-                  <View style={[styles.dashboardOrderRow, { marginHorizontal: 24 }]}>
-                    <View style={styles.visibilityRow}>
-                      <Pressable
-                        onPress={() => handleSetDashboardSectionsVisibility('both')}
-                        style={[
-                          styles.visibilityChip,
-                          {
-                            borderColor: dashboardSectionsVisibility === 'both' ? colors.butBorder : colors.border,
-                            backgroundColor: dashboardSectionsVisibility === 'both' ? colors.butBackground : colors.cardBackground,
-                          },
-                        ]}
-                      >
-                        <Text style={{ color: dashboardSectionsVisibility === 'both' ? colors.butText : colors.text, fontWeight: '700' }}>
-                          Obie
-                        </Text>
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => handleSetDashboardSectionsVisibility('truck')}
-                        style={[
-                          styles.visibilityChip,
-                          {
-                            borderColor: dashboardSectionsVisibility === 'truck' ? colors.butBorder : colors.border,
-                            backgroundColor: dashboardSectionsVisibility === 'truck' ? colors.butBackground : colors.cardBackground,
-                          },
-                        ]}
-                      >
-                        <Text style={{ color: dashboardSectionsVisibility === 'truck' ? colors.butText : colors.text, fontWeight: '700' }}>
-                          Załadunek
-                        </Text>
-                      </Pressable>
-
-                      <Pressable
-                        onPress={() => handleSetDashboardSectionsVisibility('picking')}
-                        style={[
-                          styles.visibilityChip,
-                          {
-                            borderColor: dashboardSectionsVisibility === 'picking' ? colors.butBorder : colors.border,
-                            backgroundColor: dashboardSectionsVisibility === 'picking' ? colors.butBackground : colors.cardBackground,
-                          },
-                        ]}
-                      >
-                        <Text style={{ color: dashboardSectionsVisibility === 'picking' ? colors.butText : colors.text, fontWeight: '700' }}>
-                          Kompletacja
-                        </Text>
-                      </Pressable>
-
-                      {dashboardSectionsVisibility === 'both' && (
+                  <View
+                    style={[
+                      styles.dashboardTabs,
+                      { backgroundColor: colors.cardInCardBackground, marginHorizontal: 24 },
+                    ]}
+                  >
+                    {[
+                      { key: 'truck', label: 'Załadunek' },
+                      { key: 'picking', label: 'Kompletacja' },
+                    ].map(({ key, label }) => {
+                      const isSelected = selectedDashboardTab === key;
+                      return (
                         <Pressable
-                          onPress={handleSwapDashboardSections}
-                          style={[styles.swapOrderButton, { borderColor: colors.outButBorder, backgroundColor: colors.outButBackground }]}
+                          key={key}
+                          onPress={() => handleDashboardTabChange(key)}
+                          style={[
+                            styles.dashboardTab,
+                            {
+                              backgroundColor: isSelected ? colors.cardBackground : 'transparent',
+                              borderColor: isSelected ? colors.border : 'transparent',
+                              elevation: isSelected ? 3 : 0,
+                              shadowOpacity: isSelected ? 0.18 : 0,
+                            },
+                          ]}
                         >
-                          <Ionicons name="swap-vertical-outline" size={18} color={colors.outButText} />
-                          <Text style={{ color: colors.outButText, fontWeight: '700' }}>Zamień kolejność sekcji</Text>
+                          <Text style={[styles.dashboardTabText, { color: colors.text }]}>
+                            {label}
+                          </Text>
                         </Pressable>
-                      )}
-                    </View>
+                      );
+                    })}
                   </View>
 
-                  {dashboardSectionsVisibility === 'truck' && truckSummarySection}
-                  {dashboardSectionsVisibility === 'picking' && pickingSummarySection}
-                  {dashboardSectionsVisibility === 'both' && (dashboardSectionsOrder === 'truck-first' ? (
-                    <>
-                      {truckSummarySection}
-                      <View style={styles.summarySectionSpacer} />
-                      {pickingSummarySection}
-                    </>
-                  ) : (
-                    <>
-                      {pickingSummarySection}
-                      <View style={styles.summarySectionSpacer} />
-                      {truckSummarySection}
-                    </>
-                  ))}
+                  {selectedDashboardTab === 'truck' ? truckSummarySection : pickingSummarySection}
                 </>
               )}
             </View>
@@ -1109,6 +1056,9 @@ const styles = StyleSheet.create({
   },
   summaryContainer: {
     marginHorizontal: 24,
+  },
+  emptyStateContainer: {
+    marginHorizontal: 24,
     borderRadius: 16,
     borderWidth: 1,
     elevation: 2,
@@ -1118,61 +1068,50 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     padding: 16,
   },
-  gridTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginHorizontal: 4,
-  },
-  gridSubtitle: {
-    fontSize: 15,
-    marginHorizontal: 4,
-    marginBottom: 12,
-  },
-  levelCard: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginHorizontal: 24,
-    marginVertical: 16,
-    borderRadius: 16,
-    gap: 32,
-    borderWidth: 1,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-  },
-  levelTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  progressContainer: {
-    flex: 1,
-    justifyContent: 'flex-end',
-  },
-  progressBar: {
-    height: 10,
-    borderRadius: 5,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: 10,
-    borderRadius: 5,
-  },
-  progressText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 5,
-  },
-  achievements: {
-    fontSize: 15,
-  },
   headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
+  },
+  headerDetails: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: 12,
+  },
+  headerChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 8,
+  },
+  headerChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    justifyContent: 'center',
+  },
+  headerChipText: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  headerXPTrack: {
+    height: 8,
+    marginTop: 6,
+    borderRadius: 999,
+    overflow: 'hidden',
+    borderWidth: 1,
+  },
+  headerXPFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  headerXPText: {
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 2,
   },
   avatarTouchable: {
     width: 64,
@@ -1191,33 +1130,28 @@ const styles = StyleSheet.create({
   statsGrid: {
     marginHorizontal: 4,
   },
-  summarySectionSpacer: {
-    height: 16,
-  },
-  dashboardOrderRow: {
+  dashboardTabs: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 16,
     marginBottom: 12,
-    gap: 8,
   },
-  swapOrderButton: {
-    borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    alignSelf: 'flex-start',
-    flexDirection: 'row',
+  dashboardTab: {
+    flex: 1,
+    minHeight: 42,
     alignItems: 'center',
-    gap: 8,
-  },
-  visibilityRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  visibilityChip: {
+    justifyContent: 'center',
+    borderRadius: 12,
     borderWidth: 1,
-    borderRadius: 999,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+  },
+  dashboardTabText: {
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
   },
   pickingSubsectionSelector: {
     flexDirection: 'row',
@@ -1243,9 +1177,113 @@ const styles = StyleSheet.create({
   },
   statCardWide: {
     width: '100%',
+    aspectRatio: 1.25,
     marginBottom: 12,
+    padding: 0,
     borderRadius: 16,
     borderWidth: 1,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.14,
+    shadowRadius: 4,
+  },
+  monthlyAverageContent: {
+    flex: 1,
+    padding: 14,
+  },
+  monthlyAverageTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  monthlyAverageMetric: {
+    paddingVertical: 6,
+  },
+  monthlyAverageValue: {
+    fontSize: 32,
+    fontWeight: '800',
+    marginTop: 4,
+  },
+  averageChartTabs: {
+    height: 32,
+    flexDirection: 'row',
+    padding: 2,
+    gap: 2,
+    borderRadius: 999,
+    marginBottom: 12,
+  },
+  averageChartTab: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 999,
+  },
+  averageChartTabSelected: {
+    borderWidth: 1,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.16,
+    shadowRadius: 2,
+  },
+  averageChartTabText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  averageChartBars: {
+    flex: 1,
+    minHeight: 62,
+    flexDirection: 'row',
+    gap: 1,
+    marginTop: 6,
+  },
+  averageChartColumn: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+  },
+  averageChartBarArea: {
+    flex: 1,
+    position: 'relative',
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
+  averageChartBarPressable: {
+    width: '72%',
+    minHeight: 10,
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  averageChartBar: {
+    flex: 1,
+    width: '100%',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  averageChartBarValue: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    zIndex: 1,
+    fontSize: 10,
+    fontWeight: '700',
+    lineHeight: 12,
+    textAlign: 'center',
+  },
+  averageChartBarHighlight: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+  },
+  averageChartLabel: {
+    fontSize: 7,
+    lineHeight: 9,
+    marginTop: 2,
+    textAlign: 'center',
   },
   statTitle: {
     fontSize: 17,
@@ -1303,53 +1341,6 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  // --- WEB ONLY STYLES BELOW ---
-  webRoot: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingVertical: 24,
-    paddingHorizontal: 32,
-  },
-  webShell: {
-    flex: 1,
-    maxWidth: 1200,
-    width: '100%',
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-  },
-  webHeader: {
-    paddingHorizontal: 24,
-    paddingVertical: 20,
-    borderBottomWidth: 1,
-  },
-  webHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  webMain: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    padding: 24,
-    gap: 24,
-  },
-  webLeftColumn: {
-    flex: 1,
-    minWidth: 280,
-  },
-  webStartButton: {
-    height: 50,
-    borderRadius: 999,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    alignSelf: 'flex-start',
-  },
-  webStartButtonText: {
     fontSize: 16,
     fontWeight: '600',
   },

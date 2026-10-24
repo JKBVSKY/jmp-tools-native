@@ -8,7 +8,7 @@ export const Colors = {
 
     // Text colors - soft white/light gray
     text: '#E8EAED',
-    textRed: '#e3452d',
+    textRed: '#EE6549',
     textSecondary: '#9AA0A6',
     title: '#FFFFFF',
     cardValue: '#ede8e8',
@@ -27,7 +27,7 @@ export const Colors = {
     navText: '#E8EAED',
 
     // Buttons - Modern red accent
-    butBackground: '#e3452d',    // Red button
+    butBackground: '#EE6549',    // Red button
     cardButBackground: '#3A3C40',
     butText: '#FFFFFF',
     butBorder: '#b93622',        // Darker red for border
@@ -45,15 +45,15 @@ export const Colors = {
     grayIconColor: '#a6a6b1',        // Gray icons
     iconColor: '#9AA0A6',        // Light gray icons
     inputIconColor: '#4B4F54',   // Dark gray icons inside inputs
-    sIconColor: '#e3452d',        // Red icons
+    sIconColor: '#EE6549',        // Red icons
     inputBackground: '#292A2D',
     inputBorder: '#5F6368',
-    inputBorderActive: '#e3452d', // Red border when active
+    inputBorderActive: '#EE6549', // Red border when active
     phText: '#5F6368',           // Placeholder text
-    selection: '#e3452d',        // Red for selection
+    selection: '#EE6549',        // Red for selection
 
     // Other
-    tabDotActive: '#e3452d',
+    tabDotActive: '#EE6549',
     tabDotInactive: '#3F4144',
     truckButtons: '#292A2D',
     editBut: '#E8EAED',
@@ -67,7 +67,7 @@ export const Colors = {
 
     // Text colors
     text: '#202124',
-    textRed: '#e3452d',
+    textRed: '#EE6549',
     textSecondary: '#5F6368',
     title: '#000000',
     cardValue: '#242020',
@@ -75,7 +75,7 @@ export const Colors = {
     textSuccess: '#16a34a',
 
     // Backgrounds - clean white with light gray accents
-    background: '#EEEFF2',
+    background: '#FFFFFF',
     cardBackground: '#FFFFFF',
     cardInCardBackground: '#f5f4f4',
     navBackground: '#FFFFFF',
@@ -86,10 +86,10 @@ export const Colors = {
     navText: '#202124',
 
     // Buttons - Modern red
-    butBackground: '#e3452d',    // Red button
+    butBackground: '#EE6549',    // Red button
     cardButBackground: '#FFFFFF',
     butText: '#FFFFFF',
-    butBorder: '#e3452d',        // Darker red
+    butBorder: '#EE6549',        // Darker red
     outButBackground: '#FFFFFF',
     outButBorder: '#DADCE0',     // Light gray border
     outButText: '#202124',
@@ -101,17 +101,17 @@ export const Colors = {
     border: '#DADCE0',           // Light gray border
     breakLine: '#DADCE0',        // Light gray line
     grayIconColor: '#968c8c',        // Gray icons
-    iconColor: '#e3452d',        // Red icons
+    iconColor: '#EE6549',        // Red icons
     inputIconColor: '#6B7280',   // Dark gray icons inside inputs
-    sIconColor: '#e3452d',        // Red icons
+    sIconColor: '#EE6549',        // Red icons
     inputBackground: '#FFFFFF',
     inputBorder: '#DADCE0',
-    inputBorderActive: '#e3452d', // Red border when active
+    inputBorderActive: '#EE6549', // Red border when active
     phText: '#9AA0A6',           // Placeholder text
-    selection: '#e3452d',        // Red for selection
+    selection: '#EE6549',        // Red for selection
 
     // Other
-    tabDotActive: '#e3452d',
+    tabDotActive: '#EE6549',
     tabDotInactive: '#DADCE0',
     truckButtons: '#F8F9FA',
     editBut: '#202124',
