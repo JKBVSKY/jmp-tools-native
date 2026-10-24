@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { collection, doc, getDoc, getDocsFromServer, orderBy, query } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,10 +15,12 @@ import { calculateLevelFromXP } from '../../constants/LevelSystem';
 import { useAuth } from '../../context/AuthContext';
 import { useCalculator } from '../../context/CalculatorContext';
 import { useThemeContext } from '../../context/ThemeContext';
+import { useTimetable } from '../../context/TimetableContext';
 import { useUserProfile } from '../../context/UserProfileContext';
 import { db } from '../../firebase/config';
 import { useAutoHorizontalScroll } from '../../hooks/useAutoHorizontalScroll';
 import { useColors } from '../../hooks/useColors';
+import { isSessionStartAllowed } from '../../utils/timetableAvailability';
 import SessionModal from '../modals/SessionModal';
 import { getLeaderboardCache, getUserScoreHistoryCache, setLeaderboardCache, setUserScoreHistoryCache } from '../../services/ScoreDataCache';
 import { useNetwork } from '../../services/useNetwork';
@@ -211,6 +213,7 @@ export default function Dashboard() {
   const monthlyCardPalette = MONTHLY_CARD_PALETTE[theme];
   const { user, isGuest, signOut } = useAuth();
   const { profile } = useUserProfile();
+  const { loading: timetableLoading, getCurrentSnapshot } = useTimetable();
   const router = useRouter();
   
   const { isOnline } = useNetwork();
@@ -224,6 +227,7 @@ export default function Dashboard() {
   const [selectedPickingSubsection, setSelectedPickingSubsection] = useState(null);
   const [selectedDashboardTab, setSelectedDashboardTab] = useState('truck');
   const [averageChartPeriod, setAverageChartPeriod] = useState('week');
+  const [now, setNow] = useState(() => new Date());
   const userId = user?.id;
 
   // Derive section visibility flags from user preferences
@@ -240,11 +244,26 @@ export default function Dashboard() {
     calc.mode === 'paused' ||
     calc.mode === 'results';
 
+  const timetableSnapshot = getCurrentSnapshot();
+  const canStartNewSession =
+    !isGuest &&
+    !isSessionActive &&
+    isSessionStartAllowed(timetableSnapshot.schedule, timetableSnapshot.isReady, now);
+  const sessionAvailabilityText =
+    isGuest || isSessionActive
+      ? null
+      : !timetableSnapshot.isReady
+        ? timetableLoading
+          ? 'Ładowanie grafiku…'
+          : 'Grafik niedostępny'
+        : canStartNewSession
+          ? 'Możesz rozpocząć sesję'
+          : 'Poza godzinami zmiany';
+
   const sessionButtonLabel = isSessionActive
     ? 'Kontynuuj Sesję'
     : 'Rozpocznij Sesję';
 
-  const now = new Date();
   const currentMonth = { month: now.getMonth(), year: now.getFullYear() };
 
   const getMonthKey = (dateString) => {
@@ -492,6 +511,82 @@ export default function Dashboard() {
         active = false;
       };
     }, [loadRank, loadSessions])
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      let isFocused = true;
+      let isForeground = Platform.OS === 'web'
+        ? !document.hidden
+        : AppState.currentState !== 'background' && AppState.currentState !== 'inactive';
+      let timeoutId;
+
+      const clearMinuteTimeout = () => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          timeoutId = undefined;
+        }
+      };
+
+      const scheduleMinuteTimeout = () => {
+        clearMinuteTimeout();
+        if (!isFocused || !isForeground) return;
+
+        const delay = 60000 - (Date.now() % 60000);
+        timeoutId = setTimeout(() => {
+          timeoutId = undefined;
+          if (!isFocused || !isForeground) return;
+
+          setNow(new Date());
+          scheduleMinuteTimeout();
+        }, delay);
+      };
+
+      const refreshTime = () => {
+        if (!isFocused) return;
+        setNow(new Date());
+        scheduleMinuteTimeout();
+      };
+
+      refreshTime();
+
+      let removeForegroundListener;
+      if (Platform.OS === 'web') {
+        const handleVisibilityChange = () => {
+          isForeground = !document.hidden;
+          if (isForeground) {
+            refreshTime();
+          } else {
+            clearMinuteTimeout();
+          }
+        };
+
+        document.addEventListener('visibilitychange', handleVisibilityChange);
+        removeForegroundListener = () =>
+          document.removeEventListener('visibilitychange', handleVisibilityChange);
+      } else {
+        let previousAppState = AppState.currentState;
+        const subscription = AppState.addEventListener('change', (nextAppState) => {
+          const wasForeground = previousAppState === 'active';
+          isForeground = nextAppState === 'active';
+
+          if (!wasForeground && isForeground) {
+            refreshTime();
+          } else if (wasForeground && !isForeground) {
+            clearMinuteTimeout();
+          }
+
+          previousAppState = nextAppState;
+        });
+        removeForegroundListener = () => subscription.remove();
+      }
+
+      return () => {
+        isFocused = false;
+        clearMinuteTimeout();
+        removeForegroundListener?.();
+      };
+    }, [])
   );
 
   // Reconnect refresh: re-run loaders only on the false -> true transition,
@@ -988,6 +1083,16 @@ export default function Dashboard() {
               },
             ]}
           >
+            {sessionAvailabilityText ? (
+              <Text
+                style={[
+                  styles.sessionAvailabilityText,
+                  { color: canStartNewSession ? colors.textSuccess : colors.textSecondary },
+                ]}
+              >
+                {sessionAvailabilityText}
+              </Text>
+            ) : null}
             {/* Start Button */}
             <TouchableOpacity
               onPress={handleSessionButtonPress}
@@ -1329,6 +1434,12 @@ const styles = StyleSheet.create({
   startButtonText: {
     fontSize: 16,
     fontWeight: '400',
+  },
+  sessionAvailabilityText: {
+    fontSize: 13,
+    lineHeight: 16,
+    marginBottom: 4,
+    textAlign: 'center',
   },
   logoutButton: {
     padding: 16,
