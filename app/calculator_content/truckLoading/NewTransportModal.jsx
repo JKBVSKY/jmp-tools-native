@@ -1,6 +1,7 @@
 import React, { useState, useRef } from "react";
 import {
   Modal,
+  Pressable,
   View,
   Text,
   TextInput,
@@ -27,6 +28,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
 
   const [palletsInProgress, setPalletsInProgress] = useState(false);
   const [connectedShops, setConnectedShops] = useState(false);
+  const [entryMode, setEntryMode] = useState("quick");
   const [inputPage, setInputPage] = useState(0);
   const [inputPagerWidth, setInputPagerWidth] = useState(0);
 
@@ -54,6 +56,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
   };
   const handleClose = () => {
     onClose();
+    setEntryMode("quick");
     setInputPage(0);
     inputPagerRef.current?.scrollTo({ x: 0, animated: false });
     setForm({ shop: "", secondShop: "", gate: "", trailer: "", pallets: "" });
@@ -145,6 +148,11 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
     }
   };
 
+  const handleEntryModeChange = (mode) => {
+    setEntryMode(mode);
+    setInputPage(0);
+  };
+
   return (
     <Modal
       visible={visible}
@@ -197,13 +205,52 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                 </View>
                 <View style={[styles.headerDivider, { backgroundColor: colors.border }]} />
 
+                <View
+                  style={[
+                    styles.dashboardTabs,
+                    { backgroundColor: colors.cardInCardBackground, marginHorizontal: 24 },
+                  ]}
+                >
+                  {[
+                    { key: "quick", label: "Szybkie dodawanie" },
+                    { key: "advanced", label: "Zaawansowane" },
+                  ].map(({ key, label }) => {
+                    const isSelected = entryMode === key;
+                    return (
+                      <Pressable
+                        key={key}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: isSelected }}
+                        onPress={() => handleEntryModeChange(key)}
+                        style={[
+                          styles.dashboardTab,
+                          {
+                            backgroundColor: isSelected ? colors.cardBackground : "transparent",
+                            borderColor: isSelected ? colors.border : "transparent",
+                            elevation: isSelected ? 3 : 0,
+                            shadowOpacity: isSelected ? 0.18 : 0,
+                          },
+                        ]}
+                      >
+                        <Text style={[styles.dashboardTabText, { color: colors.text }]}>
+                          {label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
                 <View style={styles.inputSection}>
                   <View style={styles.inputSectionHeader}>
                     <Text style={[styles.sectionLabel, { color: colors.text }]}>Dane transportu</Text>
-                    <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
-                      {inputPage + 1} z 2
-                    </Text>
+                    {entryMode === "advanced" && (
+                      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+                        {inputPage + 1} z 2
+                      </Text>
+                    )}
                   </View>
+                  {entryMode === "advanced" && (
+                    <>
                   <View
                     style={[styles.inputPagerFrame, connectedShops && styles.inputPagerFrameConnected]}
                   >
@@ -239,25 +286,37 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                         <View style={styles.palletInputRow}>
                           <View style={[styles.inputWithIcon, styles.palletInput]}>
                             <MaterialCommunityIcons name="shipping-pallet" size={18} color={colors.inputIconColor} style={styles.inputIcon} />
-                            <TextInput
-                              style={[
-                                styles.inputSmall,
-                                styles.palletTextInput,
-                                {
-                                  backgroundColor: palletsInProgress ? 'transparent' : colors.inputBackground,
-                                  color: colors.text,
-                                  borderColor: palletsInProgress ? 'red' : colors.border
-                                },
-                                !isPalletsValid && form.pallets && styles.inputError
-                              ]}
-                              value={form.pallets}
-                              onChangeText={(value) => handleChange("pallets", value)}
-                              onSubmitEditing={handleAdd}
-                              placeholder={palletsInProgress ? "W TRAKCIE" : "Palety"}
-                              placeholderTextColor={palletsInProgress ? "red" : colors.phText}
-                              keyboardType="numeric"
-                              editable={!palletsInProgress}
-                            />
+                            {palletsInProgress ? (
+                              <View
+                                style={[
+                                  styles.inputSmall,
+                                  styles.palletTextInput,
+                                  styles.palletsInProgressDisplay,
+                                  { backgroundColor: colors.inputBackground, borderColor: "red" },
+                                ]}
+                              >
+                                <Text style={styles.palletsInProgressText}>W TRAKCIE</Text>
+                              </View>
+                            ) : (
+                              <TextInput
+                                style={[
+                                  styles.inputSmall,
+                                  styles.palletTextInput,
+                                  {
+                                    backgroundColor: colors.inputBackground,
+                                    color: colors.text,
+                                    borderColor: colors.border,
+                                  },
+                                  !isPalletsValid && form.pallets && styles.inputError,
+                                ]}
+                                value={form.pallets}
+                                onChangeText={(value) => handleChange("pallets", value)}
+                                onSubmitEditing={handleAdd}
+                                placeholder="Palety"
+                                placeholderTextColor={colors.phText}
+                                keyboardType="numeric"
+                              />
+                            )}
                           </View>
                           {renderPalletAdjustmentChip(-0.25)}
                           {renderPalletAdjustmentChip(0.25)}
@@ -367,6 +426,54 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       />
                     ))}
                   </View>
+                    </>
+                  )}
+                  {entryMode === "quick" && (
+                    <View style={styles.quickInputPage}>
+                      <View style={styles.inputField}>
+                        <Text style={[styles.inputLabelHalf, { color: colors.text }]}>Palety *</Text>
+                        <View style={styles.palletInputRow}>
+                          <View style={[styles.inputWithIcon, styles.palletInput]}>
+                            <MaterialCommunityIcons name="shipping-pallet" size={18} color={colors.inputIconColor} style={styles.inputIcon} />
+                            {palletsInProgress ? (
+                              <View
+                                style={[
+                                  styles.inputSmall,
+                                  styles.palletTextInput,
+                                  styles.palletsInProgressDisplay,
+                                  { backgroundColor: colors.inputBackground, borderColor: "red" },
+                                ]}
+                              >
+                                <Text style={styles.palletsInProgressText}>W TRAKCIE</Text>
+                              </View>
+                            ) : (
+                              <TextInput
+                                style={[
+                                  styles.inputSmall,
+                                  styles.palletTextInput,
+                                  {
+                                    backgroundColor: colors.inputBackground,
+                                    color: colors.text,
+                                    borderColor: colors.border,
+                                  },
+                                  !isPalletsValid && form.pallets && styles.inputError,
+                                ]}
+                                value={form.pallets}
+                                onChangeText={(value) => handleChange("pallets", value)}
+                                onSubmitEditing={handleAdd}
+                                placeholder="Palety"
+                                placeholderTextColor={colors.phText}
+                                keyboardType="numeric"
+                              />
+                            )}
+                          </View>
+                          {renderPalletAdjustmentChip(-0.25)}
+                          {renderPalletAdjustmentChip(0.25)}
+                        </View>
+                        {!isPalletsValid && form.pallets && <Text style={styles.errorText}>Must be valid</Text>}
+                      </View>
+                    </View>
+                  )}
                 </View>
                 <View style={[styles.sectionDivider, { backgroundColor: colors.border }]} />
 
@@ -423,6 +530,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                     </Text>
                   </TouchableOpacity>
 
+                  {entryMode === "advanced" && (
                   <TouchableOpacity
                     accessibilityRole="switch"
                     accessibilityState={{ checked: connectedShops }}
@@ -442,6 +550,7 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
                       Łączenie
                     </Text>
                   </TouchableOpacity>
+                  )}
                   </View>
 
                   {/* Button Container */}
@@ -480,6 +589,29 @@ export default function NewTransportModal({ visible, onClose, onAdd }) {
 }
 
 const styles = StyleSheet.create({
+  dashboardTabs: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 16,
+    marginBottom: 12,
+  },
+  dashboardTab: {
+    flex: 1,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
+    borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 3,
+  },
+  dashboardTabText: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+  },
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
@@ -662,7 +794,7 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   inputPagerFrameConnected: {
-    height: 230,
+    height: 250,
   },
   inputPager: {
     flex: 1,
@@ -677,6 +809,9 @@ const styles = StyleSheet.create({
   },
   inputField: {
     width: '100%',
+  },
+  quickInputPage: {
+    marginHorizontal: 36,
   },
   chevronButton: {
     position: 'absolute',
@@ -764,6 +899,14 @@ const styles = StyleSheet.create({
   palletTextInput: {
     paddingLeft: 10,
     textAlign: 'center',
+  },
+  palletsInProgressDisplay: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  palletsInProgressText: {
+    color: 'red',
+    fontSize: 14,
   },
   palletSuggestion: {
     minWidth: 52,
