@@ -13,6 +13,7 @@ import {
     Alert,
     KeyboardAvoidingView,
     Platform,
+    BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -725,6 +726,27 @@ const Timetable = () => {
         setSelectionMode((previous) => !previous);
         setSelectedDays([]);
     };
+
+    useFocusEffect(
+        useCallback(() => {
+            if (!selectionMode) {
+                return undefined;
+            }
+
+            const handleBackPress = () => {
+                setSelectionMode(false);
+                setSelectedDays([]);
+                return true;
+            };
+
+            const subscription = BackHandler.addEventListener(
+                'hardwareBackPress',
+                handleBackPress
+            );
+
+            return () => subscription.remove();
+        }, [selectionMode])
+    );
 
     const toggleDaySelection = (key) => {
         setSelectedDays((previous) => {
@@ -1807,90 +1829,7 @@ const Timetable = () => {
                 </View>
             </View>
 
-            {/* CONTENT */}
-
-            {/* SELECTION CONTROLS */}
-
-{selectionMode && (
-    <View
-        style={[
-            styles.selectionControlsTop,
-            {
-                backgroundColor: colors.cardBackground,
-                borderBottomColor: colors.headerBorder,
-            },
-        ]}
-    >
-        {/* Przycisk 1: Wszystkie */}
-        <Pressable
-            onPress={selectAllDays}
-            style={({ pressed }) => [
-                styles.selectionControlButton,
-                pressed && styles.pressed,
-            ]}
-        >
-            <Ionicons
-                name="checkmark-done-outline"
-                size={18}
-                color={colors.iconColor}
-            />
-            <Text style={[styles.selectionControlText, { color: colors.text }]}>
-                Wszystkie
-            </Text>
-        </Pressable>
-
-        <View style={[styles.selectionDivider, { backgroundColor: colors.breakLine }]} />
-
-        {/* Przycisk 2: Masowa zmiana (Zmień grafik) - wyświetlany tylko gdy coś zaznaczono */}
-        <Pressable
-            onPress={() => setMassShiftModalVisible(true)}
-            disabled={selectedDays.length === 0}
-            style={({ pressed }) => [
-                styles.selectionControlButton,
-                { opacity: selectedDays.length === 0 ? 0.4 : 1 }, // Wizualne wyłączenie gdy 0 dni
-                pressed && selectedDays.length > 0 && styles.pressed,
-            ]}
-        >
-            <Ionicons 
-                name="flash-outline" 
-                size={18} 
-                color={selectedDays.length === 0 ? colors.textSecondary : colors.primary} 
-            />
-            <Text 
-                style={[
-                    styles.selectionControlText, 
-                    { 
-                        color: selectedDays.length === 0 ? colors.textSecondary : colors.primary, 
-                        fontWeight: 'bold' 
-                    }
-                ]}
-            >
-                Ustaw ({selectedDays.length})
-            </Text>
-        </Pressable>
-
-        <View style={[styles.selectionDivider, { backgroundColor: colors.breakLine }]} />
-
-        {/* Przycisk 3: Wyczyść */}
-        <Pressable
-            onPress={clearSelectedDays}
-            style={({ pressed }) => [
-                styles.selectionControlButton,
-                pressed && styles.pressed,
-            ]}
-        >
-            <Ionicons
-                name="refresh-outline"
-                size={18}
-                color={colors.iconColor}
-            />
-            <Text style={[styles.selectionControlText, { color: colors.text }]}>
-                Wyczyść
-            </Text>
-        </Pressable>
-    </View>
-)}
-
+                {/* CONTENT */}
                 <View style={[styles.fixedMonthSection, { backgroundColor: colors.navBackground, borderColor: colors.border, borderBottomWidth: 1, }]}>
                     <View style={styles.monthHeader}>
                         <Pressable
@@ -1997,20 +1936,98 @@ const Timetable = () => {
                     )}
                 </View>
 
-            <ScrollView
-                ref={scrollViewRef}
-                style={styles.daysScrollView}
-                contentContainerStyle={styles.daysContent}
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={requestFocusToday}
-            >
+            <View style={styles.daysArea}>
+                <ScrollView
+                    ref={scrollViewRef}
+                    style={styles.daysScrollView}
+                    contentContainerStyle={styles.daysContent}
+                    showsVerticalScrollIndicator={false}
+                    onContentSizeChange={requestFocusToday}
+                >
+                    <GestureDetector gesture={rangeGesture}>
+                        <View style={styles.scheduleContainer}>
+                            {monthDays.map(renderDay)}
+                        </View>
+                    </GestureDetector>
+                </ScrollView>
 
-                <GestureDetector gesture={rangeGesture}>
-                    <View style={styles.scheduleContainer}>
-                        {monthDays.map(renderDay)}
+                {selectionMode && (
+                    <View
+                        style={[
+                            styles.selectionControlsTop,
+                            {
+                                backgroundColor: colors.cardBackground,
+                                borderBottomColor: colors.headerBorder,
+                            },
+                        ]}
+                    >
+                        <Pressable
+                            onPress={selectAllDays}
+                            style={({ pressed }) => [
+                                styles.selectionControlButton,
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <Ionicons
+                                name="checkmark-done-outline"
+                                size={18}
+                                color={colors.iconColor}
+                            />
+                            <Text style={[styles.selectionControlText, { color: colors.text }]}>
+                                Wszystkie
+                            </Text>
+                        </Pressable>
+
+                        <View style={[styles.selectionDivider, { backgroundColor: colors.breakLine }]} />
+
+                        <Pressable
+                            onPress={() => setMassShiftModalVisible(true)}
+                            disabled={selectedDays.length === 0}
+                            style={({ pressed }) => [
+                                styles.selectionControlButton,
+                                { opacity: selectedDays.length === 0 ? 0.4 : 1 },
+                                pressed && selectedDays.length > 0 && styles.pressed,
+                            ]}
+                        >
+                            <Ionicons
+                                name="flash-outline"
+                                size={18}
+                                color={selectedDays.length === 0 ? colors.textSecondary : colors.primary}
+                            />
+                            <Text
+                                style={[
+                                    styles.selectionControlText,
+                                    {
+                                        color: selectedDays.length === 0 ? colors.textSecondary : colors.primary,
+                                        fontWeight: 'bold',
+                                    },
+                                ]}
+                            >
+                                Ustaw ({selectedDays.length})
+                            </Text>
+                        </Pressable>
+
+                        <View style={[styles.selectionDivider, { backgroundColor: colors.breakLine }]} />
+
+                        <Pressable
+                            onPress={clearSelectedDays}
+                            style={({ pressed }) => [
+                                styles.selectionControlButton,
+                                pressed && styles.pressed,
+                            ]}
+                        >
+                            <Ionicons
+                                name="refresh-outline"
+                                size={18}
+                                color={colors.iconColor}
+                            />
+                            <Text style={[styles.selectionControlText, { color: colors.text }]}>
+                                Wyczyść
+                            </Text>
+                        </Pressable>
                     </View>
-                </GestureDetector>
-            </ScrollView>
+                )}
+            </View>
 
             {renderModal()}
             {renderMassShiftModal()}
@@ -2077,6 +2094,11 @@ const styles = StyleSheet.create({
         flex: 1,
     },
 
+    daysArea: {
+        flex: 1,
+        position: 'relative',
+    },
+
     daysContent: {
         paddingHorizontal: 16,
         paddingBottom: 24,
@@ -2118,6 +2140,11 @@ const styles = StyleSheet.create({
      */
 
 selectionControlsTop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
