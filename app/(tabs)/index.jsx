@@ -5,7 +5,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { collection, doc, getDoc, getDocsFromServer, orderBy, query } from 'firebase/firestore';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ThemedCard from '../../components/ThemedCard';
@@ -24,6 +24,7 @@ import { getLeaderboardCache, getUserScoreHistoryCache, setLeaderboardCache, set
 import { useNetwork } from '../../services/useNetwork';
 import { buildPickingChart } from '../../utils/pickingChartData';
 import { buildUnloadingChart, formatRate, getUnloadingChartMetric, readSessionDate, toFiniteNumber } from '../../utils/unloadingChartData';
+import { getProfileAvatarSource } from '../../constants/profileAvatars';
 
 const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
 
@@ -869,7 +870,7 @@ export default function Dashboard() {
     router.push('/misc/profile');
   };
 
-  const avatarUri = profile?.photoURL || 'https://via.placeholder.com/150/cccccc/ffffff?text=Avatar';
+  const profileAvatarSource = getProfileAvatarSource(profile?.avatarId);
 
   const truckSummarySection = (
     <View style={styles.summaryContainer}>
@@ -1060,8 +1061,18 @@ export default function Dashboard() {
         >
           <View style={styles.guestHeader}>
             <View style={styles.headerRow}>
-              <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
-                <Ionicons name="person-circle" size={72} color={colors.iconColor} />
+              <TouchableOpacity
+                onPress={handleAvatarPress}
+                style={[styles.avatarTouchable, { backgroundColor: theme === 'light' ? '#fff' : 'transparent' }]}
+              >
+                {profileAvatarSource ? (
+                  <Image
+                    source={profileAvatarSource}
+                    style={[styles.avatar, { backgroundColor: theme === 'light' ? '#fff' : '#cccccc' }]}
+                  />
+                ) : (
+                  <Ionicons name="person-circle" size={72} color={colors.iconColor} />
+                )}
               </TouchableOpacity>
               <Text style={[styles.welcome, { color: colors.text, marginLeft: 12 }]}>Witaj, {user?.name || 'User'}!</Text>
             </View>
@@ -1096,9 +1107,18 @@ export default function Dashboard() {
               },
             ]}
           >
-            <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
-              <Ionicons name="person-circle" size={72} color={colors.iconColor} />
-              {/* <Image source={{ uri: avatarUri }} style={styles.avatar} /> */}
+            <TouchableOpacity
+              onPress={handleAvatarPress}
+              style={[styles.avatarTouchable, { backgroundColor: theme === 'light' ? '#fff' : 'transparent' }]}
+            >
+              {profileAvatarSource ? (
+                <Image
+                  source={profileAvatarSource}
+                  style={[styles.avatar, { backgroundColor: theme === 'light' ? '#fff' : '#cccccc' }]}
+                />
+              ) : (
+                <Ionicons name="person-circle" size={72} color={colors.iconColor} />
+              )}
             </TouchableOpacity>
             <View style={styles.headerDetails}>
               <Text style={[styles.welcome, { color: colors.text }]}>
@@ -1360,17 +1380,17 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   avatarTouchable: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
+    width: 92,
+    height: 92,
+    borderRadius: 46,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
   },
   avatar: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 84,
+    height: 84,
+    borderRadius: 42,
     backgroundColor: '#cccccc',
   },
   statsGrid: {
@@ -1620,7 +1640,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 16,
-    marginHorizontal: 16,
+    marginHorizontal: 24,
     gap: 6,
   },
   startButtonText: {

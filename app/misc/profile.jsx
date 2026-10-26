@@ -1,10 +1,11 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Modal, View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TouchableOpacity } from 'react-native';
+import { Modal, View, Text, StyleSheet, ScrollView, ActivityIndicator, Pressable, TouchableOpacity, Image } from 'react-native';
 import { collection, getDocsFromServer, orderBy, query } from 'firebase/firestore';
 import { db } from '../../firebase/config';
 import { useAuth } from '../../context/AuthContext';
 import { useUserProfile } from '../../context/UserProfileContext';
+import { useThemeContext } from '../../context/ThemeContext';
 import { getUserScoreHistoryCache, setUserScoreHistoryCache } from '../../services/ScoreDataCache';
 import { useColors } from '../../hooks/useColors';
 import { Ionicons } from '@expo/vector-icons';
@@ -13,6 +14,8 @@ import { useRouter } from 'expo-router';
 import { AchievementModal } from '../modals/AchievementModal';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useResponsive } from '../../hooks/useResponsive';
+import { PROFILE_AVATARS, getProfileAvatarSource } from '../../constants/profileAvatars';
+import { appAlert } from '../../utils/crossPlatformAlert';
 
 // NEW: All-time stats fetched from database
 const calculateAggregateStats = (sessions = []) => {
@@ -140,7 +143,7 @@ export default function Profile() {
   const [statCards, setStatCards] = React.useState([null, null]);
   const [statPickerVisible, setStatPickerVisible] = React.useState(false);
   const [selectedStatCard, setSelectedStatCard] = React.useState(null);
-  const { profile, isLoading } = useUserProfile();
+  const { profile, isLoading, updateUserProfileFields } = useUserProfile();
 
   // Derive section visibility flags from user preferences
   const showTruck = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('zaladunek');
@@ -161,12 +164,41 @@ export default function Profile() {
   }, [showTruck, showPicking, statsTab]);
 
   const colors = useColors();
+  const { theme } = useThemeContext();
   const router = useRouter();
   const [selectedAchievement, setSelectedAchievement] = React.useState(null);
   const [modalVisible, setModalVisible] = React.useState(false);
+  const [avatarPickerVisible, setAvatarPickerVisible] = React.useState(false);
+  const [selectedAvatarId, setSelectedAvatarId] = React.useState(null);
+  const [isSavingAvatar, setIsSavingAvatar] = React.useState(false);
   const insets = useSafeAreaInsets();
   const { width, isSmallPhone } = useResponsive();
   const [gridWidth, setGridWidth] = React.useState(0);
+
+  const openAvatarPicker = () => {
+    setSelectedAvatarId(profile?.avatarId || null);
+    setAvatarPickerVisible(true);
+  };
+
+  const saveAvatar = async () => {
+    if (!selectedAvatarId || isSavingAvatar) return;
+
+    setIsSavingAvatar(true);
+    try {
+      const result = await updateUserProfileFields({ avatarId: selectedAvatarId });
+      if (!result?.success) {
+        appAlert('Błąd', 'Nie udało się zapisać avatara. Spróbuj ponownie.');
+        return;
+      }
+
+      setAvatarPickerVisible(false);
+    } catch (error) {
+      console.error('Failed to save profile avatar:', error);
+      appAlert('Błąd', 'Nie udało się zapisać avatara. Spróbuj ponownie.');
+    } finally {
+      setIsSavingAvatar(false);
+    }
+  };
 
   // How many columns we want
   const columns = width < 340 ? 1 : width <= 375 ? 2 : 3;
@@ -478,9 +510,24 @@ export default function Profile() {
             </TouchableOpacity>
 
             <View style={styles.profileSection}>
-              <View style={styles.profileImageContainer}>
-                <Ionicons name="person-circle" size={68} color={colors.iconColor} />
-              </View>
+              <Pressable
+                style={styles.profileImageContainer}
+                onPress={openAvatarPicker}
+                accessibilityRole="button"
+                accessibilityLabel="Zmień avatar profilu"
+              >
+                {getProfileAvatarSource(profile?.avatarId) ? (
+                  <Image
+                    source={getProfileAvatarSource(profile?.avatarId)}
+                    style={[
+                      styles.profileAvatar,
+                      { backgroundColor: theme === 'dark' ? '#cccccc' : 'transparent' },
+                    ]}
+                  />
+                ) : (
+                  <Ionicons name="person-circle" size={68} color={colors.iconColor} />
+                )}
+              </Pressable>
               <View style={styles.profileDetails}>
                 <Text style={[styles.userName, { color: colors.title }]} numberOfLines={1}>
                   {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}
@@ -810,6 +857,74 @@ export default function Profile() {
               : false
           } />
       </ScrollView>
+
+      <Modal
+        visible={avatarPickerVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAvatarPickerVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.avatarPickerModal, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.title }]}>Wybierz avatar</Text>
+              <Pressable
+                onPress={() => setAvatarPickerVisible(false)}
+                hitSlop={10}
+                accessibilityRole="button"
+                accessibilityLabel="Zamknij wybór avatara"
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </Pressable>
+            </View>
+
+            <View style={styles.avatarOptions}>
+              {PROFILE_AVATARS.map(({ id, source }) => {
+                const isSelected = selectedAvatarId === id;
+                return (
+                  <Pressable
+                    key={id}
+                    onPress={() => setSelectedAvatarId(id)}
+                    style={[
+                      styles.avatarOption,
+                      {
+                        borderColor: isSelected ? colors.primary : colors.border,
+                        backgroundColor: colors.cardInCardBackground,
+                      },
+                    ]}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: isSelected }}
+                    accessibilityLabel={`Avatar ${id.replace('avatar_', '')}`}
+                  >
+                    <Image source={source} style={styles.avatarOptionImage} />
+                    {isSelected && (
+                      <View style={[styles.avatarSelectedBadge, { backgroundColor: colors.primary }]}>
+                        <Ionicons name="checkmark" size={14} color={colors.butText} />
+                      </View>
+                    )}
+                  </Pressable>
+                );
+              })}
+            </View>
+
+            <Pressable
+              onPress={saveAvatar}
+              disabled={!selectedAvatarId || isSavingAvatar}
+              style={[
+                styles.saveAvatarButton,
+                { backgroundColor: colors.butBackground, opacity: !selectedAvatarId || isSavingAvatar ? 0.6 : 1 },
+              ]}
+              accessibilityRole="button"
+            >
+              {isSavingAvatar ? (
+                <ActivityIndicator size="small" color={colors.butText} />
+              ) : (
+                <Text style={[styles.saveAvatarText, { color: colors.butText }]}>Zapisz</Text>
+              )}
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -983,6 +1098,64 @@ const styles = StyleSheet.create({
   profileImageContainer: {
     alignSelf: 'flex-start',
     marginRight: 12,
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  profileAvatar: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 44,
+  },
+  avatarPickerModal: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 18,
+  },
+  avatarOptions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 16,
+    paddingVertical: 12,
+  },
+  avatarOption: {
+    width: 92,
+    height: 92,
+    borderRadius: 46,
+    borderWidth: 3,
+    padding: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarOptionImage: {
+    width: '100%',
+    height: '100%',
+    borderRadius: 42,
+  },
+  avatarSelectedBadge: {
+    position: 'absolute',
+    right: -1,
+    bottom: -1,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  saveAvatarButton: {
+    minHeight: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+  },
+  saveAvatarText: {
+    fontSize: 15,
+    fontWeight: '700',
   },
   userName: {
     fontSize: 24,
