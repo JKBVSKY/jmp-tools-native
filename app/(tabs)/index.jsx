@@ -25,9 +25,37 @@ import SessionModal from '../modals/SessionModal';
 import { getLeaderboardCache, getUserScoreHistoryCache, setLeaderboardCache, setUserScoreHistoryCache } from '../../services/ScoreDataCache';
 import { useNetwork } from '../../services/useNetwork';
 import { buildPickingChart } from '../../utils/pickingChartData';
-import { buildUnloadingChart, getUnloadingChartMetric } from '../../utils/unloadingChartData';
+import { buildUnloadingChart, getUnloadingChartMetric, readSessionDate, toFiniteNumber } from '../../utils/unloadingChartData';
 
 const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
+
+// Subsections with at least one valid entry (boxes > 0, time > 0) in a picking session started in `year`.
+// Every entry is validated independently; result keeps the PICKING_SUBSECTIONS order.
+const getPickingSubsectionsForYear = (sessions, year) => {
+  const found = new Set();
+
+  (Array.isArray(sessions) ? sessions : []).forEach((session) => {
+    if (!session || typeof session !== 'object' || session.sessionType !== 'picking') return;
+
+    const entries = session.picking?.subsectionEntries;
+    if (!Array.isArray(entries)) return;
+
+    const date = readSessionDate(session);
+    if (!date || date.getFullYear() !== year) return;
+
+    entries.forEach((entry) => {
+      if (!entry || typeof entry !== 'object' || !PICKING_SUBSECTIONS.includes(entry.subsection)) return;
+
+      const boxes = toFiniteNumber(entry.boxesCount);
+      const seconds = toFiniteNumber(entry.sessionTime);
+      if (boxes === null || boxes <= 0 || seconds === null || seconds <= 0) return;
+
+      found.add(entry.subsection);
+    });
+  });
+
+  return PICKING_SUBSECTIONS.filter((subsection) => found.has(subsection));
+};
 
 
 // inside app/(tabs)/index.jsx
@@ -365,11 +393,17 @@ export default function Dashboard() {
     return base;
   }, [pickingSessionsForMonth]);
 
+  const currentYear = now.getFullYear();
+  const visiblePickingSubsections = useMemo(
+    () => getPickingSubsectionsForYear(sessions, currentYear),
+    [sessions, currentYear]
+  );
+
   const pickingDefaultSubsection = useMemo(() => {
-    let best = PICKING_SUBSECTIONS[0];
+    let best = visiblePickingSubsections[0] ?? null;
     let bestTime = -1;
 
-    PICKING_SUBSECTIONS.forEach((subsection) => {
+    visiblePickingSubsections.forEach((subsection) => {
       const sessionTime = Number(pickingStatsBySubsection[subsection]?.sessionTime || 0);
       if (sessionTime > bestTime) {
         best = subsection;
@@ -378,20 +412,23 @@ export default function Dashboard() {
     });
 
     return best;
-  }, [pickingStatsBySubsection]);
+  }, [pickingStatsBySubsection, visiblePickingSubsections]);
+
+  // Kept selection if still visible; first visible one if it vanished; default if nothing was chosen yet.
+  const activePickingSubsection = visiblePickingSubsections.length === 0
+    ? null
+    : visiblePickingSubsections.includes(selectedPickingSubsection)
+      ? selectedPickingSubsection
+      : selectedPickingSubsection
+        ? visiblePickingSubsections[0]
+        : pickingDefaultSubsection;
 
   useEffect(() => {
-    if (!selectedPickingSubsection) {
-      setSelectedPickingSubsection(pickingDefaultSubsection);
-      return;
+    if (activePickingSubsection !== selectedPickingSubsection) {
+      setSelectedPickingSubsection(activePickingSubsection);
     }
+  }, [activePickingSubsection, selectedPickingSubsection]);
 
-    if (!PICKING_SUBSECTIONS.includes(selectedPickingSubsection)) {
-      setSelectedPickingSubsection(pickingDefaultSubsection);
-    }
-  }, [pickingDefaultSubsection, selectedPickingSubsection]);
-
-  const activePickingSubsection = selectedPickingSubsection || pickingDefaultSubsection;
   const activePickingStats = pickingStatsBySubsection[activePickingSubsection] || {
     boxesCount: 0,
     sessionTime: 0,
@@ -403,7 +440,7 @@ export default function Dashboard() {
 
   const pickingChart = useMemo(
     () => (
-      averageChartPeriod === 'today'
+      averageChartPeriod === 'today' || !activePickingSubsection
         ? null
         : buildPickingChart(sessions, averageChartPeriod, activePickingSubsection, now)
     ),
@@ -877,8 +914,15 @@ export default function Dashboard() {
 
   const pickingSummarySection = (
     <View style={styles.summaryContainer}>
+      {!activePickingSubsection && !loading && (
+        <Text style={[styles.pickingEmptyText, { color: colors.textSecondary }]}>
+          Brak zapisanych sesji Picking w tym roku.
+        </Text>
+      )}
+
+      {activePickingSubsection && (
       <View style={styles.pickingSubsectionSelector}>
-        {PICKING_SUBSECTIONS.map((subsection) => {
+        {visiblePickingSubsections.map((subsection) => {
           const isActive = activePickingSubsection === subsection;
           return (
             <Pressable
@@ -897,7 +941,9 @@ export default function Dashboard() {
           );
         })}
       </View>
+      )}
 
+      {activePickingSubsection && (
       <View style={styles.statsGrid}>
         <ThemedCard
           style={[
@@ -992,6 +1038,7 @@ export default function Dashboard() {
           </ThemedCard>
         </Animated.ScrollView>
       </View>
+      )}
     </View>
   );
 
@@ -1343,6 +1390,11 @@ const styles = StyleSheet.create({
     gap: 8,
     marginHorizontal: 4,
     marginBottom: 12,
+  },
+  pickingEmptyText: {
+    marginHorizontal: 4,
+    marginBottom: 12,
+    fontSize: 15,
   },
   subsectionChip: {
     borderWidth: 1,
