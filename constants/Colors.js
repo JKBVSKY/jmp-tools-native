@@ -29,6 +29,7 @@ export const Colors = {
     // Buttons - Modern red accent
     butBackground: '#EE6549',    // Red button
     cardButBackground: '#3A3C40',
+    cardButBorder: '#3A3C40',
     butText: '#FFFFFF',
     butBorder: '#b93622',        // Darker red for border
     outButBackground: '#292A2D', // Gray background for outlined button
@@ -87,7 +88,8 @@ export const Colors = {
 
     // Buttons - Modern red
     butBackground: '#EE6549',    // Red button
-    cardButBackground: '#FFFFFF',
+    cardButBackground: '#F1F3F4',
+    cardButBorder: '#DADCE0',
     butText: '#FFFFFF',
     butBorder: '#EE6549',        // Darker red
     outButBackground: '#FFFFFF',

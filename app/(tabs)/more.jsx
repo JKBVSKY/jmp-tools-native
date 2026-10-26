@@ -53,7 +53,7 @@ export default function More() {
 
             {/* Kalkulator Średniej */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 // route to path here
@@ -66,7 +66,7 @@ export default function More() {
 
             {/* Przelicznik Czasu */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/timeConverter');
@@ -78,7 +78,7 @@ export default function More() {
 
             {/* Harmonogram */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/ScheduleScreen');
@@ -90,7 +90,7 @@ export default function More() {
 
             {/* Zgłoszenia */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/ReportsScreen');
@@ -102,7 +102,7 @@ export default function More() {
 
             {/* PalletMap */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/Mapping');
@@ -114,7 +114,7 @@ export default function More() {
 
             {/* WarehouseMap */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/WarehouseMap');
@@ -126,7 +126,7 @@ export default function More() {
 
             {/* Szukanie Towaru */}
             {/* <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
+              style={[styles.card, { backgroundColor: colors.disabledButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
             onPress={() => {
               router.push('/misc/goodsFinder');
@@ -143,7 +143,7 @@ export default function More() {
 
           <View style={styles.cardsGrid}>
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/profile');
@@ -153,7 +153,7 @@ export default function More() {
               <Text style={[styles.cardText, { color: colors.text }]}>Profil</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/settings');
@@ -163,7 +163,7 @@ export default function More() {
               <Text style={[styles.cardText, { color: colors.text }]}>Ustawienia</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={() => {
                 router.push('/misc/about');
@@ -173,7 +173,7 @@ export default function More() {
               <Text style={[styles.cardText, { color: colors.text }]}>O aplikacji</Text>
             </TouchableOpacity>
             {/* <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.disabledButBackground }]}
+              style={[styles.card, { backgroundColor: colors.disabledButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
             onPress={() => {
               router.push('/misc/help');
@@ -183,7 +183,7 @@ export default function More() {
               <Text style={[styles.cardText, { color: colors.textSecondary }]}>Pomoc</Text>
             </TouchableOpacity> */}
             <TouchableOpacity
-              style={[styles.card, { backgroundColor: colors.cardButBackground }]}
+              style={[styles.card, { backgroundColor: colors.cardButBackground, borderColor: colors.cardButBorder }]}
               activeOpacity={0.8}
               onPress={handleLogout}
             >
@@ -238,6 +238,7 @@ const styles = StyleSheet.create({
     height: 100,
     width: '48%',
     borderRadius: 12,
+    borderWidth: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
