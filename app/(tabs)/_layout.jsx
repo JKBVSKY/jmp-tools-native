@@ -127,7 +127,7 @@ export default function TabLayout() {
             </Pressable>
 
             <Pressable
-              onPress={() => goTo('/app/(tabs)/profile')}
+              onPress={() => goTo('/misc/profile')}
               style={({ pressed }) => [
                 styles.sidebarItem,
                 isRouteActive('profile') && styles.sidebarItemActive,
@@ -170,13 +170,14 @@ export default function TabLayout() {
             backBehavior="initialRoute"
             screenOptions={{
               headerShown: false,
-              tabBarActiveTintColor: 'red',
+              tabBarActiveTintColor: '#EE6549',
               tabBarInactiveTintColor: colors.tabInactive || '#9ca3af',
               tabBarStyle: {
                 height: 70 + insets.bottom,
                 paddingTop: 8,
                 backgroundColor: colors.botBarBackground,
-                borderTopColor: 'transparent',
+                borderTopColor: colors.breakLine,
+                borderTopWidth: 2,
                 overflow: 'hidden',
                 ...(isWeb ? { display: 'none' } : null), // hide bar on web
               },

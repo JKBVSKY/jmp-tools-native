@@ -72,12 +72,12 @@ const getRankCaption = (rank, participantsCount) => (
     : `miejsce · ${participantsCount} ${getPeopleLabel(participantsCount)}`
 );
 
-function SummaryStatCard({ colors, icon, title, value, caption }) {
+function SummaryStatCard({ colors, cardBackground, icon, title, value, caption }) {
   return (
     <ThemedCard
       style={[
         styles.summaryCard,
-        { backgroundColor: colors.cardInCardBackground, borderColor: colors.border },
+        { backgroundColor: cardBackground, borderColor: colors.border },
       ]}
     >
       <Ionicons name={icon} size={24} color={colors.grayIconColor} style={styles.summaryCardIcon} />
@@ -107,13 +107,13 @@ function SummaryStatCard({ colors, icon, title, value, caption }) {
 }
 
 // Fixed 2 x 2 layout: cards = [pallets/boxes, rank, time, efficiency].
-function SummaryCardsGrid({ colors, cards }) {
+function SummaryCardsGrid({ colors, cardBackground, cards }) {
   return (
     <View style={styles.summaryCardsGrid}>
       {[cards.slice(0, 2), cards.slice(2, 4)].map((row, rowIndex) => (
         <View key={rowIndex} style={styles.summaryCardsRow}>
           {row.map(({ key, ...card }) => (
-            <SummaryStatCard key={key} colors={colors} {...card} />
+            <SummaryStatCard key={key} colors={colors} cardBackground={cardBackground} {...card} />
           ))}
         </View>
       ))}
@@ -873,7 +873,7 @@ export default function Dashboard() {
   };
 
   const handleAvatarPress = () => {
-    router.push('/(tabs)/profile');
+    router.push('/misc/profile');
   };
 
   const avatarUri = profile?.photoURL || 'https://via.placeholder.com/150/cccccc/ffffff?text=Avatar';
@@ -916,6 +916,7 @@ export default function Dashboard() {
 
         <SummaryCardsGrid
           colors={colors}
+          cardBackground={theme === 'dark' ? monthlyCardPalette.background : colors.cardInCardBackground}
           cards={[
             {
               key: 'rank',
@@ -1017,6 +1018,7 @@ export default function Dashboard() {
 
         <SummaryCardsGrid
           colors={colors}
+          cardBackground={theme === 'dark' ? monthlyCardPalette.background : colors.cardInCardBackground}
           cards={[
             {
               key: 'rank',
@@ -1066,11 +1068,11 @@ export default function Dashboard() {
           <View style={styles.guestHeader}>
             <View style={styles.headerRow}>
               <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
-                <Ionicons name="person-circle" size={64} color={colors.iconColor} />
+                <Ionicons name="person-circle" size={72} color={colors.iconColor} />
               </TouchableOpacity>
               <Text style={[styles.welcome, { color: colors.text, marginLeft: 12 }]}>Witaj, {user?.name || 'User'}!</Text>
             </View>
-            <Text style={{ color: colors.text, fontSize: 15 }}>Produktywność na wyciągnięcie ręki.</Text>
+            {/* <Text style={{ color: colors.text, fontSize: 15 }}>Produktywność na wyciągnięcie ręki.</Text> */}
           </View>
           <View style={[styles.guestBanner, { backgroundColor: colors.guestBackground }]}>
             <Text style={[styles.guestText, { color: colors.guestText }]}>
@@ -1096,11 +1098,13 @@ export default function Dashboard() {
                 backgroundColor: colors.navBackground,
                 paddingTop: insets.top + 8,
                 paddingHorizontal: 24,
+                borderBottomColor: colors.breakLine,
+                borderBottomWidth: 1,
               },
             ]}
           >
             <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
-              <Ionicons name="person-circle" size={64} color={colors.iconColor} />
+              <Ionicons name="person-circle" size={72} color={colors.iconColor} />
               {/* <Image source={{ uri: avatarUri }} style={styles.avatar} /> */}
             </TouchableOpacity>
             <View style={styles.headerDetails}>
@@ -1108,7 +1112,7 @@ export default function Dashboard() {
                 Witaj, {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}!
               </Text>
               <Text style={{ color: colors.textSecondary, fontSize: 15 }}>
-                Produktywność na wyciągnięcie ręki.
+                Panel główny
               </Text>
               <View style={styles.headerChipRow}>
                 <View style={[styles.headerChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
@@ -1120,7 +1124,7 @@ export default function Dashboard() {
                   </Text>
                 </View>
               </View>
-              <View
+              {/* <View
                 style={[
                   styles.headerXPTrack,
                   { backgroundColor: colors.inputBackground, borderColor: colors.border },
@@ -1135,7 +1139,7 @@ export default function Dashboard() {
               </View>
               <Text style={[styles.headerXPText, { color: colors.textSecondary }]} numberOfLines={1}>
                 {currentXP} / {nextXP} XP
-              </Text>
+              </Text> */}
             </View>
           </View>
 
@@ -1213,8 +1217,6 @@ export default function Dashboard() {
               styles.buttonContainer,
               {
                 backgroundColor: colors.navBackground,
-                borderTopColor: colors.border,
-                borderTopWidth: 1,
               },
             ]}
           >
@@ -1365,9 +1367,9 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   avatarTouchable: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     overflow: 'hidden',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1458,6 +1460,7 @@ const styles = StyleSheet.create({
   statCardWide: {
     width: '100%',
     aspectRatio: 1.25,
+    marginTop: 12,
     marginBottom: 12,
     padding: 0,
     borderRadius: 16,
