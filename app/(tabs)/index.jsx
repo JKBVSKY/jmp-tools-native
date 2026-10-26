@@ -129,27 +129,10 @@ const calculateSummary = (sessionsArray) => {
   return { totalPallets, totalTime, averageRate };
 };
 
-const AVERAGE_CHART_DATA = {
-  today: {
-    label: 'Dzisiaj',
-    values: [38, 45, 34, 49, 41, 36, 47, 32, 44, 39],
-    labels: Array(10).fill('00:00'),
-  },
-  week: {
-    label: 'Tydzień',
-    values: [42, 35, 48, 39, 45, 33, 50],
-    labels: ['pon', 'wt', 'śr', 'czw', 'pt', 'sob', 'nd'],
-  },
-  month: {
-    label: 'Miesiąc',
-    values: [36, 44, 39, 48, 32, 45, 41, 37, 49, 34, 43, 38, 46, 31, 50, 40, 35, 47, 42, 33],
-    labels: Array.from({ length: 20 }, (_, index) => String(index + 1)),
-  },
-  year: {
-    label: 'Rok',
-    values: [45, 38, 49, 34, 42, 36, 48, 40, 33, 46, 39, 50],
-    labels: ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'],
-  },
+const AVERAGE_CHART_PERIODS = {
+  week: { label: 'Tydzień' },
+  month: { label: 'Miesiąc' },
+  year: { label: 'Rok' },
 };
 
 const MONTHLY_CARD_PALETTE = {
@@ -178,7 +161,7 @@ const MONTHLY_CARD_PALETTE = {
 function AverageChartTabs({ selectedPeriod, onSelectPeriod, palette }) {
   return (
     <View style={[styles.averageChartTabs, { backgroundColor: palette.surface }]}>
-      {Object.entries(AVERAGE_CHART_DATA).map(([period, { label }]) => {
+      {Object.entries(AVERAGE_CHART_PERIODS).map(([period, { label }]) => {
         const isSelected = selectedPeriod === period;
         return (
           <Pressable
@@ -209,39 +192,53 @@ function AverageChartTabs({ selectedPeriod, onSelectPeriod, palette }) {
   );
 }
 
-// Mock buckets (used by sections that don't have real data yet) in the same shape as real ones.
-const getMockBuckets = (period) => {
-  const { values, labels } = AVERAGE_CHART_DATA[period];
-  return values.map((value, index) => ({
-    key: String(index),
-    label: labels[index],
-    a11yName: labels[index],
-    value,
-    valueText: String(value),
-    heightRatio: 0.6 + ((value - 30) / 20) * 0.4,
-    isCurrent: index === values.length - 1,
-  }));
+const EMPTY_PERIOD_MESSAGES = {
+  week: 'Brak sesji w tym tygodniu',
+  month: 'Brak sesji w tym miesiącu',
+  year: 'Brak sesji w tym roku',
 };
 
 function AverageBarChart({ selectedPeriod, palette, buckets, selectedKey, onSelectKey }) {
   const [plotHeight, setPlotHeight] = useState(0);
+  // Bottom edge of the bar area (y within the chart); the baseline is drawn right below it.
+  const [baselineY, setBaselineY] = useState(0);
 
   const labelFontSize = selectedPeriod === 'week'
     ? 11
     : selectedPeriod === 'year'
       ? 9
       : 8;
+  // A bucket with value 0 is a valid session; only null means "no session".
+  const hasAnyData = buckets.some((bucket) => bucket.value !== null);
   const handleBarAreaLayout = (event) => {
-    const nextHeight = Math.round(event.nativeEvent.layout.height);
+    const { y, height } = event.nativeEvent.layout;
+    const nextHeight = Math.round(height);
     if (nextHeight > 0) {
       setPlotHeight((currentHeight) => (
         currentHeight === nextHeight ? currentHeight : nextHeight
       ));
+      const nextBaselineY = Math.round(y + height);
+      setBaselineY((currentY) => (currentY === nextBaselineY ? currentY : nextBaselineY));
     }
   };
 
   return (
     <View style={styles.averageChartBars}>
+      {baselineY > 0 && (
+        <>
+          <View
+            pointerEvents="none"
+            style={[styles.averageChartBaseline, { top: baselineY, backgroundColor: palette.border }]}
+          />
+          {!hasAnyData && buckets.length > 0 && (
+            <View pointerEvents="none" style={[styles.averageChartEmptyOverlay, { height: baselineY }]}>
+              <Text style={[styles.averageChartEmptyText, { color: palette.textSecondary }]}>
+                {EMPTY_PERIOD_MESSAGES[selectedPeriod] || EMPTY_PERIOD_MESSAGES.week}
+              </Text>
+            </View>
+          )}
+        </>
+      )}
       {buckets.map((bucket, index) => {
         const hasValue = bucket.value !== null;
         const isSelected = selectedKey === bucket.key;
@@ -395,17 +392,15 @@ export default function Dashboard() {
   const summary = calculateSummary(truckSessionsForMonth);
 
   const truckChart = useMemo(
-    () => (averageChartPeriod === 'today' ? null : buildUnloadingChart(sessions, averageChartPeriod, now)),
+    () => buildUnloadingChart(sessions, averageChartPeriod, now),
     [sessions, averageChartPeriod, now]
   );
-  const truckChartBuckets = truckChart ? truckChart.buckets : getMockBuckets(averageChartPeriod);
+  const truckChartBuckets = truckChart.buckets;
   const truckSelectedKey = truckSelectedBar?.period === averageChartPeriod ? truckSelectedBar.key : null;
-  const truckSelectedBucket = truckChart && truckSelectedKey !== null
-    ? truckChart.buckets.find((bucket) => bucket.key === truckSelectedKey) || null
+  const truckSelectedBucket = truckSelectedKey !== null
+    ? truckChartBuckets.find((bucket) => bucket.key === truckSelectedKey) || null
     : null;
-  const truckChartMetric = truckChart
-    ? getUnloadingChartMetric(truckChart, truckSelectedBucket)
-    : { title: 'Średnia miesięczna', value: `${summary.averageRate.toFixed(2)} pal/h` };
+  const truckChartMetric = getUnloadingChartMetric(truckChart, truckSelectedBucket);
 
   const handleAverageChartPeriodChange = (period) => {
     setAverageChartPeriod(period);
@@ -526,13 +521,14 @@ export default function Dashboard() {
 
   const pickingChart = useMemo(
     () => (
-      averageChartPeriod === 'today' || !activePickingSubsection
-        ? null
-        : buildPickingChart(sessions, averageChartPeriod, activePickingSubsection, now)
+      activePickingSubsection
+        ? buildPickingChart(sessions, averageChartPeriod, activePickingSubsection, now)
+        : null
     ),
     [sessions, averageChartPeriod, activePickingSubsection, now]
   );
-  const pickingChartBuckets = pickingChart ? pickingChart.buckets : getMockBuckets(averageChartPeriod);
+  // The picking chart card is rendered only when a subsection is active, so the fallbacks are never shown.
+  const pickingChartBuckets = pickingChart ? pickingChart.buckets : [];
   const pickingSelectedKey = pickingSelectedBar?.period === averageChartPeriod
     && pickingSelectedBar.scope === activePickingSubsection
     ? pickingSelectedBar.key
@@ -542,10 +538,7 @@ export default function Dashboard() {
     : null;
   const pickingChartMetric = pickingChart
     ? getUnloadingChartMetric(pickingChart, pickingSelectedBucket)
-    : {
-      title: `Średnia miesięczna (${activePickingSubsection})`,
-      value: `${activePickingStats.boxesRate.toFixed(2)} pacz/h`,
-    };
+    : { title: '', value: SUMMARY_PLACEHOLDER };
 
   const handlePickingSubsectionSelect = (subsection) => {
     setSelectedPickingSubsection(subsection);
@@ -1569,9 +1562,30 @@ const styles = StyleSheet.create({
     right: 0,
     height: 3,
   },
+  averageChartBaseline: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 1,
+  },
+  averageChartEmptyOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  averageChartEmptyText: {
+    fontSize: 12,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   averageChartLabel: {
     fontSize: 7,
     lineHeight: 9,
+    // Fixed height keeps columns with an empty label (month view) aligned with the baseline.
+    height: 9,
     marginTop: 2,
     textAlign: 'center',
   },
