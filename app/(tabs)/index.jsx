@@ -7,7 +7,6 @@ import { collection, doc, getDoc, getDocsFromServer, orderBy, query } from 'fire
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, AppState, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ThemedCard from '../../components/ThemedCard';
 import ThemedView from '../../components/ThemedView';
@@ -18,14 +17,13 @@ import { useThemeContext } from '../../context/ThemeContext';
 import { useTimetable } from '../../context/TimetableContext';
 import { useUserProfile } from '../../context/UserProfileContext';
 import { db } from '../../firebase/config';
-import { useAutoHorizontalScroll } from '../../hooks/useAutoHorizontalScroll';
 import { useColors } from '../../hooks/useColors';
 import { isSessionStartAllowed } from '../../utils/timetableAvailability';
 import SessionModal from '../modals/SessionModal';
 import { getLeaderboardCache, getUserScoreHistoryCache, setLeaderboardCache, setUserScoreHistoryCache } from '../../services/ScoreDataCache';
 import { useNetwork } from '../../services/useNetwork';
 import { buildPickingChart } from '../../utils/pickingChartData';
-import { buildUnloadingChart, getUnloadingChartMetric, readSessionDate, toFiniteNumber } from '../../utils/unloadingChartData';
+import { buildUnloadingChart, formatRate, getUnloadingChartMetric, readSessionDate, toFiniteNumber } from '../../utils/unloadingChartData';
 
 const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
 
@@ -57,6 +55,71 @@ const getPickingSubsectionsForYear = (sessions, year) => {
   return PICKING_SUBSECTIONS.filter((subsection) => found.has(subsection));
 };
 
+
+const SUMMARY_PLACEHOLDER = '—';
+
+// Polish plural for "osoba": 1 osoba, 2-4 osoby (except 12-14), otherwise osób.
+const getPeopleLabel = (count) => {
+  if (count === 1) return 'osoba';
+  const lastDigit = count % 10;
+  const lastTwoDigits = count % 100;
+  return lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 12 || lastTwoDigits > 14) ? 'osoby' : 'osób';
+};
+
+const getRankCaption = (rank, participantsCount) => (
+  rank === '-' || !Number.isFinite(participantsCount) || participantsCount <= 0
+    ? null
+    : `miejsce · ${participantsCount} ${getPeopleLabel(participantsCount)}`
+);
+
+function SummaryStatCard({ colors, icon, title, value, caption }) {
+  return (
+    <ThemedCard
+      style={[
+        styles.summaryCard,
+        { backgroundColor: colors.cardInCardBackground, borderColor: colors.border },
+      ]}
+    >
+      <Ionicons name={icon} size={24} color={colors.grayIconColor} style={styles.summaryCardIcon} />
+      <Text style={[styles.summaryCardTitle, { color: colors.cardTitle }]} numberOfLines={1}>
+        {title}
+      </Text>
+      <Text
+        style={[styles.summaryCardValue, { color: colors.cardValue }]}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.7}
+      >
+        {value}
+      </Text>
+      {caption ? (
+        <Text
+          style={[styles.summaryCardCaption, { color: colors.cardTitle }]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={0.8}
+        >
+          {caption}
+        </Text>
+      ) : null}
+    </ThemedCard>
+  );
+}
+
+// Fixed 2 x 2 layout: cards = [pallets/boxes, rank, time, efficiency].
+function SummaryCardsGrid({ colors, cards }) {
+  return (
+    <View style={styles.summaryCardsGrid}>
+      {[cards.slice(0, 2), cards.slice(2, 4)].map((row, rowIndex) => (
+        <View key={rowIndex} style={styles.summaryCardsRow}>
+          {row.map(({ key, ...card }) => (
+            <SummaryStatCard key={key} colors={colors} {...card} />
+          ))}
+        </View>
+      ))}
+    </View>
+  );
+}
 
 // inside app/(tabs)/index.jsx
 const calculateSummary = (sessionsArray) => {
@@ -265,7 +328,9 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isSessionModalVisible, setSessionModalVisible] = useState(false);
   const [rank, setRank] = useState('-');
+  const [truckRankCount, setTruckRankCount] = useState(null);
   const [pickingRanks, setPickingRanks] = useState({});
+  const [pickingRankCounts, setPickingRankCounts] = useState({});
   const [selectedPickingSubsection, setSelectedPickingSubsection] = useState(null);
   const [selectedDashboardTab, setSelectedDashboardTab] = useState('truck');
   const [averageChartPeriod, setAverageChartPeriod] = useState('week');
@@ -280,8 +345,6 @@ export default function Dashboard() {
   const showPicking = Array.isArray(profile?.preferences?.sections) && profile.preferences.sections.includes('kompletacja');
   const hasNoSections = !showTruck && !showPicking;
 
-  const CARD_SIZE = 140;
-
   const calc = useCalculator();
 
   const isSessionActive =
@@ -294,6 +357,9 @@ export default function Dashboard() {
     !isGuest &&
     !isSessionActive &&
     isSessionStartAllowed(timetableSnapshot.schedule, timetableSnapshot.isReady, now);
+  const isSessionStartUnavailable = !isSessionActive && !canStartNewSession;
+  const isSessionButtonDisabled =
+    isSessionModalVisible || isSessionStartUnavailable;
   const sessionAvailabilityText =
     isGuest || isSessionActive
       ? null
@@ -438,6 +504,26 @@ export default function Dashboard() {
 
   const activePickingRank = pickingRanks[activePickingSubsection] || '-';
 
+  // Fixed current-month reference, independent of the chart range and the selected bar.
+  const truckMonthlyRate = useMemo(
+    () => (showTruck ? buildUnloadingChart(sessions, 'month', now).summaryRate : null),
+    [showTruck, sessions, now]
+  );
+  const pickingMonthlyRate = useMemo(
+    () => (
+      showPicking && activePickingSubsection
+        ? buildPickingChart(sessions, 'month', activePickingSubsection, now).summaryRate
+        : null
+    ),
+    [showPicking, sessions, activePickingSubsection, now]
+  );
+
+  // `sessions = []` also means "not loaded yet", so history-based cards show a placeholder until then.
+  const isHistoryPending = loading && sessions.length === 0;
+  const formatMonthlyRate = (rate) => (
+    isHistoryPending || rate === null ? SUMMARY_PLACEHOLDER : formatRate(rate)
+  );
+
   const pickingChart = useMemo(
     () => (
       averageChartPeriod === 'today' || !activePickingSubsection
@@ -549,15 +635,19 @@ export default function Dashboard() {
     const truckArray = Array.isArray(docData?.truck) ? docData.truck : [];
     const userTruckIndex = truckArray.findIndex((entry) => entry.userId === userId);
     setRank(userTruckIndex >= 0 ? `${userTruckIndex + 1}.` : '-');
+    setTruckRankCount(truckArray.length);
 
     const nextPickingRanks = {};
+    const nextPickingRankCounts = {};
     const pickingObj = docData?.picking || {};
     PICKING_SUBSECTIONS.forEach((subsection) => {
       const subArray = Array.isArray(pickingObj[subsection]) ? pickingObj[subsection] : [];
       const userSubIndex = subArray.findIndex((entry) => entry.userId === userId);
       nextPickingRanks[subsection] = userSubIndex >= 0 ? `${userSubIndex + 1}.` : '-';
+      nextPickingRankCounts[subsection] = subArray.length;
     });
     setPickingRanks(nextPickingRanks);
+    setPickingRankCounts(nextPickingRankCounts);
   }, [userId]);
 
   const loadRank = useCallback(async (active) => {
@@ -565,7 +655,9 @@ export default function Dashboard() {
     if (!userId) {
       if (!isActive()) return;
       setRank('-');
+      setTruckRankCount(null);
       setPickingRanks({});
+      setPickingRankCounts({});
       return;
     }
 
@@ -605,7 +697,9 @@ export default function Dashboard() {
       } else {
         console.error('Failed to load rank:', error);
         setRank('-');
+        setTruckRankCount(null);
         setPickingRanks({});
+        setPickingRankCounts({});
       }
     }
   }, [applyLeaderboardData, currentMonth.month, currentMonth.year, userId]);
@@ -758,6 +852,8 @@ export default function Dashboard() {
       return;
     }
 
+    if (!canStartNewSession) return;
+
     setSessionModalVisible(true);
   };
 
@@ -775,33 +871,6 @@ export default function Dashboard() {
     const m = Math.floor((seconds % 3600) / 60);
     return `${h}h ${m}m`;
   };
-
-  //AutoHorizontalScroll Configuration
-  const {
-    scrollRef,
-    handleLayout,
-    handleContentSizeChange,
-    handleUserInteraction,
-    handleMomentumScrollEnd,
-    handleScrollEndDrag,
-  } = useAutoHorizontalScroll({
-    speed: 20,
-    pauseAtEdgesMs: 2000,
-    idleToResumeMs: 5000,
-  });
-
-  const {
-    scrollRef: pickingScrollRef,
-    handleLayout: handlePickingLayout,
-    handleContentSizeChange: handlePickingContentSizeChange,
-    handleUserInteraction: handlePickingUserInteraction,
-    handleMomentumScrollEnd: handlePickingMomentumScrollEnd,
-    handleScrollEndDrag: handlePickingScrollEndDrag,
-  } = useAutoHorizontalScroll({
-    speed: 20,
-    pauseAtEdgesMs: 2000,
-    idleToResumeMs: 5000,
-  });
 
   const handleAvatarPress = () => {
     router.push('/(tabs)/profile');
@@ -845,69 +914,37 @@ export default function Dashboard() {
           </View>
         </ThemedCard>
 
-        <Animated.ScrollView
-          ref={scrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          onLayout={handleLayout}
-          onContentSizeChange={handleContentSizeChange}
-          onTouchStart={handleUserInteraction}
-          onScrollBeginDrag={handleUserInteraction}
-          onScrollEndDrag={handleScrollEndDrag}
-          onMomentumScrollEnd={handleMomentumScrollEnd}
-          scrollEventThrottle={16}
-          contentContainerStyle={styles.horizontalCardsContent}
-        >
-          <ThemedCard
-            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
-          >
-            <Ionicons
-              name="layers-outline"
-              size={28}
-              style={[
-                styles.cardIcon,
-                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-              ]}
-            />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-              Palety
-            </Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
-              {summary.totalPallets}
-            </Text>
-          </ThemedCard>
-          <ThemedCard
-            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
-          >
-            <Ionicons
-              name="trophy-outline"
-              size={28}
-              style={[
-                styles.cardIcon,
-                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-              ]}
-            />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-              Ranking
-            </Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{rank}</Text>
-          </ThemedCard>
-          <ThemedCard
-            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE, }]}
-          >
-            <Ionicons
-              name="time-outline"
-              size={28}
-              style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
-            />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>
-              Czas
-            </Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
-              {formatTime(summary.totalTime)}
-            </Text>
-          </ThemedCard>
-        </Animated.ScrollView>
+        <SummaryCardsGrid
+          colors={colors}
+          cards={[
+            {
+              key: 'rank',
+              icon: 'trophy-outline',
+              title: 'Ranking',
+              value: rank,
+              caption: getRankCaption(rank, truckRankCount),
+            },
+            {
+              key: 'efficiency',
+              icon: 'speedometer-outline',
+              title: 'Wydajność',
+              value: formatMonthlyRate(truckMonthlyRate),
+              caption: 'pal/h · Ten miesiąc',
+            },
+            {
+              key: 'pallets',
+              icon: 'layers-outline',
+              title: 'Palety',
+              value: isHistoryPending ? SUMMARY_PLACEHOLDER : String(summary.totalPallets),
+            },
+            {
+              key: 'time',
+              icon: 'time-outline',
+              title: 'Czas pracy',
+              value: isHistoryPending ? SUMMARY_PLACEHOLDER : formatTime(summary.totalTime),
+            },
+          ]}
+        />
       </View>
     </View>
   );
@@ -978,65 +1015,37 @@ export default function Dashboard() {
           </View>
         </ThemedCard>
 
-        <Animated.ScrollView
-          ref={pickingScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          onLayout={handlePickingLayout}
-          onContentSizeChange={handlePickingContentSizeChange}
-          onTouchStart={handlePickingUserInteraction}
-          onScrollBeginDrag={handlePickingUserInteraction}
-          onScrollEndDrag={handlePickingScrollEndDrag}
-          onMomentumScrollEnd={handlePickingMomentumScrollEnd}
-          scrollEventThrottle={16}
-          contentContainerStyle={styles.horizontalCardsContent}
-        >
-          <ThemedCard
-            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE }]}
-          >
-            <Ionicons
-              name="cube-outline"
-              size={28}
-              style={[
-                styles.cardIcon,
-                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-              ]}
-            />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Paczki</Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>
-              {activePickingStats.boxesCount.toFixed(2)}
-            </Text>
-          </ThemedCard>
-
-          <ThemedCard
-            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE }]}
-          >
-            <Ionicons
-              name="trophy-outline"
-              size={28}
-              style={[
-                styles.cardIcon,
-                { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 },
-              ]}
-            />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Ranking</Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 20 }]}>{activePickingRank}</Text>
-          </ThemedCard>
-
-          <ThemedCard
-            style={[styles.statCard, { backgroundColor: colors.cardInCardBackground, borderColor: colors.border, width: CARD_SIZE, height: CARD_SIZE }]}
-          >
-            <Ionicons
-              name="time-outline"
-              size={28}
-              style={[styles.cardIcon, { color: colors.grayIconColor, marginLeft: -4, marginBottom: 4 }]}
-            />
-            <Text style={[styles.statTitle, { color: colors.cardTitle }]}>Czas</Text>
-            <Text style={[styles.statValue, { color: colors.cardValue, fontSize: 18, marginTop: 2 }]}>
-              {formatTime(activePickingStats.sessionTime)}
-            </Text>
-          </ThemedCard>
-        </Animated.ScrollView>
+        <SummaryCardsGrid
+          colors={colors}
+          cards={[
+            {
+              key: 'rank',
+              icon: 'trophy-outline',
+              title: 'Ranking',
+              value: activePickingRank,
+              caption: getRankCaption(activePickingRank, pickingRankCounts[activePickingSubsection]),
+            },
+            {
+              key: 'efficiency',
+              icon: 'speedometer-outline',
+              title: 'Wydajność',
+              value: formatMonthlyRate(pickingMonthlyRate),
+              caption: 'pacz/h · Ten miesiąc',
+            },
+            {
+              key: 'boxes',
+              icon: 'cube-outline',
+              title: 'Paczki',
+              value: isHistoryPending ? SUMMARY_PLACEHOLDER : String(Math.round(activePickingStats.boxesCount)),
+            },
+            {
+              key: 'time',
+              icon: 'time-outline',
+              title: 'Czas pracy',
+              value: isHistoryPending ? SUMMARY_PLACEHOLDER : formatTime(activePickingStats.sessionTime),
+            },
+          ]}
+        />
       </View>
       )}
     </View>
@@ -1079,64 +1088,64 @@ export default function Dashboard() {
 
       {!isGuest && (
         <View style={styles.content}>
+          {/* Pinned header: outside the ScrollView so it stays on top while the page scrolls */}
+          <View
+            style={[
+              styles.headerRow,
+              {
+                backgroundColor: colors.navBackground,
+                paddingTop: insets.top + 8,
+                paddingHorizontal: 24,
+              },
+            ]}
+          >
+            <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
+              <Ionicons name="person-circle" size={64} color={colors.iconColor} />
+              {/* <Image source={{ uri: avatarUri }} style={styles.avatar} /> */}
+            </TouchableOpacity>
+            <View style={styles.headerDetails}>
+              <Text style={[styles.welcome, { color: colors.text }]}>
+                Witaj, {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}!
+              </Text>
+              <Text style={{ color: colors.textSecondary, fontSize: 15 }}>
+                Produktywność na wyciągnięcie ręki.
+              </Text>
+              <View style={styles.headerChipRow}>
+                <View style={[styles.headerChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                  <Text style={[styles.headerChipText, { color: colors.title }]}>Poziom {level}</Text>
+                </View>
+                <View style={[styles.headerChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
+                  <Text style={[styles.headerChipText, { color: colors.text }]}>
+                    {unlockedAchievementsCount} osiągnięć
+                  </Text>
+                </View>
+              </View>
+              <View
+                style={[
+                  styles.headerXPTrack,
+                  { backgroundColor: colors.inputBackground, borderColor: colors.border },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.headerXPFill,
+                    { backgroundColor: colors.iconColor, width: `${Math.min(xpProgress, 100)}%` },
+                  ]}
+                />
+              </View>
+              <Text style={[styles.headerXPText, { color: colors.textSecondary }]} numberOfLines={1}>
+                {currentXP} / {nextXP} XP
+              </Text>
+            </View>
+          </View>
+
           <ScrollView
             style={{ flex: 1 }}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
-            {/* Top content */}
             <View>
-              <View
-                style={[
-                  styles.headerRow,
-                  {
-                    backgroundColor: colors.navBackground,
-                    paddingTop: insets.top + 8,
-                    paddingHorizontal: 24,
-                  },
-                ]}
-              >
-                <TouchableOpacity onPress={handleAvatarPress} style={styles.avatarTouchable}>
-                  <Ionicons name="person-circle" size={64} color={colors.iconColor} />
-                  {/* <Image source={{ uri: avatarUri }} style={styles.avatar} /> */}
-                </TouchableOpacity>
-                <View style={styles.headerDetails}>
-                  <Text style={[styles.welcome, { color: colors.text }]}>
-                    Witaj, {profile?.name || profile?.displayName || user?.name || user?.email || 'User'}!
-                  </Text>
-                  <Text style={{ color: colors.textSecondary, fontSize: 15 }}>
-                    Produktywność na wyciągnięcie ręki.
-                  </Text>
-                  <View style={styles.headerChipRow}>
-                    <View style={[styles.headerChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                      <Text style={[styles.headerChipText, { color: colors.title }]}>Poziom {level}</Text>
-                    </View>
-                    <View style={[styles.headerChip, { backgroundColor: colors.cardBackground, borderColor: colors.border }]}>
-                      <Text style={[styles.headerChipText, { color: colors.text }]}>
-                        {unlockedAchievementsCount} osiągnięć
-                      </Text>
-                    </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.headerXPTrack,
-                      { backgroundColor: colors.inputBackground, borderColor: colors.border },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        styles.headerXPFill,
-                        { backgroundColor: colors.iconColor, width: `${Math.min(xpProgress, 100)}%` },
-                      ]}
-                    />
-                  </View>
-                  <Text style={[styles.headerXPText, { color: colors.textSecondary }]} numberOfLines={1}>
-                    {currentXP} / {nextXP} XP
-                  </Text>
-                </View>
-              </View>
-
               {hasNoSections ? (
                 <View style={[styles.emptyStateContainer, { backgroundColor: colors.cardBackground, borderColor: colors.border, alignItems: 'center', paddingVertical: 32 }]}>
                   <Ionicons name="settings-outline" size={54} color={colors.iconColor} />
@@ -1222,11 +1231,13 @@ export default function Dashboard() {
             {/* Start Button */}
             <TouchableOpacity
               onPress={handleSessionButtonPress}
-              disabled={isSessionModalVisible}
+              disabled={isSessionButtonDisabled}
               style={[
                 styles.startButton,
                 {
-                  backgroundColor: colors.butBackground,
+                  backgroundColor: isSessionStartUnavailable
+                    ? colors.disabledButBackground
+                    : colors.butBackground,
                   marginTop: 8,
                   opacity: isSessionModalVisible ? 0.85 : 1,
                   height: 48,
@@ -1237,7 +1248,16 @@ export default function Dashboard() {
               {isSessionModalVisible ? (
                 <ActivityIndicator size="small" color={colors.butText} />
               ) : (
-                <Text style={[styles.startButtonText, { color: colors.butText }]}>
+                <Text
+                  style={[
+                    styles.startButtonText,
+                    {
+                      color: isSessionStartUnavailable
+                        ? colors.disabledButText
+                        : colors.butText,
+                    },
+                  ]}
+                >
                   {sessionButtonLabel}
                 </Text>
               )}
@@ -1402,14 +1422,38 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
   },
-  horizontalCardsContent: {
+  summaryCardsGrid: {
     gap: 12,
   },
-  statCard: {
+  summaryCardsRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  summaryCard: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 112,
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     borderWidth: 1,
     justifyContent: 'center',
+  },
+  summaryCardIcon: {
+    marginBottom: 6,
+  },
+  summaryCardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  summaryCardValue: {
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  summaryCardCaption: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2,
   },
   statCardWide: {
     width: '100%',
@@ -1530,16 +1574,6 @@ const styles = StyleSheet.create({
   },
   averageChartLabelWide: {
     width: 24,
-  },
-  statTitle: {
-    fontSize: 17,
-    fontWeight: '600',
-    marginBottom: 2,
-    marginTop: 2,
-  },
-  statValue: {
-    fontSize: 22,
-    fontWeight: '800',
   },
   guestBanner: {
     backgroundColor: '#FFF3CD',
