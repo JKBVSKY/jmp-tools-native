@@ -888,7 +888,7 @@ export default function Profile() {
                     style={[
                       styles.avatarOption,
                       {
-                        borderColor: isSelected ? colors.primary : colors.border,
+                        borderColor: isSelected ? colors.butBackground : colors.border,
                         backgroundColor: colors.cardInCardBackground,
                       },
                     ]}
@@ -896,10 +896,16 @@ export default function Profile() {
                     accessibilityState={{ selected: isSelected }}
                     accessibilityLabel={`Avatar ${id.replace('avatar_', '')}`}
                   >
-                    <Image source={source} style={styles.avatarOptionImage} />
+                    <Image
+                      source={source}
+                      style={[
+                        styles.avatarOptionImage,
+                        { backgroundColor: theme === 'dark' ? '#cccccc' : 'transparent' },
+                      ]}
+                    />
                     {isSelected && (
-                      <View style={[styles.avatarSelectedBadge, { backgroundColor: colors.primary }]}>
-                        <Ionicons name="checkmark" size={14} color={colors.butText} />
+                      <View style={[styles.avatarSelectedBadge, { backgroundColor: colors.butBackground }]}>
+                        <Ionicons name="checkmark" size={21} color={colors.butText} />
                       </View>
                     )}
                   </Pressable>
@@ -1138,11 +1144,11 @@ const styles = StyleSheet.create({
   },
   avatarSelectedBadge: {
     position: 'absolute',
-    right: -1,
-    bottom: -1,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
+    right: -3,
+    bottom: -3,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
   },
