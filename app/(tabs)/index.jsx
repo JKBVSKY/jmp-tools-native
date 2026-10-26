@@ -24,6 +24,8 @@ import { isSessionStartAllowed } from '../../utils/timetableAvailability';
 import SessionModal from '../modals/SessionModal';
 import { getLeaderboardCache, getUserScoreHistoryCache, setLeaderboardCache, setUserScoreHistoryCache } from '../../services/ScoreDataCache';
 import { useNetwork } from '../../services/useNetwork';
+import { buildPickingChart } from '../../utils/pickingChartData';
+import { buildUnloadingChart, getUnloadingChartMetric } from '../../utils/unloadingChartData';
 
 const PICKING_SUBSECTIONS = ['P01', 'P02', 'P03', 'P04', 'P05', 'P06', 'P15', 'P21', 'P28'];
 
@@ -116,13 +118,22 @@ function AverageChartTabs({ selectedPeriod, onSelectPeriod, palette }) {
   );
 }
 
-function AverageBarChart({ selectedPeriod, palette }) {
-  const chartData = AVERAGE_CHART_DATA[selectedPeriod];
+// Mock buckets (used by sections that don't have real data yet) in the same shape as real ones.
+const getMockBuckets = (period) => {
+  const { values, labels } = AVERAGE_CHART_DATA[period];
+  return values.map((value, index) => ({
+    key: String(index),
+    label: labels[index],
+    a11yName: labels[index],
+    value,
+    valueText: String(value),
+    heightRatio: 0.6 + ((value - 30) / 20) * 0.4,
+    isCurrent: index === values.length - 1,
+  }));
+};
+
+function AverageBarChart({ selectedPeriod, palette, buckets, selectedKey, onSelectKey }) {
   const [plotHeight, setPlotHeight] = useState(0);
-  const [selectedBarIndex, setSelectedBarIndex] = useState(null);
-  useEffect(() => {
-    setSelectedBarIndex(null);
-  }, [selectedPeriod]);
 
   const labelFontSize = selectedPeriod === 'week'
     ? 11
@@ -140,21 +151,20 @@ function AverageBarChart({ selectedPeriod, palette }) {
 
   return (
     <View style={styles.averageChartBars}>
-      {chartData.values.map((value, index) => {
-        const isSelected = selectedBarIndex === index;
+      {buckets.map((bucket, index) => {
+        const hasValue = bucket.value !== null;
+        const isSelected = selectedKey === bucket.key;
         const barAreaHeight = Math.max(10, plotHeight - 14);
-        const barHeight = Math.max(
-          10,
-          barAreaHeight * (0.6 + ((value - 30) / 20) * 0.4)
-        );
+        const barHeight = Math.max(10, barAreaHeight * bucket.heightRatio);
         return (
-          <View key={`${selectedPeriod}-${index}`} style={styles.averageChartColumn}>
+          <View key={`${selectedPeriod}-${bucket.key}`} style={styles.averageChartColumn}>
             <View
               style={styles.averageChartBarArea}
               onLayout={index === 0 ? handleBarAreaLayout : undefined}
             >
-              {isSelected && (
+              {isSelected && hasValue && (
                 <Text
+                  pointerEvents="none"
                   style={[
                     styles.averageChartBarValue,
                     {
@@ -163,40 +173,44 @@ function AverageBarChart({ selectedPeriod, palette }) {
                     },
                   ]}
                 >
-                  {value}
+                  {bucket.valueText}
                 </Text>
               )}
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel={`${chartData.labels[index]}: ${value}`}
+                accessibilityLabel={`${bucket.a11yName}: ${hasValue ? bucket.valueText : 'Brak danych'}`}
                 accessibilityState={{ selected: isSelected }}
-                onPress={() => setSelectedBarIndex((currentIndex) => (
-                  currentIndex === index ? null : index
-                ))}
-                style={[styles.averageChartBarPressable, { height: barHeight }]}
+                onPress={() => onSelectKey(bucket.key)}
+                style={styles.averageChartTouchArea}
               >
-                <LinearGradient
-                  colors={isSelected
-                    ? [palette.highlightedBar, palette.highlightedBar]
-                    : [palette.bar, palette.barBottom]}
-                  start={{ x: 0.5, y: 0 }}
-                  end={{ x: 0.5, y: 1 }}
-                  style={styles.averageChartBar}
-                >
-                  {index === chartData.values.length - 1 && !isSelected && (
-                    <View style={[styles.averageChartBarHighlight, { backgroundColor: palette.highlightedBar }]} />
-                  )}
-                </LinearGradient>
+                {hasValue && (
+                  <View style={[styles.averageChartBarPressable, { height: barHeight }]}>
+                    <LinearGradient
+                      colors={isSelected
+                        ? [palette.highlightedBar, palette.highlightedBar]
+                        : [palette.bar, palette.barBottom]}
+                      start={{ x: 0.5, y: 0 }}
+                      end={{ x: 0.5, y: 1 }}
+                      style={styles.averageChartBar}
+                    >
+                      {bucket.isCurrent && !isSelected && (
+                        <View style={[styles.averageChartBarHighlight, { backgroundColor: palette.highlightedBar }]} />
+                      )}
+                    </LinearGradient>
+                  </View>
+                )}
               </Pressable>
             </View>
             <Text
               style={[
                 styles.averageChartLabel,
+                selectedPeriod === 'month' && styles.averageChartLabelWide,
                 { color: palette.textSecondary, fontSize: labelFontSize },
+                isSelected && !hasValue && { color: palette.highlightedBar, fontWeight: '700' },
               ]}
               numberOfLines={1}
             >
-              {chartData.labels[index]}
+              {bucket.label}
             </Text>
           </View>
         );
@@ -227,6 +241,9 @@ export default function Dashboard() {
   const [selectedPickingSubsection, setSelectedPickingSubsection] = useState(null);
   const [selectedDashboardTab, setSelectedDashboardTab] = useState('truck');
   const [averageChartPeriod, setAverageChartPeriod] = useState('week');
+  // Selection is bound to a bucket key (day/month) and the period it was made in, never to an index.
+  const [truckSelectedBar, setTruckSelectedBar] = useState(null);
+  const [pickingSelectedBar, setPickingSelectedBar] = useState(null);
   const [now, setNow] = useState(() => new Date());
   const userId = user?.id;
 
@@ -282,6 +299,34 @@ export default function Dashboard() {
   const pickingSessionsForMonth = sessionsForMonth.filter((s) => s.sessionType === 'picking');
 
   const summary = calculateSummary(truckSessionsForMonth);
+
+  const truckChart = useMemo(
+    () => (averageChartPeriod === 'today' ? null : buildUnloadingChart(sessions, averageChartPeriod, now)),
+    [sessions, averageChartPeriod, now]
+  );
+  const truckChartBuckets = truckChart ? truckChart.buckets : getMockBuckets(averageChartPeriod);
+  const truckSelectedKey = truckSelectedBar?.period === averageChartPeriod ? truckSelectedBar.key : null;
+  const truckSelectedBucket = truckChart && truckSelectedKey !== null
+    ? truckChart.buckets.find((bucket) => bucket.key === truckSelectedKey) || null
+    : null;
+  const truckChartMetric = truckChart
+    ? getUnloadingChartMetric(truckChart, truckSelectedBucket)
+    : { title: 'Średnia miesięczna', value: `${summary.averageRate.toFixed(2)} pal/h` };
+
+  const handleAverageChartPeriodChange = (period) => {
+    setAverageChartPeriod(period);
+    setTruckSelectedBar(null);
+    setPickingSelectedBar(null);
+  };
+
+  // `scope` ties a selection to extra context (e.g. the picking subsection).
+  const toggleSelectedBar = (setSelectedBar, scope = null) => (key) => {
+    setSelectedBar((current) => (
+      current?.period === averageChartPeriod && current.scope === scope && current.key === key
+        ? null
+        : { period: averageChartPeriod, scope, key }
+    ));
+  };
 
   const pickingStatsBySubsection = useMemo(() => {
     const base = PICKING_SUBSECTIONS.reduce((acc, subsection) => {
@@ -355,6 +400,34 @@ export default function Dashboard() {
   };
 
   const activePickingRank = pickingRanks[activePickingSubsection] || '-';
+
+  const pickingChart = useMemo(
+    () => (
+      averageChartPeriod === 'today'
+        ? null
+        : buildPickingChart(sessions, averageChartPeriod, activePickingSubsection, now)
+    ),
+    [sessions, averageChartPeriod, activePickingSubsection, now]
+  );
+  const pickingChartBuckets = pickingChart ? pickingChart.buckets : getMockBuckets(averageChartPeriod);
+  const pickingSelectedKey = pickingSelectedBar?.period === averageChartPeriod
+    && pickingSelectedBar.scope === activePickingSubsection
+    ? pickingSelectedBar.key
+    : null;
+  const pickingSelectedBucket = pickingChart && pickingSelectedKey !== null
+    ? pickingChart.buckets.find((bucket) => bucket.key === pickingSelectedKey) || null
+    : null;
+  const pickingChartMetric = pickingChart
+    ? getUnloadingChartMetric(pickingChart, pickingSelectedBucket)
+    : {
+      title: `Średnia miesięczna (${activePickingSubsection})`,
+      value: `${activePickingStats.boxesRate.toFixed(2)} pacz/h`,
+    };
+
+  const handlePickingSubsectionSelect = (subsection) => {
+    setSelectedPickingSubsection(subsection);
+    setPickingSelectedBar(null);
+  };
 
 
   useEffect(() => {
@@ -714,20 +787,23 @@ export default function Dashboard() {
           <View style={styles.monthlyAverageContent}>
             <AverageChartTabs
               selectedPeriod={averageChartPeriod}
-              onSelectPeriod={setAverageChartPeriod}
+              onSelectPeriod={handleAverageChartPeriodChange}
               palette={monthlyCardPalette}
             />
             <View style={styles.monthlyAverageMetric}>
               <Text style={[styles.monthlyAverageTitle, { color: monthlyCardPalette.text }]}>
-                Średnia miesięczna
+                {truckChartMetric.title}
               </Text>
               <Text style={[styles.monthlyAverageValue, { color: monthlyCardPalette.text }]}>
-                {summary.averageRate.toFixed(2)} pal/h
+                {truckChartMetric.value}
               </Text>
             </View>
             <AverageBarChart
               selectedPeriod={averageChartPeriod}
               palette={monthlyCardPalette}
+              buckets={truckChartBuckets}
+              selectedKey={truckSelectedKey}
+              onSelectKey={toggleSelectedBar(setTruckSelectedBar)}
             />
           </View>
         </ThemedCard>
@@ -807,7 +883,7 @@ export default function Dashboard() {
           return (
             <Pressable
               key={subsection}
-              onPress={() => setSelectedPickingSubsection(subsection)}
+              onPress={() => handlePickingSubsectionSelect(subsection)}
               style={[
                 styles.subsectionChip,
                 {
@@ -835,20 +911,23 @@ export default function Dashboard() {
           <View style={styles.monthlyAverageContent}>
             <AverageChartTabs
               selectedPeriod={averageChartPeriod}
-              onSelectPeriod={setAverageChartPeriod}
+              onSelectPeriod={handleAverageChartPeriodChange}
               palette={monthlyCardPalette}
             />
             <View style={styles.monthlyAverageMetric}>
               <Text style={[styles.monthlyAverageTitle, { color: monthlyCardPalette.text }]}>
-                Średnia miesięczna ({activePickingSubsection})
+                {pickingChartMetric.title}
               </Text>
               <Text style={[styles.monthlyAverageValue, { color: monthlyCardPalette.text }]}>
-                {activePickingStats.boxesRate.toFixed(2)} pacz/h
+                {pickingChartMetric.value}
               </Text>
             </View>
             <AverageBarChart
               selectedPeriod={averageChartPeriod}
               palette={monthlyCardPalette}
+              buckets={pickingChartBuckets}
+              selectedKey={pickingSelectedKey}
+              onSelectKey={toggleSelectedBar(setPickingSelectedBar, activePickingSubsection)}
             />
           </View>
         </ThemedCard>
@@ -1355,6 +1434,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
+  averageChartTouchArea: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+  },
   averageChartBarPressable: {
     width: '72%',
     minHeight: 10,
@@ -1369,8 +1454,9 @@ const styles = StyleSheet.create({
   },
   averageChartBarValue: {
     position: 'absolute',
-    left: 0,
-    right: 0,
+    left: '50%',
+    marginLeft: -22,
+    width: 44,
     zIndex: 1,
     fontSize: 10,
     fontWeight: '700',
@@ -1389,6 +1475,9 @@ const styles = StyleSheet.create({
     lineHeight: 9,
     marginTop: 2,
     textAlign: 'center',
+  },
+  averageChartLabelWide: {
+    width: 24,
   },
   statTitle: {
     fontSize: 17,
